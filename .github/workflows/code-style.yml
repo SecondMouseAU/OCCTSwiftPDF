@@ -1,0 +1,58 @@
+name: code-style
+
+# The ecosystem's code-style policy (okf/policies/code-style.md), as in SwiftDXF and SwiftDWG.
+# swift-format and SwiftLint are blocking; the comment-ratio check is report-only and always
+# exits 0.
+#
+# Runs on the organisation's self-hosted Mac runner, as tests.yml does. It shares the runner's
+# workspace with tests.yml, so the checkout does not `git clean` away that job's .build, and the
+# tools are installed only when missing.
+
+on:
+  push:
+    paths:
+      - 'Sources/**'
+      - 'Tests/**'
+      - '.swift-format'
+      - '.swiftlint.yml'
+      - 'Scripts/comment-ratio-check.sh'
+      - '.github/workflows/code-style.yml'
+  pull_request:
+    paths:
+      - 'Sources/**'
+      - 'Tests/**'
+      - '.swift-format'
+      - '.swiftlint.yml'
+      - 'Scripts/comment-ratio-check.sh'
+      - '.github/workflows/code-style.yml'
+  workflow_dispatch:
+
+jobs:
+  code-style:
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: Install swift-format and SwiftLint
+        run: |
+          set -e
+          export PATH="/opt/homebrew/bin:$PATH"
+          echo /opt/homebrew/bin >> "$GITHUB_PATH"
+          brew list swift-format >/dev/null 2>&1 || brew install swift-format
+          brew list swiftlint >/dev/null 2>&1 || brew install swiftlint
+
+      - name: swift-format lint --strict
+        run: |
+          find Sources Tests -name '*.swift' -print0 \
+            | xargs -0 swift-format lint --strict --configuration .swift-format
+
+      - name: swiftlint lint --strict
+        if: '!cancelled()'
+        run: swiftlint lint --strict --config .swiftlint.yml
+
+      - name: Comment:code ratio (report-only, never fails)
+        if: '!cancelled()'
+        run: Scripts/comment-ratio-check.sh

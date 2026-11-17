@@ -1,0 +1,45 @@
+name: tests
+
+# `swift build` and `swift test` are separate steps so a compile failure and a test failure are
+# distinguishable at a glance. Blocking: a red here is meant to stop a merge.
+#
+# Tests that read third-party drawings are gated on PDF_CORPUS and skip where it is absent.
+#
+# Runs on the organisation's self-hosted Mac runner, as OCCTDesignLoop and ACADStudio do: this
+# repo is private and GitHub-hosted macOS minutes are not available to it. The runner is
+# persistent, so `.build` is kept between runs (no `git clean`, no cache step), a build is never
+# cancelled part way, and it runs at low priority on 4 cores because the Mac is shared.
+
+on:
+  push:
+    paths:
+      - 'Sources/**'
+      - 'Tests/**'
+      - 'Package.*'
+      - '.github/workflows/tests.yml'
+  pull_request:
+    paths:
+      - 'Sources/**'
+      - 'Tests/**'
+      - 'Package.*'
+      - '.github/workflows/tests.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  tests:
+    runs-on: [self-hosted, macOS, ARM64]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          clean: false
+
+      - name: swift build
+        run: nice -n 15 swift build -j 4
+
+      - name: swift test
+        run: nice -n 15 swift test -j 4
