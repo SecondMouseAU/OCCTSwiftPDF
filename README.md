@@ -9,8 +9,9 @@ Reads **vector PDF drawings** into `DXF.Drawing`, the drawing model of
 `DrawingLoader` is meant to read PDFs through it, as it reads the other formats.
 
 It uses Apple's frameworks only: CoreGraphics' PDF scanner for the drawing operations (paths,
-transforms, text placement, marked content) and PDFKit for decoded text. No third-party PDF
-library is linked.
+transforms, text placement, marked content), the package's own font decoding for the text, and
+PDFKit as a cross-check on that decoding and a fallback where it has no characters. No third-party
+PDF library is linked.
 
 ## Status
 
