@@ -38,6 +38,9 @@ extension PDF {
         /// Reference samples farther than `tolerance` from the PDF's geometry, by the layer and
         /// entity type they come from (`"15 LINE"`), to tell what the PDF is missing.
         public var uncovered: [String: Int]
+        /// The PDF drawing's samples farther than `tolerance` from the reference's geometry, by
+        /// layer and entity type (`"0 SPLINE"`), to tell what the reference does not have.
+        public var pdfUncovered: [String: Int]
     }
 
     /// Compare `drawing` (from a PDF page, in paper millimetres) with `reference` (the same sheet
@@ -127,10 +130,14 @@ extension PDF {
             tolerance: tolerance, textsMatched: matched, referenceTexts: refTexts.count,
             referenceSamples: refSamples.count, pdfSamples: pdfSamples.count,
             uncovered: uncovered(
-                reference, fit: fit, index: pdfIndex, step: step, tolerance: tolerance))
+                reference, fit: fit, index: pdfIndex, step: step, tolerance: tolerance),
+            pdfUncovered: uncovered(
+                drawing, fit: Similarity(scale: 1, rotation: 0, tx: 0, ty: 0), index: refIndex,
+                step: step, tolerance: tolerance))
     }
 
-    /// The reference's uncovered samples, entity by entity, keyed by layer and type.
+    /// A drawing's samples, placed by `fit`, that are farther than `tolerance` from the geometry in
+    /// `index`, entity by entity, keyed by layer and type.
     static func uncovered(
         _ reference: DXF.Drawing, fit: Similarity, index: SegmentIndex, step: Double,
         tolerance: Double

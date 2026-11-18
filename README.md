@@ -42,17 +42,19 @@ for page in document.pages where page.kind == .vector {
 ```bash
 swift run pdfprobe [--detail] <file-or-folder>...   # what each PDF is made of
 swift run pdfprobe compare <pdf> <dxf-or-zip>         # a PDF against the DXF of the same drawing
-swift run pdfprobe pairs <folder>                     # every <name>.pdf beside <name>_dxf.zip
+swift run pdfprobe pairs <folder>                     # every <name>.pdf beside <name>_dxf.zip, or _jww.zip
 swift run pdfprobe debug-text <pdf> <text>            # where this reader and PDFKit put a text
 ```
 
 `compare` and `pairs` take `--exclude-layer <name>` (repeatable) to leave a DXF layer out, such as
 Jw_cad's auxiliary lines, which are never printed: the TECS figures in the experiment page come
 from `pdfprobe pairs --exclude-layer ADD_LINE <tecs-pairs folder>`. A zip must hold exactly one
-entry, a DXF.
+entry, a DXF or a JWW. A JWW (`<name>_jww.zip` or `.lzh`, used where the DXF is missing) is read by
+SwiftJWW at full size, without Jw_cad's auxiliary lines, which are never printed.
 
 ## License
 
-LGPL-2.1, like OCCTSwiftIO, which is meant to read PDFs through this package. It links SwiftDXF
-(MIT) and Apple's system frameworks (CoreGraphics, PDFKit) and nothing else; no third-party code is
-copied into it, and no third-party drawings are committed.
+LGPL-2.1, like OCCTSwiftIO, which is meant to read PDFs through this package. The library links
+SwiftDXF (MIT) and Apple's system frameworks (CoreGraphics, PDFKit) and nothing else; the `pdfprobe`
+tool also links SwiftJWW (MIT). No third-party code is copied into it, and no third-party drawings
+are committed.

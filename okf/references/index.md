@@ -59,5 +59,8 @@ What eight real drawing PDFs contained (probed with `CGPDFScanner`):
 `PDF_CORPUS`, default `~/Projects/OCCTDesignLoop/drawingfiles` (not in any repository):
 
 - `PDFs/`: the McMaster PDFs, the Fowler set, the UK railway sheets and the eight probed files.
-- `tecs-pairs/`: the TECS drawings, each as a PDF beside a zipped DXF of the same drawing. These
-  are the paired ground truth the ecosystem plan's Phase 4 gate asks for.
+- `tecs-pairs/`: the TECS drawings (from the TECS CAD site, `http://tecs.g2.xrea.com/`, whose
+  drawings are published as PDF, DXF and JWW), 461 PDFs, each beside `<name>_dxf.zip` or, where
+  the site's DXF link is dead, `<name>_jww.zip`. These are the paired ground truth the ecosystem
+  plan's Phase 4 gate asks for; the Hankyu sheets among them are bitmap PDFs with exact DXFs,
+  ground truth for scans. The site states no licence, so none of it is committed anywhere.

@@ -5,7 +5,8 @@
 //
 //   pdfprobe [--detail] <file-or-folder>...   one line per PDF (vector, raster or mixed)
 //   pdfprobe compare <pdf> <dxf-or-zip>         the PDF's first page against the DXF
-//   pdfprobe pairs <folder>                     every <name>.pdf beside <name>_dxf.zip
+//   pdfprobe pairs <folder>                     every <name>.pdf beside <name>_dxf.zip, or beside
+//                                               <name>_jww.zip or .lzh where that is missing
 //
 // `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
 // auxiliary lines (`ADD_LINE` in the TECS DXFs), which are never printed.
@@ -14,6 +15,7 @@ import CoreGraphics
 import Foundation
 import OCCTSwiftPDF
 import PDFKit
+import SwiftJWW
 
 enum PDFKitPage {
     static func first(_ url: URL) -> PDFPage? { PDFDocument(url: url)?.page(at: 0) }
@@ -126,6 +128,65 @@ func summary(_ url: URL, detail: Bool) {
     print("  first texts: \(samples)")
 }
 
+/// A reference drawing: a DXF, a zip holding one, or a JWW (plain, or in a zip or LZH archive).
+///
+/// A JWW is read by SwiftJWW at full size, as Jw_cad's own DXF export is, without Jw_cad's
+/// auxiliary lines and colours (number 9), which Jw_cad never prints.
+func referenceDrawing(at url: URL) throws -> DXF.Drawing {
+    let name = url.lastPathComponent.lowercased()
+    let isJWW =
+        name.hasSuffix(".jww") || name.hasSuffix("_jww.zip") || name.hasSuffix(".lzh")
+    guard isJWW else { return try PDF.readReference(at: url) }
+    var jww = try JWW.read(data: try jwwData(at: url))
+    jww.elements.removeAll { $0.attributes.lineType == 9 || $0.attributes.color == 9 }
+    let output = DXFWriter.output(
+        jww, options: DXFWriter.Options(fullSize: true, recoversDimensions: false))
+    return try DXF.read(text: output.text, options: DXF.ReadOptions(expandBlocks: true))
+}
+
+/// The bytes of the one entry, a `.jww`, in a zip or LZH archive, read with `tar` (which reads
+/// both) to standard output, since the entry names are often Shift-JIS, which the file system
+/// refuses as names.
+func jwwData(at url: URL) throws -> Data {
+    guard !url.lastPathComponent.lowercased().hasSuffix(".jww") else {
+        return try Data(contentsOf: url)
+    }
+    let names = String(decoding: try run("/usr/bin/tar", ["-tf", url.path]), as: UTF8.self)
+        .split(separator: "\n")
+    guard names.count == 1, names[0].lowercased().hasSuffix(".jww") else {
+        throw PDF.Error.cannotOpen
+    }
+    return try run("/usr/bin/tar", ["-xOf", url.path])
+}
+
+func run(_ tool: String, _ arguments: [String]) throws -> Data {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: tool)
+    process.arguments = arguments
+    let output = Pipe()
+    process.standardOutput = output
+    process.standardError = FileHandle.nullDevice
+    try process.run()
+    let data = output.fileHandleForReading.readDataToEndOfFile()
+    process.waitUntilExit()
+    guard process.terminationStatus == 0 else { throw PDF.Error.cannotOpen }
+    return data
+}
+
+/// The reference beside `<stem>.pdf`: `<stem>_dxf.zip` when it is a real zip, otherwise
+/// `<stem>_jww.zip` or `<stem>_jww.lzh`.
+func pairedReference(_ folder: URL, _ stem: String) -> URL? {
+    let dxf = folder.appendingPathComponent("\(stem)_dxf.zip")
+    if let head = try? FileHandle(forReadingFrom: dxf).read(upToCount: 2), head == Data("PK".utf8) {
+        return dxf
+    }
+    for ext in ["zip", "lzh", "LZH"] {
+        let jww = folder.appendingPathComponent("\(stem)_jww.\(ext)")
+        if FileManager.default.fileExists(atPath: jww.path) { return jww }
+    }
+    return FileManager.default.fileExists(atPath: dxf.path) ? dxf : nil
+}
+
 func compareLine(_ pdf: String, _ reference: String) -> (
     line: String, result: PDF.Comparison?, pages: Int
 ) {
@@ -133,7 +194,7 @@ func compareLine(_ pdf: String, _ reference: String) -> (
     guard let document = try? PDF.read(contentsOf: URL(fileURLWithPath: pdf), maximumPages: 1),
         let page = document.pages.first
     else { return ("\(name)\tcannot open the PDF", nil, 0) }
-    guard var ref = try? PDF.readReference(at: URL(fileURLWithPath: reference)) else {
+    guard var ref = try? referenceDrawing(at: URL(fileURLWithPath: reference)) else {
         return ("\(name)\tcannot read the DXF", nil, document.pageCount)
     }
     if !excludedLayers.isEmpty {
@@ -243,17 +304,26 @@ case "compare" where arguments.count == 3:
             print("    \(key): \(count) samples (\(percent(Double(count) / total)) of the DXF)")
         }
     }
+    if let result, !result.pdfUncovered.isEmpty {
+        let total = Double(result.pdfSamples)
+        print("  PDF geometry farther than \(result.tolerance) mm from the DXF, by layer and type:")
+        for (key, count) in result.pdfUncovered.sorted(by: { $0.value > $1.value }).prefix(10) {
+            print("    \(key): \(count) samples (\(percent(Double(count) / total)) of the PDF)")
+        }
+    }
 case "pairs" where arguments.count == 2:
     let folder = URL(fileURLWithPath: arguments[1])
     let files = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
     var results: [(result: PDF.Comparison, pages: Int)] = []
     var failures = 0
+    var references: [String: Int] = [:]
     for file in files.sorted() where file.lowercased().hasSuffix(".pdf") {
         let stem = String(file.dropLast(4))
-        let zip = folder.appendingPathComponent("\(stem)_dxf.zip").path
-        guard FileManager.default.fileExists(atPath: zip) else { continue }
-        let compared = compareLine(folder.appendingPathComponent(file).path, zip)
-        print(compared.line)
+        guard let paired = pairedReference(folder, stem) else { continue }
+        let compared = compareLine(folder.appendingPathComponent(file).path, paired.path)
+        let via = paired.lastPathComponent.lowercased().contains("_jww.") ? "JWW" : "DXF"
+        print(compared.line + "\treference \(via)")
+        references[via, default: 0] += compared.result == nil ? 0 : 1
         if let result = compared.result {
             results.append((result, compared.pages))
         } else {
@@ -261,6 +331,7 @@ case "pairs" where arguments.count == 2:
         }
     }
     printPairsSummary(results, failures: failures)
+    print("compared against: DXF \(references["DXF"] ?? 0), JWW \(references["JWW"] ?? 0)")
 default:
     let detail = arguments.contains("--detail")
     let paths = arguments.filter { $0 != "--detail" }

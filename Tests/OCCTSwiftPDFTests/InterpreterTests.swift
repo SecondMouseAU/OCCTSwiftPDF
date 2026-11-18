@@ -243,4 +243,12 @@ struct InterpreterTests {
         #expect(same(page.paths[1].fillColour, 0, 0, 0))
         #expect(same(page.paths[2].strokeColour, 0, 0, 1))
     }
+
+    @Test("a frame on the page's own edge is left out of the drawing; an inset border is kept")
+    func pageBorder() throws {
+        let page = try Self.page(MiniPDF(content: "0 0 612 792 re S 20 20 572 752 re S"))
+        let drawing = page.drawing()
+        #expect(drawing.skipped["PAGE BORDER"] == 1)
+        #expect(drawing.counts.polyline == 1)
+    }
 }

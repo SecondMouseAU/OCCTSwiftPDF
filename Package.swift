@@ -13,13 +13,17 @@ let package = Package(
     ],
     dependencies: [
         // The drawing model a PDF is read into, as DXF, DWG and JWW are.
-        .package(url: "https://github.com/SecondMouseAU/SwiftDXF.git", from: "0.4.0")
+        .package(url: "https://github.com/SecondMouseAU/SwiftDXF.git", from: "0.4.0"),
+        // pdfprobe only: a JWW of the same drawing as the reference where its DXF is missing.
+        .package(url: "https://github.com/SecondMouseAU/SwiftJWW.git", from: "1.4.0"),
     ],
     targets: [
         .target(
             name: "OCCTSwiftPDF",
             dependencies: [.product(name: "SwiftDXF", package: "SwiftDXF")]),
-        .executableTarget(name: "pdfprobe", dependencies: ["OCCTSwiftPDF"]),
+        .executableTarget(
+            name: "pdfprobe",
+            dependencies: ["OCCTSwiftPDF", .product(name: "SwiftJWW", package: "SwiftJWW")]),
         .testTarget(name: "OCCTSwiftPDFTests", dependencies: ["OCCTSwiftPDF"]),
     ]
 )

@@ -35,8 +35,9 @@ extension PDF.Page {
     /// (one per Bezier curve), so SwiftDXF's `Entity.fitted(tolerance:)` can turn curves into arcs.
     /// Text runs with characters become text, including invisible ones (render mode 3): a writer
     /// that draws text as shapes often lays the same text invisibly over them, so it can be
-    /// searched, and that is then the only text there is. Filled-only paths, images and text with
-    /// no characters are counted in `skipped` by layer, not drawn.
+    /// searched, and that is then the only text there is. Filled-only paths, images, text with no
+    /// characters and a frame drawn on the page's own edge (`PAGE BORDER`) are counted in
+    /// `skipped` by layer, not drawn.
     public func drawing() -> DXF.Drawing {
         let transform = toPaper
         var entities: [DXF.Entity] = []
@@ -84,6 +85,10 @@ extension PDF.Page {
                 piece += 1
             }
             for subpath in path.subpaths {
+                if isPageBorder(subpath) {
+                    skip("PAGE BORDER", layer)
+                    continue
+                }
                 var run: [DXF.Point] = [point(subpath.start)]
                 var previous = subpath.start
                 func flush(closed: Bool) {
@@ -147,6 +152,26 @@ extension PDF.Page {
             })
         drawing.identities = identities
         return drawing
+    }
+
+    /// A closed run of straight segments whose corners are the page's corners, within one point:
+    /// the frame some PDF writers draw round the page (MicroArts JWtoPDF does), which is not part
+    /// of the drawing.
+    func isPageBorder(_ subpath: PDF.Subpath) -> Bool {
+        guard subpath.isClosed, (4...5).contains(subpath.segments.count) else { return false }
+        var points = [subpath.start]
+        for segment in subpath.segments {
+            guard case .line(let to) = segment else { return false }
+            points.append(to)
+        }
+        let box = cropBox
+        let corners = [
+            CGPoint(x: box.minX, y: box.minY), CGPoint(x: box.maxX, y: box.minY),
+            CGPoint(x: box.maxX, y: box.maxY), CGPoint(x: box.minX, y: box.maxY),
+        ]
+        func near(_ a: CGPoint, _ b: CGPoint) -> Bool { abs(a.x - b.x) <= 1 && abs(a.y - b.y) <= 1 }
+        return corners.allSatisfy { corner in points.contains { near($0, corner) } }
+            && points.allSatisfy { point in corners.contains { near($0, point) } }
     }
 
     static func normalised(_ degrees: Double) -> Double {

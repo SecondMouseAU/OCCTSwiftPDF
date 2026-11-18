@@ -3,7 +3,7 @@ type: experiment
 title: Option 1 spike, Apple's frameworks only
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [spike, pdf, cgpdfscanner, pdfkit, vector]
-description: CoreGraphics' PDF scanner with this package's own font decoding reads CAD-exported vector PDFs into DXF.Drawing, matching the paired DXFs to hundredths of a millimetre; PDFium is not needed. Text drawn as shapes is the gap, and the bridge to scans.
+description: CoreGraphics' PDF scanner with this package's own font decoding reads CAD-exported vector PDFs into DXF.Drawing, matching 289 of 321 TECS pairs to hundredths of a millimetre; PDFium is not needed. Text drawn as shapes is the gap, and the bridge to scans.
 timestamp: 2026-11-18
 ---
 
@@ -106,29 +106,48 @@ The DXF's Jw_cad auxiliary lines (layer `ADD_LINE` in the TECS DXFs: dotted boxe
 construction lines) are left out, since Jw_cad never prints them.
 
 **The 2120** (PDF printed from Jw_cad, against the DXF written from its JWW by SwiftJWW): scale
-1.00003, rotation 0.00 degrees, geometry residual 0.025 mm. The PDF's geometry is all within
-0.2 mm of the DXF's. The DXF's is too, except a box of seven lines on JWW layer 15 that was not
-printed (336 mm of line, 2 percent of the drawing): 98.0 percent covered in all, 99.96 percent
-without that box. Median distance 0.019 mm, 90th percentile 0.039 mm, on the paper; at 1:80 that
-is about 1.5 and 3 mm at full size. 31 of the 34 texts match within 2 mm.
+1.00003, rotation 0.00 degrees, geometry residual 0.025 mm. The PDF's geometry is all within 0.2 mm
+of the DXF's. The DXF's is too, except a box of seven lines on JWW layer 15 that was not printed
+(336 mm of line, 2 percent of the drawing): 98.0 percent covered in all, 99.96 percent without that
+box. Median distance 0.019 mm, 90th percentile 0.039 mm, on the paper; at 1:80 that is about 1.5 and
+3 mm at full size. 31 of the 34 texts match within 2 mm. Through the TECS JWW of the same drawing
+(`pdfprobe compare` on `2120_jww.zip`, full size, without Jw_cad's auxiliary lines, which also drops
+that unprinted box), the fit is 1:80 and both sides are 100 percent covered, with the 99th
+percentile at 0.049 mm.
 
-**The TECS pairs** (`pdfprobe pairs --exclude-layer ADD_LINE`, 254 PDFs with a DXF beside them):
+**The TECS pairs.** The TECS site lists 556 drawings, 457 of them published as PDF, DXF and JWW
+and 3 as PDF and JWW only. A crawl of its pages found 204 pairs the corpus did not have, and
+`tecs-pairs/` now holds 461 PDFs. Some of the site's links are dead (its 404 page is what the 13
+broken zips held): where a drawing's DXF link is dead, its JWW is the reference instead, read by
+SwiftJWW at full size without Jw_cad's auxiliary lines and colours (`pdfprobe` only). On `ec01`,
+which has both, the JWW route gives the same result as Jw_cad's own DXF export (99.1 and 100
+percent covered, median 0.007 mm, 107 of 107 texts), so either is a sound reference.
 
-- 26 not compared: 13 DXF downloads are HTML error pages, not zips (among them the 2120's and
-  dd12's, which is why the 2120 is compared above with the DXF from its JWW); 12 sheets are scans
-  or mixed (5 raster, 7 mixed) with no text in common; 1 PDF does not open.
-- 228 compared, 225 of them single-page. For **206 of the 225, each drawing is at least 95 percent
-  within 0.2 mm of the other**; in those, the median distance is 0.010 mm and the 90th percentile
-  0.024 mm on the paper. Over all 225: the DXF's geometry is covered at a median of 98.5 percent
-  and the PDF's at 100 percent. 17,124 of 18,085 texts match within 2 mm.
-- The fits found the sheets' scales, 1:80 (114), 1:100 (86), 1:50 (18) and 1:64 (10), all with
-  no rotation.
-- The 19 short of 95 percent: three where the PDF and the DXF hold different extents or versions
-  of the sheet (`c5000x`, `ec33`, `ec34`: the fit holds, both sides are partly missing from the
-  other); a family of about ten wagon drawings (`tm*`, `tr*`, `to20000*`) near 88 percent both
-  ways, with the fitted scale 0.08 percent off the nominal, not yet looked into; and a few between
-  90 and 95 percent with one layer short.
-- The 3 multi-page PDFs are compared on their first page while the DXF holds every sheet, so about
+`pdfprobe pairs --exclude-layer ADD_LINE` over the whole folder:
+
+- 131 not compared, all for want of text in common: the 118 Hankyu sheets (`hk*`), which are
+  bitmaps (the drawing printed as strips of 1-bit images at 850 dots per inch, through the Windows
+  PostScript driver and Acrobat Distiller), 12 other scanned sheets, and 1 PDF that does not open.
+  The Hankyu sheets with their exact DXFs are ready-made raster ground truth for Phase 5.
+- 326 compared (311 against a DXF, 15 against a JWW), 321 of them single-page. For **289 of the
+  321, each drawing is at least 95 percent within 0.2 mm of the other**; in those, the median
+  distance is 0.010 mm and the 90th percentile 0.024 mm on the paper. 23,110 of 24,643 texts match
+  within 2 mm. Through a JWW, 13 of 15 pass.
+- By section: JNR electric (`cad/tu`) 133 of 140, passenger cars (`cad/pc`) 30 of 31, freight
+  (`cad/pf`) 66 of 77, diesels (`cad/dl`) 11 of 13, bogies, pantographs and parts (`truck/cad`) 32
+  of 35, steel sections (`kouzai`) 15 of 19, markings (`hyouki`) 2 of 6.
+- The fits found the sheets' scales: 1:80 (146), 1:100 (88), 1:50 (26), 1:30 (18), 1:10 (16), 1:64
+  (10), 1:20 (7), down to 1:2 for parts, and 20:1 for a sheet of screw threads.
+- One writer, MicroArts JWtoPDF (the steel-section and parts sheets), draws a frame on the page's
+  own edge that is not in the drawing; `drawing()` now leaves it out (`skipped["PAGE BORDER"]`),
+  which took those sheets from 53 to 75 percent on the PDF side to 100.
+- The 32 short of 95 percent: in 15 only the DXF side is short (the DXF holds more than the sheet
+  printed, as on the markings sheets); in 5 only the PDF side; in 12 both. Those 12 are the pairs
+  whose files hold different extents or versions of the sheet (`c5000x`, `ec33`, `ec34`, and
+  `dd20-1`, whose JWW and PDF fit only at 1:84 and 0.6 degrees), and a family of wagon drawings
+  (`tm*`, `tr*`, `to20000*`) near 88 percent both ways with the fitted scale 0.08 percent off the
+  nominal, not yet looked into.
+- The multi-page PDFs are compared on their first page while the DXF holds every sheet, so about
   half the DXF is missing by design; their PDF side is 100 percent covered.
 
 Nothing found points at the reader: where geometry is missing, it is missing from one file, not

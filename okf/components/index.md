@@ -60,6 +60,8 @@ timestamp: 2026-11-18
   robust with a fixed-seed sampler so results repeat), and a grid index for nearest-segment queries.
 - **`pdfprobe`** (executable): `pdfprobe [--detail] <file-or-folder>...` reports what each PDF is
   made of; `pdfprobe compare <pdf> <dxf-or-zip>` and `pdfprobe pairs <folder>` compare PDFs with
-  the DXFs of the same drawings (`--exclude-layer <name>` leaves a DXF layer out, and `pairs` ends
-  with the figures the experiment page reports); `pdfprobe debug-text <pdf> <text>` shows where
+  the DXFs of the same drawings, or with their JWWs where the DXF is missing (read through
+  SwiftJWW at full size, without Jw_cad's auxiliary lines and colours, number 9);
+  `--exclude-layer <name>` leaves a DXF layer out, and `pairs` ends with the figures the experiment
+  page reports; `pdfprobe debug-text <pdf> <text>` shows where
   this reader and PDFKit each put a text.

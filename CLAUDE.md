@@ -19,7 +19,8 @@ spike today (Option 1 of the research: Apple's frameworks only); see
 ## Licence rules (these are not optional)
 
 - This package is LGPL-2.1, as OCCTSwiftIO is. Only permissive or LGPL code may be linked: Apple's
-  frameworks, MIT, BSD, Apache-2.0, zlib. Today it links SwiftDXF (MIT) and Apple's frameworks.
+  frameworks, MIT, BSD, Apache-2.0, zlib. Today the library links SwiftDXF (MIT) and Apple's
+  frameworks, and `pdfprobe` also links SwiftJWW (MIT).
 - **Never link or copy Poppler, Xpdf (GPL) or MuPDF (AGPL).** Their command-line tools
   (`pdftotext`, `pdffonts`, `pdftocairo`) may be run during development to check results; nothing
   may depend on them.
