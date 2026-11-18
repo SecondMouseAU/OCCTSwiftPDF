@@ -1,5 +1,7 @@
 # OCCTSwiftPDF
 
+[![License](https://img.shields.io/badge/license-LGPL--2.1-blue)](LICENSE)
+
 Reads **vector PDF drawings** into `DXF.Drawing`, the drawing model of
 [SwiftDXF](https://github.com/SecondMouseAU/SwiftDXF), the same model that DXF, DWG
 ([SwiftDWG](https://github.com/SecondMouseAU/SwiftDWG)) and JWW
@@ -48,3 +50,9 @@ swift run pdfprobe debug-text <pdf> <text>            # where this reader and PD
 Jw_cad's auxiliary lines, which are never printed: the TECS figures in the experiment page come
 from `pdfprobe pairs --exclude-layer ADD_LINE <tecs-pairs folder>`. A zip must hold exactly one
 entry, a DXF.
+
+## License
+
+LGPL-2.1, like OCCTSwiftIO, which is meant to read PDFs through this package. It links SwiftDXF
+(MIT) and Apple's system frameworks (CoreGraphics, PDFKit) and nothing else; no third-party code is
+copied into it, and no third-party drawings are committed.

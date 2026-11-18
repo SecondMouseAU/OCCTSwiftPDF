@@ -19,8 +19,7 @@ and PDFKit, with no third-party PDF library.
 - **Depends on:** SwiftDXF (the drawing model)
 - **Feeds products:** PDF import for OCCTSwiftIO's `DrawingLoader`, and through it the Drawings
   Toolbox (OCCTDesignLoop). Phase 4 of the ecosystem plan `okf/plans/drawings-toolbox.md`.
-- **Visibility:** private for now. OCCTSwiftIO is public, so it can depend on this package only
-  once this package is public.
+- **Visibility:** public, LGPL-2.1 (as OCCTSwiftIO).
 
 ## Components
 

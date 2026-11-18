@@ -182,9 +182,9 @@ binary for nothing the corpus needs.
    the dimension line, arrowheads (filled-only paths, kept now as `skipped["FILL"]`) and extension
    lines.
 4. Scale inference from values against drawn lengths, per view.
-5. Wire into OCCTSwiftIO's `DrawingLoader` as `.pdf`. OCCTSwiftIO is public and builds for iOS,
-   visionOS and tvOS: this package has to be public first, guard its PDFKit use (no PDFKit on
-   tvOS), and keep the comparison's `unzip` reader out of what OCCTSwiftIO links (no `Process`
-   outside macOS).
+5. Wire into OCCTSwiftIO's `DrawingLoader` as `.pdf`. This package is public and LGPL-2.1 like
+   OCCTSwiftIO, which builds for iOS, visionOS and tvOS: guard the PDFKit use (no PDFKit on tvOS)
+   and keep the comparison's `unzip` reader out of what OCCTSwiftIO links (no `Process` outside
+   macOS).
 6. Text drawn as shapes: OCR on the rendered area (Apple Vision), accepted only where it agrees
    with the measured geometry. The first piece of the raster path.
