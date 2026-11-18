@@ -15,16 +15,18 @@ timestamp: 2026-11-18
     `PDF.Path`s (subpaths of lines and Bezier curves in page coordinates, with paint, line width,
     dash, colours, layer and source), `PDF.TextRun`s (characters, how they were decoded, origin,
     direction, size, width, box, font, visibility, layer, source), placed `PDF.Image`s, and counts
-    of clip paths, Form XObjects, inline images and shadings. The document also lists the layers
-    (optional content groups) its catalog declares.
+    of clip paths, Form XObjects, inline images and shadings. The document also gives its page
+    count, the layers (optional content groups) its catalog declares, and those its default
+    configuration turns off. A file encrypted with an empty password is opened.
   - `PDF.Page.kind` says whether a page is `vector`, `raster` (a scanned sheet), `mixed` or
     `empty`, from the fraction of the page images cover (`imageCoverage`) and the number of
     segments drawn.
   - `PDF.Page.drawing()` turns a page into a `DXF.Drawing` in millimetres on the upright sheet:
     lines, polylines and one degree-3 spline per Bezier curve (so SwiftDXF's
     `Entity.fitted(tolerance:)` can fit arcs), and text. Each entity's identity names the page,
-    the operator and any Form XObjects it came through (`p1:op120`, via `Fm0#1`). Filled-only
-    paths, images and text with no characters are counted in `skipped` by layer.
+    the operator and any Form XObjects it came through, with the piece's place among those one
+    painted path became (`p1:op120:0`, via `Fm0#1`). Filled-only paths, images and text with no
+    characters are counted in `skipped` by layer.
   - `PDF.Source` is where something came from: page, operator index, Form XObjects.
   - `PDF.compare(_:with:tolerance:)` (spike tooling) places a reference drawing of the same sheet
     on the paper, by a similarity transform fitted robustly to the texts that occur once in each
@@ -37,12 +39,20 @@ timestamp: 2026-11-18
   their matrix and resources, at most 16 deep, never into themselves).
 - **Fonts** (`Fonts/`): how a font's bytes split into codes (one byte, two, Shift-JIS lead bytes,
   or the code space of a CMap), each character's advance (`Widths`, `W`, `DW`), and decoding:
-  `ToUnicode`, Shift-JIS (`*-RKSJ-*`), Unicode CMaps, and simple encodings (`WinAnsiEncoding`,
-  `MacRomanEncoding`, `Differences` with standard glyph names, ASCII).
-- **Text pairing** (`TextPairing` in `PDF+Read.swift`): asks PDFKit for the characters inside each
-  run's box, as a check on this reader's decoding and as its fallback.
+  `ToUnicode` (a code it does not cover is U+FFFD), Shift-JIS (`*-RKSJ-*`), Unicode CMaps, and
+  simple encodings (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, `Differences` with
+  standard glyph names). A symbolic, TrueType or Type 3 font with no encoding is read as ASCII and
+  marked `asciiGuess`.
+- **Text pairing** (`TextPairing.swift`): asks PDFKit for the characters inside each run's box, as
+  a check on this reader's decoding and as its fallback where this reader has no characters, only
+  guessed ASCII that PDFKit contradicts, or a code missing from the `ToUnicode` map.
 - **Text assembly** (`TextAssembly.swift`): joins runs that continue one another along a baseline,
   since some writers show one character per operation.
+- **Comparison support** (`Comparison+Sampling.swift`, `Similarity.swift`, `SegmentIndex.swift`):
+  drawings as straight segments sampled at a fixed step, the similarity fit (least squares, and
+  robust with a fixed-seed sampler so results repeat), and a grid index for nearest-segment queries.
 - **`pdfprobe`** (executable): `pdfprobe [--detail] <file-or-folder>...` reports what each PDF is
   made of; `pdfprobe compare <pdf> <dxf-or-zip>` and `pdfprobe pairs <folder>` compare PDFs with
-  the DXFs of the same drawings.
+  the DXFs of the same drawings (`--exclude-layer <name>` leaves a DXF layer out, and `pairs` ends
+  with the figures the experiment page reports); `pdfprobe debug-text <pdf> <text>` shows where
+  this reader and PDFKit each put a text.

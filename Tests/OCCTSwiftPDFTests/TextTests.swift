@@ -51,6 +51,27 @@ struct TextTests {
         #expect(abs((page.texts.first?.width ?? 0) - 30) < 1e-9)
     }
 
+    @Test("text used only to clip (render mode 7) is invisible too")
+    func clipText() throws {
+        let page = try Self.page("BT /F1 10 Tf 7 Tr 100 100 Td (A) Tj ET")
+        #expect(page.texts.first?.isInvisible == true)
+    }
+
+    @Test("a standard Type 1 font with no encoding is decoded, not guessed")
+    func standardEncoding() throws {
+        let page = try Self.page("BT /F1 10 Tf 100 100 Td (M26) Tj ET")
+        #expect(page.texts.first?.decoding == .simpleEncoding)
+    }
+
+    @Test("a TrueType font with no encoding is marked as a guess")
+    func asciiGuess() throws {
+        let page = try Self.page(
+            "BT /F1 10 Tf 100 100 Td (M26) Tj ET",
+            font: "<< /Type /Font /Subtype /TrueType /BaseFont /Symbolic /FirstChar 32 >>")
+        #expect(page.texts.first?.text == "M26")
+        #expect(page.texts.first?.decoding == .asciiGuess)
+    }
+
     @Test("invisible text is flagged and kept in the drawing")
     func invisible() throws {
         let page = try Self.page("BT /F1 10 Tf 3 Tr 100 100 Td (1,956) Tj ET")
@@ -101,8 +122,8 @@ struct TextTests {
             "BT /F1 10 Tf 100 100 Td <000300040010001100120099> Tj ET", font: font,
             extra: [descendant, MiniPDF.stream("", cmap)])
         let run = try #require(page.texts.first)
-        // ⌀5ABC, with the unmapped last code left out.
-        #expect(run.text == "\u{2300}5ABC")
+        // ⌀5ABC, with the unmapped last code marked, not dropped.
+        #expect(run.text == "\u{2300}5ABC\u{FFFD}")
         #expect(run.decoding == .toUnicode)
     }
 

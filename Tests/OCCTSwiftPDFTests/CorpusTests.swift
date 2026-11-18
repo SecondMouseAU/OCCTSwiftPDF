@@ -32,6 +32,16 @@ struct CorpusTests {
 
     /// The single DXF in a TECS zip, extracted whole (its entry name is Shift-JIS).
     static func dxf(inZip url: URL) throws -> DXF.Drawing {
+        let list = Process()
+        list.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
+        list.arguments = ["-Z1", url.path]
+        let listing = Pipe()
+        list.standardOutput = listing
+        try list.run()
+        let names = String(
+            decoding: listing.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
+        list.waitUntilExit()
+        try #require(names.split(separator: "\n").count == 1, "the zip must hold one entry")
         let unzip = Process()
         unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
         unzip.arguments = ["-p", url.path]
@@ -55,7 +65,11 @@ struct CorpusTests {
             let document = try PDF.read(contentsOf: folder.appendingPathComponent(name))
             for page in document.pages {
                 #expect(page.kind == .vector, "\(name)")
-                #expect(page.texts.allSatisfy { $0.ownText != nil }, "\(name)")
+                for run in page.texts {
+                    let own = try #require(run.ownText, "\(name)").filter { !$0.isWhitespace }
+                    // PDFKit reads the same characters wherever it pairs a run.
+                    if let kit = run.pdfKitText { #expect(own == kit, "\(name)") }
+                }
             }
         }
     }
@@ -120,5 +134,14 @@ struct CorpusTests {
         #expect(!page.texts.isEmpty)
         #expect(page.texts.allSatisfy { $0.text == nil && $0.decoding == .none })
         #expect(page.drawing().skipped["TEXT"] == page.texts.count)
+    }
+
+    @Test(
+        "a PDF encrypted with an empty password is opened",
+        .enabled(if: CorpusTests.exists("railway/nippon-steel-rail-profiles.pdf")))
+    func emptyPassword() throws {
+        let document = try PDF.read(
+            contentsOf: Self.file("railway/nippon-steel-rail-profiles.pdf"), maximumPages: 1)
+        #expect(document.pageCount >= 1)
     }
 }

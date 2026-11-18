@@ -136,6 +136,21 @@ curves came back as eight arcs of radius 25.29 mm against 25.4 at a tolerance of
 for the ledger need a direct test that a run of curves, or of short lines, is one circle, with the
 radius fitted over the whole run.
 
+### Known limits of the spike reader
+
+- Clipping paths and a form's bounding box are not applied, so geometry a printer would clip away
+  is still in the drawing.
+- Layers the document turns off by default are read like the others; `Document.layersOff` lists
+  them.
+- Vertical writing (`-V` CMaps) is advanced horizontally.
+- Character widths in fonts with a predefined CMap other than Identity use the font's default
+  width, since the code-to-CID tables are not carried.
+- The PDFKit pairing assumes PDFKit's page coordinates are the PDF's own; this was checked on
+  sheets whose page box starts at the origin.
+- Codes a `ToUnicode` map does not cover become U+FFFD rather than being dropped; codes from a
+  symbolic, TrueType or Type 3 font with no encoding are only guessed to be ASCII
+  (`TextDecoding.asciiGuess`), and PDFKit's characters replace them where the two differ.
+
 ## Decision
 
 Option 1 holds. CoreGraphics' scanner gives exact geometry, and this package's own font decoding

@@ -50,6 +50,9 @@ final class PageInterpreter {
     private var formStack: [String] = []
     private var formCounts: [String: Int] = [:]
     private var activeForms: Set<Int> = []
+    /// The content streams enclosing the one being scanned, outermost first: the page's, then
+    /// those of any Form XObjects it is inside.
+    private var enclosingStreams: [CGPDFContentStreamRef] = []
     private var fonts: [Int: Font] = [:]
     private let table: CGPDFOperatorTableRef
 
@@ -80,6 +83,20 @@ final class PageInterpreter {
         PDF.Source(page: pageNumber, operatorIndex: operatorIndex, forms: formStack)
     }
 
+    /// A named resource, looked up in the stream being scanned and then in the streams enclosing
+    /// it, since a form without resources of its own uses its parent's.
+    private func resource(
+        _ category: String, _ name: UnsafePointer<CChar>, in stream: CGPDFContentStreamRef
+    )
+        -> CGPDFObjectRef?
+    {
+        if let found = CGPDFContentStreamGetResource(stream, category, name) { return found }
+        for outer in enclosingStreams.reversed() {
+            if let found = CGPDFContentStreamGetResource(outer, category, name) { return found }
+        }
+        return nil
+    }
+
     // MARK: graphics state
 
     fileprivate func tick() { operatorIndex += 1 }
@@ -108,13 +125,23 @@ final class PageInterpreter {
         state.dash = PDFObjects.numbers(array)
     }
 
+    /// `G`, `g`, `RG`, `rg`, `K`, `k` (a fixed number of components) or `SC`, `SCN`, `sc`, `scn`
+    /// (`components` `nil`: as many numbers as were written, then perhaps a pattern name).
+    ///
+    /// Operands are popped as objects and their type checked: `CGPDFScannerPopName` removes the
+    /// top operand even when it is a number.
     fileprivate func setColour(_ scanner: CGPDFScannerRef, components: Int?, stroke: Bool) {
-        var ignoredName: UnsafePointer<CChar>?
-        _ = CGPDFScannerPopName(scanner, &ignoredName)
         var values: [Double] = []
-        var value: CGPDFReal = 0
-        while values.count < (components ?? 4), CGPDFScannerPopNumber(scanner, &value) {
-            values.insert(Double(value), at: 0)
+        var object: CGPDFObjectRef?
+        while values.count < (components ?? 4), CGPDFScannerPopObject(scanner, &object), let object
+        {
+            var value: CGPDFReal = 0
+            if CGPDFObjectGetValue(object, .real, &value) {
+                values.insert(Double(value), at: 0)
+            } else if components != nil || !values.isEmpty {
+                return
+            }
+            // A pattern name on top of `scn`: the numbers below it, if any, still follow.
         }
         let colour: PDF.Colour
         switch values.count {
@@ -240,7 +267,7 @@ final class PageInterpreter {
         state.fontSize = Double(size)
         let stream = CGPDFScannerGetContentStream(scanner)
         var dict: CGPDFDictionaryRef?
-        guard let object = CGPDFContentStreamGetResource(stream, "Font", name),
+        guard let object = resource("Font", name, in: stream),
             CGPDFObjectGetValue(object, .dictionary, &dict), let dict
         else {
             state.font = nil
@@ -365,7 +392,8 @@ final class PageInterpreter {
                     origin, end, CGPoint(x: end.x + up.x, y: end.y + up.y),
                     CGPoint(x: origin.x + up.x, y: origin.y + up.y),
                 ],
-                fontName: font.name, fontSubtype: font.subtype, isInvisible: state.renderMode == 3,
+                fontName: font.name, fontSubtype: font.subtype,
+                isInvisible: state.renderMode == 3 || state.renderMode == 7,
                 layer: currentLayer, source: source))
         noteLayer()
     }
@@ -388,7 +416,7 @@ final class PageInterpreter {
                 return
             }
             if String(cString: tag) == "OC", let properties {
-                layer = Self.layerName(properties, stream: CGPDFScannerGetContentStream(scanner))
+                layer = layerName(properties, stream: CGPDFScannerGetContentStream(scanner))
             }
         } else {
             var tag: UnsafePointer<CChar>?
@@ -400,20 +428,18 @@ final class PageInterpreter {
     fileprivate func endMarkedContent() { _ = layerStack.popLast() }
 
     /// The name of the layer a `BDC /OC` operand names, directly or through `Properties`.
-    private static func layerName(_ object: CGPDFObjectRef, stream: CGPDFContentStreamRef)
-        -> String?
-    {
+    private func layerName(_ object: CGPDFObjectRef, stream: CGPDFContentStreamRef) -> String? {
         var dict: CGPDFDictionaryRef?
         var name: UnsafePointer<CChar>?
         if CGPDFObjectGetValue(object, .name, &name), let name,
-            let resource = CGPDFContentStreamGetResource(stream, "Properties", name)
+            let resource = resource("Properties", name, in: stream)
         {
             _ = CGPDFObjectGetValue(resource, .dictionary, &dict)
         } else {
             _ = CGPDFObjectGetValue(object, .dictionary, &dict)
         }
         guard let dict else { return nil }
-        return optionalContentName(dict)
+        return Self.optionalContentName(dict)
     }
 
     /// The name of an optional content group, or of the first group a membership dictionary uses.
@@ -440,7 +466,7 @@ final class PageInterpreter {
         guard CGPDFScannerPopName(scanner, &name), let name else { return }
         let stream = CGPDFScannerGetContentStream(scanner)
         var xobject: CGPDFStreamRef?
-        guard let object = CGPDFContentStreamGetResource(stream, "XObject", name),
+        guard let object = resource("XObject", name, in: stream),
             CGPDFObjectGetValue(object, .stream, &xobject), let xobject,
             let dict = CGPDFStreamGetDictionary(xobject)
         else { return }
@@ -470,7 +496,14 @@ final class PageInterpreter {
         else { return }
         formInvocations += 1
         formCounts[name, default: 0] += 1
-        save()
+        // The form's content may leave its `q`, `Q`, `BDC` and `EMC` unbalanced; whatever it does,
+        // the page goes on from exactly the state and depths it had before the form.
+        let savedState = state
+        let stackDepth = stack.count
+        let layerDepth = layerStack.count
+        let savedSubpaths = subpaths
+        let savedTextMatrix = textMatrix
+        let savedLineMatrix = lineMatrix
         if let array = PDFObjects.array(dict, "Matrix"), let matrix = PDFObjects.matrix(array) {
             state.ctm = matrix.concatenating(state.ctm)
         }
@@ -480,19 +513,38 @@ final class PageInterpreter {
         layerStack.append(formLayer)
         formStack.append("\(name)#\(formCounts[name] ?? 1)")
         activeForms.insert(Self.key(xobject))
+        subpaths = []
         // Without its own resources a form uses its parent's; the form's dictionary stands in, and
         // lookups that miss it go on to the parent stream.
         let resources = PDFObjects.dictionary(dict, "Resources") ?? dict
         let content = CGPDFContentStreamCreateWithStream(xobject, resources, parent)
+        enclosingStreams.append(parent)
         scan(content)
+        enclosingStreams.removeLast()
         CGPDFContentStreamRelease(content)
         activeForms.remove(Self.key(xobject))
         formStack.removeLast()
-        _ = layerStack.popLast()
-        restore()
+        if stack.count > stackDepth { stack.removeSubrange(stackDepth...) }
+        if layerStack.count > layerDepth { layerStack.removeSubrange(layerDepth...) }
+        state = savedState
+        subpaths = savedSubpaths
+        textMatrix = savedTextMatrix
+        lineMatrix = savedLineMatrix
     }
 
-    fileprivate func countInlineImage() { inlineImages += 1 }
+    /// An inline image (`BI` ... `ID` ... `EI`) fills the unit square under the current transform,
+    /// like an image XObject, so it counts towards the page's image coverage.
+    fileprivate func inlineImage() {
+        inlineImages += 1
+        let corners = [
+            CGPoint(x: 0, y: 0), CGPoint(x: 1, y: 0), CGPoint(x: 1, y: 1), CGPoint(x: 0, y: 1),
+        ]
+        .map { $0.applying(state.ctm) }
+        images.append(
+            PDF.Image(
+                corners: corners, pixelWidth: 0, pixelHeight: 0, area: Self.polygonArea(corners),
+                source: source))
+    }
     fileprivate func countShading() { shadings += 1 }
 
     // MARK: operands
@@ -623,7 +675,7 @@ extension PageInterpreter {
         }
         on("EMC") { _, info in interpreter(info).endMarkedContent() }
         on("Do") { scanner, info in interpreter(info).doXObject(scanner) }
-        on("EI") { _, info in interpreter(info).countInlineImage() }
+        on("EI") { _, info in interpreter(info).inlineImage() }
         on("sh") { _, info in interpreter(info).countShading() }
         return table
     }

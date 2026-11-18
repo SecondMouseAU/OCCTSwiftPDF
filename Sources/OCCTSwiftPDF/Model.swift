@@ -105,9 +105,13 @@ extension PDF {
         case shiftJIS
         /// The font's encoding is a Unicode one (`UniJIS-UCS2-H` and the like).
         case unicodeCMap
-        /// A simple font's encoding (`WinAnsiEncoding`, `MacRomanEncoding`, a `Differences` array
-        /// of standard glyph names, or plain ASCII codes).
+        /// A simple font's encoding (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, or a
+        /// `Differences` array of standard glyph names).
         case simpleEncoding
+        /// A symbolic, TrueType or Type 3 font with no encoding, whose codes were taken as ASCII.
+        /// Such a font's built-in encoding can be anything, so PDFKit's characters replace these
+        /// when the two differ.
+        case asciiGuess
         /// This reader could not decode it; the characters are PDFKit's, found by position.
         case pdfKit
         /// Nothing could decode it: the font has no way back from codes to characters.
@@ -119,6 +123,8 @@ extension PDF {
         /// The bytes shown.
         public var codes: [UInt8]
         /// The characters: this reader's own decoding when it has one, otherwise PDFKit's.
+        ///
+        /// U+FFFD stands for a code the font's `ToUnicode` map does not cover.
         public var text: String?
         public var decoding: TextDecoding
         /// This reader's own decoding of ``codes``, or `nil`.
@@ -137,7 +143,8 @@ extension PDF {
         public var quad: [CGPoint]
         public var fontName: String
         public var fontSubtype: String
-        /// Text render mode 3: drawn invisibly, as the text layer of a scanned page is.
+        /// Text render mode 3 (drawn invisibly, as the text layer of a scanned page is) or 7 (used
+        /// only to clip).
         public var isInvisible: Bool
         public var layer: String?
         public var source: Source
@@ -237,9 +244,16 @@ extension PDF {
     /// A PDF document, read.
     public struct Document: Sendable {
         public var url: URL
+        /// The number of pages in the file; ``pages`` can hold fewer when a read was limited.
+        public var pageCount: Int
         public var pages: [Page]
         /// The names of the layers (optional content groups) the document declares.
         public var layers: [String]
+        /// The layers the document's default configuration turns off (`/D /OFF`).
+        ///
+        /// A watermark layer is often one. Their content is read like any other; this says it
+        /// would not be shown.
+        public var layersOff: [String]
         public var producer: String?
         public var creator: String?
     }

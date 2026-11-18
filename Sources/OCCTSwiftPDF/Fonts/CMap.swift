@@ -93,8 +93,18 @@ struct CMap {
                 }
                 pending = []
             case "beginbfchar" where pending.count == 2:
-                if case .hex(let source) = pending[0], case .hex(let target) = pending[1] {
-                    characters[Self.number(source)] = Self.utf16(target)
+                if case .hex(let source) = pending[0] {
+                    switch pending[1] {
+                    case .hex(let target):
+                        characters[Self.number(source)] = Self.utf16(target)
+                    case .name(let glyph):
+                        // Some writers give a glyph name instead of characters.
+                        if let character = GlyphNames.character(glyph) {
+                            characters[Self.number(source)] = String(character)
+                        }
+                    default:
+                        break
+                    }
                 }
                 pending = []
             case "beginbfrange" where pending.count == 3:
@@ -125,8 +135,12 @@ struct CMap {
         }
     }
 
+    /// UTF-16 code units from big-endian bytes.
+    ///
+    /// A lone byte, which some writers use for a character below U+0100, is that character.
     static func units(_ bytes: [UInt8]) -> [UInt16] {
-        stride(from: 0, to: bytes.count - 1, by: 2).map {
+        if bytes.count == 1 { return [UInt16(bytes[0])] }
+        return stride(from: 0, to: bytes.count - 1, by: 2).map {
             UInt16(bytes[$0]) << 8 | UInt16(bytes[$0 + 1])
         }
     }
@@ -138,11 +152,13 @@ struct CMap {
     enum Token {
         case hex([UInt8])
         case array([[UInt8]])
+        /// A name such as `/space`, without its slash.
+        case name(String)
         case word(String)
     }
 
-    /// Splits CMap text into hex strings, arrays of hex strings and words; everything else
-    /// (names, numbers, dictionaries, comments) comes back as words or is skipped.
+    /// Splits CMap text into hex strings, arrays of hex strings, names and words; everything else
+    /// (numbers, dictionaries) comes back as words, and comments are skipped.
     struct Tokenizer {
         let bytes: [UInt8]
         var index = 0
@@ -176,6 +192,11 @@ struct CMap {
                     }
                 }
                 return .array(items)
+            case UInt8(ascii: "/"):
+                index += 1
+                let start = index
+                while index < bytes.count, !Self.isDelimiter(bytes[index]) { index += 1 }
+                return .name(String(decoding: bytes[start..<index], as: UTF8.self))
             case UInt8(ascii: "%"):
                 while index < bytes.count, bytes[index] != 10, bytes[index] != 13 { index += 1 }
                 return next()

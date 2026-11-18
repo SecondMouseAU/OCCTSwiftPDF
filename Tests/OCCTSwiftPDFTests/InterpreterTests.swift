@@ -145,4 +145,63 @@ struct InterpreterTests {
         #expect(abs(a.x) < 1e-9 && abs(a.y - 612 * 25.4 / 72) < 1e-9)
         #expect(abs(b.x) < 1e-9 && abs(b.y - (612 - 72) * 25.4 / 72) < 1e-9)
     }
+
+    @Test("colours are read for gray, RGB and CMYK, and carried into the drawing")
+    func colours() throws {
+        let page = try Self.page(
+            MiniPDF(
+                content: """
+                    0.2 0.4 0.6 RG 0 0 m 10 0 l S
+                    0.5 G 0 5 m 10 5 l S
+                    0 1 1 0 K 0 10 m 10 10 l S
+                    0.25 g 0 0 5 5 re f
+                    """))
+        func same(_ a: PDF.Colour, _ r: Double, _ g: Double, _ b: Double) -> Bool {
+            abs(a.red - r) < 1e-9 && abs(a.green - g) < 1e-9 && abs(a.blue - b) < 1e-9
+        }
+        #expect(same(page.paths[0].strokeColour, 0.2, 0.4, 0.6))
+        #expect(same(page.paths[1].strokeColour, 0.5, 0.5, 0.5))
+        #expect(same(page.paths[2].strokeColour, 1, 0, 0))
+        #expect(same(page.paths[3].fillColour, 0.25, 0.25, 0.25))
+        guard case .line(_, _, _, let red) = page.drawing().entities[2] else {
+            Issue.record("not a line")
+            return
+        }
+        #expect(red == 1)
+    }
+
+    @Test("each piece of one painted path has its own identity")
+    func pieceIdentities() throws {
+        let page = try Self.page(MiniPDF(content: "0 0 m 10 0 l 0 5 m 10 5 l S"))
+        let ids = page.drawing().identities.map(\.locator)
+        #expect(ids.count == 2)
+        #expect(Set(ids).count == 2)
+        #expect(ids.allSatisfy { $0.hasPrefix("p1:op") })
+    }
+
+    @Test("an unbalanced Form XObject does not leak its state or layer onto the page")
+    func unbalancedForm() throws {
+        var pdf = MiniPDF(content: "/Fm0 Do 0 0 m 10 0 l S")
+        pdf.objects = [
+            MiniPDF.stream(
+                "/Type /XObject /Subtype /Form /BBox [0 0 100 100]",
+                "Q Q 5 0 0 5 0 0 cm /OC /oc1 BDC 0 0 m 1 0 l S"),
+            "<< /Type /OCG /Name (Inside) >>",
+        ]
+        pdf.resources = "<< /XObject << /Fm0 {1} >> /Properties << /oc1 {2} >> >>"
+        let page = try Self.page(pdf)
+        #expect(page.paths.count == 2)
+        #expect(page.paths[0].layer == "Inside")
+        let after = page.paths[1]
+        #expect(after.layer == nil)
+        #expect(after.subpaths[0].segments == [.line(to: CGPoint(x: 10, y: 0))])
+    }
+
+    @Test("an inline image counts towards the page's image coverage")
+    func inlineImage() throws {
+        let page = try Self.page(
+            MiniPDF(content: "q 612 0 0 792 0 0 cm BI /W 1 /H 1 /CS /G /BPC 8 ID \u{7F} EI Q"))
+        #expect(page.inlineImages == 1)
+        #expect(page.kind == .raster)
+    }
 }

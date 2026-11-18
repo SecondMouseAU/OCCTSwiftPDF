@@ -59,11 +59,15 @@ extension PDF.Page {
             let q = p.applying(transform)
             return DXF.Point(q.x, q.y)
         }
-        func add(_ entity: DXF.Entity, _ source: PDF.Source) {
+        // One painted path can become several entities, so each gets the path's source and its
+        // place among them: `p1:op5:0`, `p1:op5:1`. A text is `p1:op7`.
+        func add(_ entity: DXF.Entity, _ source: PDF.Source, piece: Int? = nil) {
             entities.append(entity)
+            let locator =
+                "p\(source.page):op\(source.operatorIndex)" + (piece.map { ":\($0)" } ?? "")
             identities.append(
                 DXF.Identity(
-                    locator: "p\(source.page):op\(source.operatorIndex)", via: source.forms,
+                    locator: locator, via: source.forms,
                     blocks: source.forms.map { String($0.split(separator: "#").first ?? "") }))
         }
 
@@ -74,21 +78,25 @@ extension PDF.Page {
                 continue
             }
             let colour = Self.aci(path.strokeColour)
+            var piece = 0
+            func addPiece(_ entity: DXF.Entity) {
+                add(entity, path.source, piece: piece)
+                piece += 1
+            }
             for subpath in path.subpaths {
                 var run: [DXF.Point] = [point(subpath.start)]
                 var previous = subpath.start
                 func flush(closed: Bool) {
                     if run.count == 2 && !closed {
-                        add(.line(a: run[0], b: run[1], layer: layer, color: colour), path.source)
+                        addPiece(.line(a: run[0], b: run[1], layer: layer, color: colour))
                         counts.line += 1
                     } else if run.count >= 2 {
                         let vertices = (closed ? run.dropLast() : run[...]).map {
                             DXF.PolyVertex($0)
                         }
-                        add(
+                        addPiece(
                             .polyline(
-                                vertices: vertices, closed: closed, layer: layer, color: colour),
-                            path.source)
+                                vertices: vertices, closed: closed, layer: layer, color: colour))
                         counts.polyline += 1
                     }
                 }
@@ -104,7 +112,7 @@ extension PDF.Page {
                             degree: 3, flags: 8,
                             controlPoints: [point(previous), point(c1), point(c2), point(to)],
                             knots: [0, 0, 0, 0, 1, 1, 1, 1], layer: layer, color: colour)
-                        add(.spline(spline), path.source)
+                        addPiece(.spline(spline))
                         counts.spline += 1
                         run = [point(to)]
                     }

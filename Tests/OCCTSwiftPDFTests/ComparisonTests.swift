@@ -57,6 +57,29 @@ struct ComparisonTests {
         #expect(result.referenceCovered > 0.999)
     }
 
+    @Test("with more than 80 anchors the fit is sampled, and the same each time")
+    func repeatable() throws {
+        var paper = Self.sheet(scale: 1, dx: 0, dy: 0)
+        var reference = Self.sheet(scale: 80, dx: 0, dy: 0)
+        for index in 0..<100 {
+            let x = Double(index % 10) * 9
+            let y = Double(index / 10) * 5
+            paper.entities.append(
+                .text(
+                    at: DXF.Point(x, y), height: 2, rotationDeg: 0, string: "T\(index)",
+                    layer: "0", color: 7))
+            reference.entities.append(
+                .text(
+                    at: DXF.Point(x * 80, y * 80), height: 160, rotationDeg: 0,
+                    string: "T\(index)", layer: "0", color: 7))
+        }
+        let first = try #require(PDF.compare(paper, with: reference))
+        let second = try #require(PDF.compare(paper, with: reference))
+        #expect(first.anchors == 103)
+        #expect(abs(first.scale - 1.0 / 80) < 1e-9)
+        #expect(first.scale == second.scale && first.anchorResidual == second.anchorResidual)
+    }
+
     @Test("geometry missing from the PDF lowers the reference's coverage")
     func missingGeometry() throws {
         var paper = Self.sheet(scale: 1, dx: 0, dy: 0)

@@ -41,4 +41,10 @@ for page in document.pages where page.kind == .vector {
 swift run pdfprobe [--detail] <file-or-folder>...   # what each PDF is made of
 swift run pdfprobe compare <pdf> <dxf-or-zip>         # a PDF against the DXF of the same drawing
 swift run pdfprobe pairs <folder>                     # every <name>.pdf beside <name>_dxf.zip
+swift run pdfprobe debug-text <pdf> <text>            # where this reader and PDFKit put a text
 ```
+
+`compare` and `pairs` take `--exclude-layer <name>` (repeatable) to leave a DXF layer out, such as
+Jw_cad's auxiliary lines, which are never printed: the TECS figures in the experiment page come
+from `pdfprobe pairs --exclude-layer ADD_LINE <tecs-pairs folder>`. A zip must hold exactly one
+entry, a DXF.

@@ -88,7 +88,9 @@ func summary(_ url: URL, detail: Bool) {
     let layers =
         document.layers.isEmpty ? Set(pages.flatMap(\.layers)).count : document.layers.count
     let forms = pages.reduce(0) { $0 + $1.formInvocations }
-    var line = "\(name)\t\(kind)\tpages \(pages.count)\tsegments \(segments) (curves \(curves))"
+    let pageNote = pages.count < document.pageCount ? " (read \(pages.count))" : ""
+    var line =
+        "\(name)\t\(kind)\tpages \(document.pageCount)\(pageNote)\tsegments \(segments) (curves \(curves))"
     line += "\tfills \(fills)\ttext \(texts.count) (own \(own), PDFKit \(byKit), none \(none))"
     if invisible > 0 { line += "\tinvisible text \(invisible) (decoded \(invisibleDecoded))" }
     line += "\timages \(percent(coverage))\tlayers \(layers)\tforms \(forms)"
@@ -131,10 +133,12 @@ func readReference(_ path: String) throws -> DXF.Drawing {
     try list.run()
     let names = String(decoding: listing.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
     list.waitUntilExit()
-    // The entry names are often Shift-JIS, which a name round trip through UTF-8 loses, so a zip
-    // holding exactly one DXF is extracted whole rather than by name.
-    let entries = names.split(separator: "\n").filter { $0.lowercased().hasSuffix(".dxf") }
-    guard entries.count == 1 else { throw PDF.Error.cannotOpen }
+    // The entry names are often Shift-JIS, which a name round trip through UTF-8 loses, so only a
+    // zip holding exactly one entry, a DXF, is read, and it is extracted whole rather than by name.
+    let entries = names.split(separator: "\n")
+    guard entries.count == 1, entries[0].lowercased().hasSuffix(".dxf") else {
+        throw PDF.Error.cannotOpen
+    }
     let extract = Process()
     extract.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
     extract.arguments = ["-p", path]
@@ -146,22 +150,27 @@ func readReference(_ path: String) throws -> DXF.Drawing {
     return try DXF.read(data: data, options: options)
 }
 
-func compareLine(_ pdf: String, _ reference: String) -> (String, PDF.Comparison?) {
+func compareLine(_ pdf: String, _ reference: String) -> (
+    line: String, result: PDF.Comparison?, pages: Int
+) {
     let name = URL(fileURLWithPath: pdf).lastPathComponent
     guard let document = try? PDF.read(contentsOf: URL(fileURLWithPath: pdf), maximumPages: 1),
         let page = document.pages.first
-    else { return ("\(name)\tcannot open the PDF", nil) }
+    else { return ("\(name)\tcannot open the PDF", nil, 0) }
     guard var ref = try? readReference(reference) else {
-        return ("\(name)\tcannot read the DXF", nil)
+        return ("\(name)\tcannot read the DXF", nil, document.pageCount)
     }
     if !excludedLayers.isEmpty {
         ref.entities.removeAll { excludedLayers.contains(PDF.describe(layerOf: $0)) }
     }
     guard let result = PDF.compare(page.drawing(), with: ref) else {
-        return ("\(name)\t\(page.kind.rawValue)\tfewer than two texts in common", nil)
+        return (
+            "\(name)\t\(page.kind.rawValue)\tfewer than two texts in common", nil,
+            document.pageCount
+        )
     }
     let d = result.referenceDistances.map { String(format: "%.3f", $0) }.joined(separator: "/")
-    let pageCount = CGPDFDocument(URL(fileURLWithPath: pdf) as CFURL)?.numberOfPages ?? 0
+    let pageCount = document.pageCount
     var line =
         "\(name)\t\(page.kind.rawValue)\tpages \(pageCount)\tanchors \(result.anchorsUsed)/\(result.anchors)"
     line += String(
@@ -174,7 +183,7 @@ func compareLine(_ pdf: String, _ reference: String) -> (String, PDF.Comparison?
         line +=
             "\tmost uncovered: layer \(worst.key) \(percent(Double(worst.value) / Double(max(result.referenceSamples, 1))))"
     }
-    return (line, result)
+    return (line, result, pageCount)
 }
 
 /// Spike debugging: where the interpreter and PDFKit each put the first run containing `needle`.
@@ -203,11 +212,53 @@ func debugText(_ path: String, _ needle: String) {
     }
 }
 
+func median(_ values: [Double]) -> Double {
+    let sorted = values.sorted()
+    guard !sorted.isEmpty else { return .nan }
+    let middle = sorted.count / 2
+    return sorted.count % 2 == 1 ? sorted[middle] : (sorted[middle - 1] + sorted[middle]) / 2
+}
+
+/// The figures the experiment page reports: single-page pairs are judged on their own, since a
+/// multi-page PDF is compared on its first page against a DXF holding every sheet.
+func printPairsSummary(_ results: [(result: PDF.Comparison, pages: Int)], failures: Int) {
+    let single = results.filter { $0.pages == 1 }.map(\.result)
+    print(
+        "pairs compared: \(results.count) (single-page \(single.count)); not compared: \(failures)")
+    let dxf = single.map(\.referenceCovered)
+    let pdf = single.map(\.pdfCovered)
+    print(
+        "single-page, DXF covered within 0.2 mm: median \(percent(median(dxf))), at least 95% "
+            + "\(dxf.filter { $0 >= 0.95 }.count), at least 99% \(dxf.filter { $0 >= 0.99 }.count)")
+    print(
+        "single-page, PDF covered within 0.2 mm: median \(percent(median(pdf))), at least 95% "
+            + "\(pdf.filter { $0 >= 0.95 }.count)")
+    let both = single.filter { $0.referenceCovered >= 0.95 && $0.pdfCovered >= 0.95 }
+    print(
+        "single-page with both sides at least 95%: \(both.count) of \(single.count); in those, "
+            + String(
+                format: "median distance %.3f mm, median 90th percentile %.3f mm",
+                median(both.map { $0.referenceDistances[0] }),
+                median(both.map { $0.referenceDistances[1] })))
+    let matched = single.reduce(0) { $0 + $1.textsMatched }
+    let total = single.reduce(0) { $0 + $1.referenceTexts }
+    print("single-page texts matched within 2 mm: \(matched) of \(total)")
+    var scales: [String: Int] = [:]
+    for (result, _) in results {
+        let key =
+            result.scale < 0.9
+            ? "1:\(Int((1 / result.scale).rounded()))" : String(format: "%.4f", result.scale)
+        scales[key, default: 0] += 1
+    }
+    let listed = scales.sorted { $0.value > $1.value }.map { "\($0.key) \($0.value)" }
+    print("scales: \(listed.joined(separator: ", "))")
+}
+
 switch arguments.first {
 case "debug-text" where arguments.count == 3:
     debugText(arguments[1], arguments[2])
 case "compare" where arguments.count == 3:
-    let (line, result) = compareLine(arguments[1], arguments[2])
+    let (line, result, _) = compareLine(arguments[1], arguments[2])
     print(line)
     if let result, !result.uncovered.isEmpty {
         let total = Double(result.referenceSamples)
@@ -219,30 +270,28 @@ case "compare" where arguments.count == 3:
 case "pairs" where arguments.count == 2:
     let folder = URL(fileURLWithPath: arguments[1])
     let files = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
-    var results: [PDF.Comparison] = []
+    var results: [(result: PDF.Comparison, pages: Int)] = []
     var failures = 0
     for file in files.sorted() where file.lowercased().hasSuffix(".pdf") {
         let stem = String(file.dropLast(4))
         let zip = folder.appendingPathComponent("\(stem)_dxf.zip").path
         guard FileManager.default.fileExists(atPath: zip) else { continue }
-        let (line, result) = compareLine(folder.appendingPathComponent(file).path, zip)
-        print(line)
-        if let result { results.append(result) } else { failures += 1 }
+        let compared = compareLine(folder.appendingPathComponent(file).path, zip)
+        print(compared.line)
+        if let result = compared.result {
+            results.append((result, compared.pages))
+        } else {
+            failures += 1
+        }
     }
-    let covered = results.map(\.referenceCovered).sorted()
-    func median(_ values: [Double]) -> Double { values.isEmpty ? .nan : values[values.count / 2] }
-    print("pairs compared: \(results.count); not compared: \(failures)")
-    print(
-        "DXF covered within 0.2 mm, median: \(percent(median(covered))); at least 95%: \(covered.filter { $0 >= 0.95 }.count); at least 99%: \(covered.filter { $0 >= 0.99 }.count)"
-    )
-    print(
-        "PDF covered within 0.2 mm, median: \(percent(median(results.map(\.pdfCovered).sorted())))")
+    printPairsSummary(results, failures: failures)
 default:
     let detail = arguments.contains("--detail")
     let paths = arguments.filter { $0 != "--detail" }
     guard !paths.isEmpty else {
         print(
-            "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | pairs <folder>"
+            "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | "
+                + "pairs <folder> | debug-text <pdf> <text>; --exclude-layer <name> for compare and pairs"
         )
         exit(2)
     }

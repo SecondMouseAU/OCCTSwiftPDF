@@ -24,6 +24,9 @@ final class Font {
     let firstChar: Int
     let widths: [Double]
     let missingWidth: Double
+    /// The font descriptor's symbolic flag: its glyphs are outside the standard Latin set, so its
+    /// built-in encoding cannot be assumed.
+    let isSymbolic: Bool
     let defaultWidth: Double
     let cidWidths: [UInt32: Double]
     /// Glyph space to text space: 0.001, or a Type 3 font's own matrix.
@@ -63,10 +66,13 @@ final class Font {
         firstChar = PDFObjects.integer(dict, "FirstChar") ?? 0
         widths = PDFObjects.array(dict, "Widths").map(PDFObjects.numbers) ?? []
         var missing = 0.0
+        var flags = 0
         if let descriptor = PDFObjects.dictionary(dict, "FontDescriptor") {
             missing = PDFObjects.number(descriptor, "MissingWidth") ?? 0
+            flags = PDFObjects.integer(descriptor, "Flags") ?? 0
         }
         missingWidth = missing
+        isSymbolic = flags & 4 != 0
 
         var defaultWidth = 1000.0
         var cidWidths: [UInt32: Double] = [:]
@@ -128,7 +134,11 @@ final class Font {
     func advance(of code: UInt32, length: Int) -> Double {
         if isComposite {
             if isShiftJIS && length == 1 { return 0.5 }
-            return (cidWidths[code] ?? defaultWidth) * glyphScale
+            // `W` is keyed by CID. Only an Identity encoding makes the code the CID; for the
+            // predefined CMaps (Shift-JIS, Unicode) the code-to-CID tables are not carried, so the
+            // default width stands in.
+            let width = codesAreCIDs ? (cidWidths[code] ?? defaultWidth) : defaultWidth
+            return width * glyphScale
         }
         let index = Int(code) - firstChar
         let width = widths.indices.contains(index) ? widths[index] : missingWidth
@@ -137,9 +147,17 @@ final class Font {
         return (widths.isEmpty && width == 0 ? 500 : width) * glyphScale
     }
 
+    /// The character codes are the CIDs: an `Identity-H` or `Identity-V` encoding.
+    var codesAreCIDs: Bool { encodingName?.hasPrefix("Identity") == true }
+
     /// `bytes` as characters, and how they were found; `nil` text when the font gives no way back.
+    ///
+    /// A code the `ToUnicode` map does not cover becomes U+FFFD, unless another decoding covers
+    /// every code, so a value is never shortened silently (an unmapped `⌀` before `25.4` must not
+    /// leave `25.4`).
     func decode(_ bytes: [UInt8]) -> (text: String?, decoding: PDF.TextDecoding) {
         let codes = codes(bytes)
+        var mapped: String?
         if let toUnicode {
             var text = ""
             var missing = 0
@@ -147,26 +165,37 @@ final class Font {
                 if let found = toUnicode.string(for: code) {
                     text += found
                 } else {
+                    text += "\u{FFFD}"
                     missing += 1
                 }
             }
-            if missing == 0 || missing < codes.count / 2 {
-                return (text, .toUnicode)
-            }
+            if missing == 0 { return (text, .toUnicode) }
+            mapped = text
         }
+        if let other = decodeWithoutToUnicode(bytes, codes) { return other }
+        return mapped.map { ($0, .toUnicode) } ?? (nil, .none)
+    }
+
+    private func decodeWithoutToUnicode(_ bytes: [UInt8], _ codes: [(code: UInt32, length: Int)])
+        -> (text: String?, decoding: PDF.TextDecoding)?
+    {
         if isComposite {
             if isShiftJIS { return (DXF.decodeCP932(bytes), .shiftJIS) }
-            if isUnicodeCMap {
-                return (CMap.utf16(bytes), .unicodeCMap)
-            }
-            return (nil, .none)
+            if isUnicodeCMap { return (CMap.utf16(bytes), .unicodeCMap) }
+            return nil
         }
         var text = ""
         for (code, _) in codes {
-            guard let character = simpleCharacter(code) else { return (nil, .none) }
+            guard let character = simpleCharacter(code) else { return nil }
             text.append(character)
         }
-        return (text, .simpleEncoding)
+        // With no encoding, a standard Type 1 font uses StandardEncoding, which agrees with ASCII
+        // for printable codes. A symbolic, TrueType or Type 3 font's built-in encoding can be
+        // anything, so for those the codes are only guessed to be ASCII.
+        let guessed =
+            encodingName == nil && differences.isEmpty
+            && (isSymbolic || subtype == "TrueType" || subtype == "Type3")
+        return (text, guessed ? .asciiGuess : .simpleEncoding)
     }
 
     private func simpleCharacter(_ code: UInt32) -> Character? {
