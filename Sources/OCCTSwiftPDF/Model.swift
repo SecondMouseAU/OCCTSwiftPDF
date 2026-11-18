@@ -98,7 +98,8 @@ extension PDF {
 
     /// How a text run's characters were found.
     public enum TextDecoding: String, Sendable, CaseIterable {
-        /// The font's `ToUnicode` map.
+        /// The font's `ToUnicode` map. A code the map does not cover took the simple font's own
+        /// character where its encoding is known, and U+FFFD otherwise.
         case toUnicode
         /// The font's encoding is a Shift-JIS one (`90ms-RKSJ-H` and the like), so the bytes are
         /// Shift-JIS text.
@@ -113,7 +114,8 @@ extension PDF {
         /// Such a font's built-in encoding can be anything, so PDFKit's characters replace these
         /// when the two differ.
         case asciiGuess
-        /// This reader could not decode it; the characters are PDFKit's, found by position.
+        /// The characters are PDFKit's, found by position: this reader had none, or (for a run
+        /// along or across the page) only guessed ASCII that PDFKit contradicted, or a U+FFFD.
         case pdfKit
         /// Nothing could decode it: the font has no way back from codes to characters.
         case none
@@ -125,10 +127,9 @@ extension PDF {
         public var codes: [UInt8]
         /// The characters, from this reader's own decoding or from PDFKit.
         ///
-        /// PDFKit's stand in where this reader has none, only guessed ASCII that PDFKit
-        /// contradicts (``TextDecoding/asciiGuess``), or a code its `ToUnicode` map does not
-        /// cover. PDFKit is asked only for runs along or across the page. U+FFFD stands for a code
-        /// that nothing decoded.
+        /// PDFKit's stand in where this reader has none, and, for a run along or across the page,
+        /// where it only guessed ASCII that PDFKit contradicts (``TextDecoding/asciiGuess``) or has
+        /// a U+FFFD. U+FFFD stands for a code that nothing decoded.
         public var text: String?
         public var decoding: TextDecoding
         /// This reader's own decoding of ``codes``, or `nil`.

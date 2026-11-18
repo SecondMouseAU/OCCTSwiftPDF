@@ -130,4 +130,24 @@ struct ComparisonTests {
         let result = PDF.compare(paper, with: Self.sheet(scale: 1, dx: 0, dy: 0))
         #expect(result != nil)
     }
+
+    @Test("a long diagonal across a sheet is indexed and covered")
+    func longDiagonal() throws {
+        var paper = Self.sheet(scale: 1, dx: 0, dy: 0)
+        paper.entities.append(
+            .line(a: DXF.Point(0, 0), b: DXF.Point(841, 594), layer: "0", color: 7))
+        let result = try #require(PDF.compare(paper, with: paper))
+        #expect(result.referenceCovered > 0.999)
+        #expect(result.pdfCovered > 0.999)
+    }
+
+    @Test("an arc with a NaN angle in the reference is passed over, not a crash")
+    func nanArc() {
+        let drawing = DXF.Drawing(entities: [
+            .arc(
+                center: DXF.Point(0, 0), radius: 10, startDeg: .nan, endDeg: 90, layer: "0",
+                color: 7)
+        ])
+        #expect(PDF.segments(drawing, transform: nil).isEmpty)
+    }
 }

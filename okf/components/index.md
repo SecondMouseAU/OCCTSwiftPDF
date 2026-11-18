@@ -28,6 +28,8 @@ timestamp: 2026-11-18
     painted path became (`p1:op120:0`, via `Fm0#1`). Filled-only paths, images and text with no
     characters are counted in `skipped` by layer.
   - `PDF.Source` is where something came from: page, operator index, Form XObjects.
+  - `PDF.readReference(at:)` (spike tooling, macOS only) reads the drawing to compare with from a
+    DXF, or from a zip holding exactly one entry, a DXF, through `/usr/bin/unzip`.
   - `PDF.compare(_:with:tolerance:)` (spike tooling) places a reference drawing of the same sheet
     on the paper, by a similarity transform fitted robustly to the texts that occur once in each
     (the pair of anchors most others agree with) and refined on the geometry, and reports how much
@@ -39,13 +41,16 @@ timestamp: 2026-11-18
   their matrix and resources, at most 16 deep, never into themselves).
 - **Fonts** (`Fonts/`): how a font's bytes split into codes (one byte, two, Shift-JIS lead bytes,
   or the code space of a CMap), each character's advance (`Widths`, `W`, `DW`), and decoding:
-  `ToUnicode` (a code it does not cover is U+FFFD), Shift-JIS (`*-RKSJ-*`), Unicode CMaps, and
-  simple encodings (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, `Differences` with
-  standard glyph names). A symbolic, TrueType or Type 3 font with no encoding is read as ASCII and
-  marked `asciiGuess`.
+  `ToUnicode` (a code it does not cover takes the font's own character when its encoding is
+  known, and U+FFFD otherwise), Shift-JIS (`*-RKSJ-*`), Unicode CMaps, and simple encodings
+  (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, `Differences` with standard glyph
+  names). A symbolic, TrueType, Type 3 or embedded font with no encoding is read as ASCII and marked
+  `asciiGuess`. Colours are read in device, calibrated, ICC-based and Separation spaces.
 - **Text pairing** (`TextPairing.swift`): asks PDFKit for the characters inside each run's box, as
-  a check on this reader's decoding and as its fallback where this reader has no characters, only
-  guessed ASCII that PDFKit contradicts, or a code missing from the `ToUnicode` map.
+  a check on this reader's decoding and as its fallback where this reader has no characters. For a
+  run along or across the page, PDFKit's characters also replace guessed ASCII they contradict and
+  a reading with U+FFFD; an inclined run's axis-aligned box can take in its neighbours, so there
+  they never replace this reader's own reading.
 - **Text assembly** (`TextAssembly.swift`): joins runs that continue one another along a baseline,
   since some writers show one character per operation.
 - **Comparison support** (`Comparison+Sampling.swift`, `Similarity.swift`, `SegmentIndex.swift`):

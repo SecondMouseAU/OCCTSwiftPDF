@@ -77,13 +77,15 @@ struct TextTests {
         let page = try Self.page(
             """
             BT /F1 10 Tf 0.7071 0.7071 -0.7071 0.7071 100 100 Tm (ABCDEFGHIJ) Tj ET
-            BT /F1 10 Tf 125 140 Td (XYZ) Tj ET
+            BT /F1 10 Tf 104 122 Td (XYZ) Tj ET
             """,
-            font: "<< /Type /Font /Subtype /TrueType /BaseFont /Symbolic /FirstChar 32 >>")
+            font: "<< /Type /Font /Subtype /TrueType /BaseFont /Helvetica >>")
         let run = try #require(page.texts.first)
+        // "XYZ" sits inside the run's axis-aligned box, so PDFKit's characters for the box are
+        // not the run's; they must not replace its own reading.
+        #expect(run.pdfKitText?.contains("XYZ") == true)
         #expect(run.text == "ABCDEFGHIJ")
         #expect(run.decoding == .asciiGuess)
-        #expect(run.pdfKitText == nil)
     }
 
     @Test("a code missing from a simple font's ToUnicode map takes the font's own character")
@@ -95,6 +97,15 @@ struct TextTests {
             extra: [MiniPDF.stream("", cmap)])
         #expect(page.texts.first?.text == "\u{2300}2C")
         #expect(page.texts.first?.decoding == .toUnicode)
+    }
+
+    @Test("a gap in the ToUnicode map of a font whose codes are only guessed is marked")
+    func gapInGuessedFont() throws {
+        let page = try Self.page(
+            "BT /F1 10 Tf 100 100 Td (AB) Tj ET",
+            font: "<< /Type /Font /Subtype /TrueType /BaseFont /X /ToUnicode {2} >>",
+            extra: [MiniPDF.stream("", "1 beginbfchar <41> <2300> endbfchar")])
+        #expect(page.texts.first?.ownText == "\u{2300}\u{FFFD}")
     }
 
     @Test("invisible text is flagged and kept in the drawing")

@@ -154,13 +154,24 @@ final class Font {
         return (widths.isEmpty && width == 0 ? 500 : width) * glyphScale
     }
 
+    /// A simple font whose codes can only be guessed to be ASCII.
+    ///
+    /// With no encoding, one of the standard Type 1 fonts uses StandardEncoding, which agrees with
+    /// ASCII for printable codes. A symbolic, TrueType, Type 3 or embedded font's built-in encoding
+    /// can be anything.
+    var codesAreGuessed: Bool {
+        !isComposite && encodingName == nil && differences.isEmpty
+            && (isSymbolic || subtype == "TrueType" || subtype == "Type3" || isEmbedded)
+    }
+
     /// The character codes are the CIDs: an `Identity-H` or `Identity-V` encoding.
     var codesAreCIDs: Bool { encodingName?.hasPrefix("Identity") == true }
 
     /// `bytes` as characters, and how they were found; `nil` text when the font gives no way back.
     ///
     /// With a `ToUnicode` map, a code it does not cover takes the simple font's own character for
-    /// that code when there is one, and U+FFFD otherwise, so a value is never shortened silently
+    /// that code when the font's encoding is known, and U+FFFD otherwise (also for a font whose
+    /// codes would only be guessed), so a value is never shortened silently
     /// (an unmapped `⌀` before `25.4` must not leave `25.4`). A composite font with gaps in its map
     /// is decoded through its CMap instead when that covers every code.
     func decode(_ bytes: [UInt8]) -> (text: String?, decoding: PDF.TextDecoding) {
@@ -173,7 +184,7 @@ final class Font {
         for (code, _) in codes {
             if let found = toUnicode.string(for: code) {
                 text += found
-            } else if !isComposite, let character = simpleCharacter(code) {
+            } else if !isComposite, !codesAreGuessed, let character = simpleCharacter(code) {
                 text.append(character)
             } else {
                 text += "\u{FFFD}"
@@ -199,13 +210,7 @@ final class Font {
             guard let character = simpleCharacter(code) else { return nil }
             text.append(character)
         }
-        // With no encoding, one of the standard Type 1 fonts uses StandardEncoding, which agrees
-        // with ASCII for printable codes. A symbolic, TrueType, Type 3 or embedded font's built-in
-        // encoding can be anything, so for those the codes are only guessed to be ASCII.
-        let guessed =
-            encodingName == nil && differences.isEmpty
-            && (isSymbolic || subtype == "TrueType" || subtype == "Type3" || isEmbedded)
-        return (text, guessed ? .asciiGuess : .simpleEncoding)
+        return (text, codesAreGuessed ? .asciiGuess : .simpleEncoding)
     }
 
     private func simpleCharacter(_ code: UInt32) -> Character? {

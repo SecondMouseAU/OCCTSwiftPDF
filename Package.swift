@@ -5,6 +5,7 @@ let package = Package(
     name: "OCCTSwiftPDF",
     // CoreGraphics' PDF scanner and PDFKit are Apple frameworks. PDFKit is not on tvOS, which
     // OCCTSwiftIO also builds for, so the PDFKit use must be guarded before OCCTSwiftIO reads this.
+    // The comparison's reference reader runs `/usr/bin/unzip` and is macOS only already.
     platforms: [.macOS(.v15)],
     products: [
         .library(name: "OCCTSwiftPDF", targets: ["OCCTSwiftPDF"]),

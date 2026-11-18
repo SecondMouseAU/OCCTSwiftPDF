@@ -10,31 +10,32 @@ import PDFKit
 /// Pairs text runs with the characters PDFKit finds in their boxes.
 ///
 /// PDFKit decodes some text this reader cannot (fonts it gives no other way back from codes to
-/// characters). Its selections are in the same page coordinates the interpreter uses, and only runs
-/// along or across the page (within 1 degree) are paired. A character's
+/// characters). Its selections are in the same page coordinates the interpreter uses. For an
+/// inclined run PDFKit's characters only fill in where this reader has none, since the run's
+/// axis-aligned box can take in its neighbours. A character's
 /// box must be asked for through a selection: `characterBounds(at:)` indexes PDFKit's own character
 /// list, which is not `PDFPage.string`, since the string has spaces and line breaks added.
 enum TextPairing {
     static func pair(_ runs: inout [PDF.TextRun], with page: PDFPage) {
         for index in runs.indices {
             let run = runs[index]
-            // PDFKit is asked through an axis-aligned box, which fits a run only when it runs
-            // along or across the page; an inclined run's box takes in its neighbours.
-            let quarterTurns = run.rotationDeg / 90
-            guard run.width > 0, run.height > 0,
-                abs(quarterTurns - quarterTurns.rounded()) < 1.0 / 90,
-                let rect = innerRect(run)
-            else { continue }
+            guard run.width > 0, run.height > 0, let rect = innerRect(run) else { continue }
             let found = page.selection(for: rect)?.string?
                 .filter { !$0.isWhitespace && !$0.isNewline }
             guard let found, !found.isEmpty else { continue }
             runs[index].pdfKitText = found
-            // PDFKit's characters stand in where this reader has none, where it only guessed
-            // ASCII and PDFKit disagrees, and where a code was missing from the ToUnicode map.
+            // PDFKit's characters stand in where this reader has none. For a run along or across
+            // the page they also replace guessed ASCII that PDFKit contradicts and a reading with
+            // U+FFFD. An inclined run's axis-aligned box can take in neighbouring text, so there
+            // they never replace this reader's own reading.
+            let quarterTurns = run.rotationDeg / 90
+            let alongAxis = abs(quarterTurns - quarterTurns.rounded()) < 1.0 / 90
             let own = run.text?.filter { !$0.isWhitespace }
             let replace =
-                run.text == nil || (run.decoding == .asciiGuess && own != found)
-                || (run.text?.contains("\u{FFFD}") == true && !found.contains("\u{FFFD}"))
+                run.text == nil
+                || alongAxis
+                    && ((run.decoding == .asciiGuess && own != found)
+                        || (run.text?.contains("\u{FFFD}") == true && !found.contains("\u{FFFD}")))
             if replace {
                 runs[index].text = found
                 runs[index].decoding = .pdfKit

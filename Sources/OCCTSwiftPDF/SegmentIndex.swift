@@ -7,7 +7,13 @@ import Foundation
 import SwiftDXF
 
 extension PDF {
-    /// Segments bucketed by the cells their bounding boxes touch.
+    /// Segments bucketed by the cells they pass through.
+    ///
+    /// A query looks in the point's cell and the eight around it. With a segment recorded every
+    /// half cell along its length, that finds every segment within three quarters of a cell of
+    /// the point (1.5 mm for the comparison's 2 mm cells, against its 0.2 mm tolerance and 1 mm
+    /// fitting reach); a segment farther off can be missed, which only shows in distances near
+    /// the search radius, reported as the radius.
     struct SegmentIndex {
         let cell: Double
         let segments: [(DXF.Point2, DXF.Point2)]
@@ -17,13 +23,21 @@ extension PDF {
             self.cell = cell
             self.segments = segments
             for (index, (a, b)) in segments.enumerated() {
-                // A segment off the grid's range, or touching too many cells, is left out.
-                guard let x0 = cellIndex(min(a.x, b.x)), let x1 = cellIndex(max(a.x, b.x)),
-                    let y0 = cellIndex(min(a.y, b.y)), let y1 = cellIndex(max(a.y, b.y)),
-                    Double(x1 - x0 + 1) * Double(y1 - y0 + 1) < 100_000
-                else { continue }
-                for x in x0...x1 {
-                    for y in y0...y1 { buckets[Self.key(x, y), default: []].append(index) }
+                // The cells along the segment, every half cell: a long diagonal touches a few
+                // thousand cells, not every cell of its bounding box. A segment off the grid's
+                // range, or longer than a million cells, is left out.
+                let length = a.distance(to: b)
+                guard length.isFinite, length / cell <= 1_000_000 else { continue }
+                let steps = max(1, Int((length / (cell / 2)).rounded(.up)))
+                var previous: Int64?
+                for step in 0...steps {
+                    let t = Double(step) / Double(steps)
+                    guard let x = cellIndex(a.x + (b.x - a.x) * t),
+                        let y = cellIndex(a.y + (b.y - a.y) * t)
+                    else { continue }
+                    let key = Self.key(x, y)
+                    if key != previous { buckets[key, default: []].append(index) }
+                    previous = key
                 }
             }
         }

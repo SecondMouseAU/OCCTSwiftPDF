@@ -152,13 +152,16 @@ radius fitted over the whole run.
 - Character widths in fonts with a predefined CMap other than Identity use the font's default
   width, since the code-to-CID tables are not carried.
 - The PDFKit pairing assumes PDFKit's page coordinates are the PDF's own; this was checked on
-  sheets whose page box starts at the origin. Only runs along or across the page are paired, since
-  PDFKit is asked through an axis-aligned box.
-- Colours in Indexed, Pattern and DeviceN spaces are drawn black; device, calibrated, ICC-based and
-  Separation colours are read.
-- Codes a `ToUnicode` map does not cover become U+FFFD rather than being dropped; codes from a
-  symbolic, TrueType or Type 3 font with no encoding are only guessed to be ASCII
-  (`TextDecoding.asciiGuess`), and PDFKit's characters replace them where the two differ.
+  sheets whose page box starts at the origin. PDFKit is asked through an axis-aligned box, which
+  for an inclined run can take in its neighbours.
+- Colours in Indexed, Pattern, DeviceN and Lab spaces are drawn black; device, calibrated,
+  ICC-based and Separation colours are read.
+- The comparison's reference reader runs `/usr/bin/unzip`, so it is macOS only.
+- A code a `ToUnicode` map does not cover takes the font's own character when its encoding is
+  known, and U+FFFD otherwise, rather than being dropped. Codes from a symbolic, TrueType, Type 3
+  or embedded font with no encoding are only guessed to be ASCII (`TextDecoding.asciiGuess`).
+  PDFKit's characters replace a guess or a U+FFFD where the two differ, for runs along or across
+  the page; for an inclined run they only fill in where this reader has none.
 
 ## Decision
 
@@ -177,7 +180,9 @@ binary for nothing the corpus needs.
    the dimension line, arrowheads (filled-only paths, kept now as `skipped["FILL"]`) and extension
    lines.
 4. Scale inference from values against drawn lengths, per view.
-5. Wire into OCCTSwiftIO's `DrawingLoader` as `.pdf`. OCCTSwiftIO is public and builds for tvOS,
-   which has no PDFKit: this package has to be public and guard its PDFKit use first.
+5. Wire into OCCTSwiftIO's `DrawingLoader` as `.pdf`. OCCTSwiftIO is public and builds for iOS,
+   visionOS and tvOS: this package has to be public first, guard its PDFKit use (no PDFKit on
+   tvOS), and keep the comparison's `unzip` reader out of what OCCTSwiftIO links (no `Process`
+   outside macOS).
 6. Text drawn as shapes: OCR on the rendered area (Apple Vision), accepted only where it agrees
    with the measured geometry. The first piece of the raster path.

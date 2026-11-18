@@ -86,6 +86,9 @@ extension PDF {
     /// How many chords an arc of `sweep` radians and `radius` paper millimetres needs to stay
     /// within 0.01 mm of it: at least 8, at most 200,000.
     static func pieces(sweep: Double, radius: Double) -> Int {
+        // A NaN angle or bulge in a reference file gives points that are not finite, which are
+        // left out afterwards; here it must not reach the conversion to Int.
+        guard sweep.isFinite, radius.isFinite else { return 8 }
         let tolerance = 0.01
         let step = radius > tolerance ? 2 * acos(1 - tolerance / radius) : .pi / 4
         let count = (abs(sweep) / max(step, 1e-9)).rounded(.up)
