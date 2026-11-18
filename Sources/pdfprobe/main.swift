@@ -6,7 +6,11 @@
 //   pdfprobe [--detail] <file-or-folder>...   one line per PDF (vector, raster or mixed)
 //   pdfprobe compare <pdf> <dxf-or-zip>         the PDF's first page against the DXF
 //   pdfprobe pairs <folder>                     every <name>.pdf beside <name>_dxf.zip
+//
+// `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
+// auxiliary lines (`ADD_LINE` in the TECS DXFs), which are never printed.
 
+import CoreGraphics
 import Foundation
 import OCCTSwiftPDF
 import PDFKit
@@ -15,7 +19,18 @@ enum PDFKitPage {
     static func first(_ url: URL) -> PDFPage? { PDFDocument(url: url)?.page(at: 0) }
 }
 
-let arguments = Array(CommandLine.arguments.dropFirst())
+/// The arguments without `--exclude-layer <name>` pairs, and the names.
+func parse(_ raw: [String]) -> (arguments: [String], excluded: Set<String>) {
+    var arguments = raw
+    var excluded: Set<String> = []
+    while let flag = arguments.firstIndex(of: "--exclude-layer"), flag + 1 < arguments.count {
+        excluded.insert(arguments[flag + 1])
+        arguments.removeSubrange(flag...(flag + 1))
+    }
+    return (arguments, excluded)
+}
+
+let (arguments, excludedLayers) = parse(Array(CommandLine.arguments.dropFirst()))
 
 func pdfs(in paths: [String]) -> [URL] {
     var out: [URL] = []
@@ -136,14 +151,19 @@ func compareLine(_ pdf: String, _ reference: String) -> (String, PDF.Comparison?
     guard let document = try? PDF.read(contentsOf: URL(fileURLWithPath: pdf), maximumPages: 1),
         let page = document.pages.first
     else { return ("\(name)\tcannot open the PDF", nil) }
-    guard let ref = try? readReference(reference) else {
+    guard var ref = try? readReference(reference) else {
         return ("\(name)\tcannot read the DXF", nil)
+    }
+    if !excludedLayers.isEmpty {
+        ref.entities.removeAll { excludedLayers.contains(PDF.describe(layerOf: $0)) }
     }
     guard let result = PDF.compare(page.drawing(), with: ref) else {
         return ("\(name)\t\(page.kind.rawValue)\tfewer than two texts in common", nil)
     }
     let d = result.referenceDistances.map { String(format: "%.3f", $0) }.joined(separator: "/")
-    var line = "\(name)\t\(page.kind.rawValue)\tanchors \(result.anchorsUsed)/\(result.anchors)"
+    let pageCount = CGPDFDocument(URL(fileURLWithPath: pdf) as CFURL)?.numberOfPages ?? 0
+    var line =
+        "\(name)\t\(page.kind.rawValue)\tpages \(pageCount)\tanchors \(result.anchorsUsed)/\(result.anchors)"
     line += String(
         format: "\tscale %.5f\trotation %.2f\ttext residual %.3f mm\tgeometry residual %.3f mm",
         result.scale, result.rotationDeg, result.anchorResidual, result.geometryResidual)

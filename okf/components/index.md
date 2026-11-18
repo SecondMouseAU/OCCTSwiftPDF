@@ -27,8 +27,10 @@ timestamp: 2026-11-18
     paths, images and text with no characters are counted in `skipped` by layer.
   - `PDF.Source` is where something came from: page, operator index, Form XObjects.
   - `PDF.compare(_:with:tolerance:)` (spike tooling) places a reference drawing of the same sheet
-    on the paper, by a similarity transform fitted to their shared texts and refined on the
-    geometry, and reports how much of each drawing lies within the tolerance of the other.
+    on the paper, by a similarity transform fitted robustly to the texts that occur once in each
+    (the pair of anchors most others agree with) and refined on the geometry, and reports how much
+    of each drawing lies within the tolerance of the other, with the reference's uncovered
+    geometry by layer and entity type.
 - **Interpreter** (`Interpreter/PageInterpreter.swift`): runs a page's content stream through
   `CGPDFScanner`, keeping the graphics state stack, the current path, the text state, marked
   content (`BDC /OC` and a Form XObject's `/OC` become layers) and Form XObjects (followed with

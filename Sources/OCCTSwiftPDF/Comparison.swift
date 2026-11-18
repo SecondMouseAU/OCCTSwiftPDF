@@ -57,17 +57,16 @@ extension PDF {
         for (key, ref) in refUnique {
             if let pdf = pdfUnique[key] { pairs.append((ref.at, pdf.at)) }
         }
-        guard pairs.count >= 2, var fit = Similarity.fit(pairs) else { return nil }
-        var used = pairs
-        // Drop anchors far from the fit (text placed by different alignment points), twice.
-        for _ in 0..<2 {
-            let residuals = used.map { fit.apply($0.from).distance(to: $0.to) }
-            let median = residuals.sorted()[residuals.count / 2]
-            let kept = zip(used, residuals).filter { $0.1 <= max(3 * median, 0.5) }.map(\.0)
-            guard kept.count >= 2, let refit = Similarity.fit(kept) else { break }
-            used = kept
-            fit = refit
+        // Many values repeat on a sheet, so some texts that occur once in each drawing are
+        // different texts that happen to match. Take the transform that most anchors agree with:
+        // fitted to each pair of anchors, kept where the most land within 2 mm on the paper.
+        guard pairs.count >= 2, var fit = Similarity.robustFit(pairs, within: 2) else {
+            return nil
         }
+        var used = pairs.filter { fit.apply($0.from).distance(to: $0.to) <= 2 }
+        if used.count >= 2, let refit = Similarity.fit(used) { fit = refit }
+        used = pairs.filter { fit.apply($0.from).distance(to: $0.to) <= 2 }
+        guard used.count >= 2 else { return nil }
         let residual = sqrt(
             used.map { pow(fit.apply($0.from).distance(to: $0.to), 2) }.reduce(0, +)
                 / Double(used.count))
@@ -144,6 +143,9 @@ extension PDF {
         }
         return out
     }
+
+    /// The layer an entity is on, for leaving layers out of a comparison.
+    public static func describe(layerOf entity: DXF.Entity) -> String { describe(entity).layer }
 
     static func describe(_ entity: DXF.Entity) -> (layer: String, type: String) {
         switch entity {
@@ -299,6 +301,37 @@ extension PDF {
             let c = cos(rotation) * scale
             let s = sin(rotation) * scale
             return DXF.Point2(c * p.x - s * p.y + tx, s * p.x + c * p.y + ty)
+        }
+
+        /// The similarity, fitted to two of `pairs`, that takes the most of them within `within`
+        /// of their targets: every pair of anchors is tried when there are up to 80, otherwise
+        /// 3,000 pairs spread evenly.
+        static func robustFit(_ pairs: [(from: DXF.Point2, to: DXF.Point2)], within: Double)
+            -> Similarity?
+        {
+            var candidates: [(Int, Int)] = []
+            if pairs.count <= 80 {
+                for i in pairs.indices {
+                    for j in pairs.indices where j > i { candidates.append((i, j)) }
+                }
+            } else {
+                var generator = SystemRandomNumberGenerator()
+                for _ in 0..<3_000 {
+                    let i = Int.random(in: 0..<pairs.count, using: &generator)
+                    let j = Int.random(in: 0..<pairs.count, using: &generator)
+                    if i != j { candidates.append((i, j)) }
+                }
+            }
+            var best: (fit: Similarity, inliers: Int)?
+            for (i, j) in candidates {
+                guard pairs[i].from.distance(to: pairs[j].from) > 1e-9,
+                    let fit = Similarity.fit([pairs[i], pairs[j]]), fit.scale > 0
+                else { continue }
+                let inliers = pairs.filter { fit.apply($0.from).distance(to: $0.to) <= within }
+                    .count
+                if inliers > (best?.inliers ?? 1) { best = (fit, inliers) }
+            }
+            return best?.fit
         }
 
         /// The least-squares similarity taking each `from` to its `to` (Umeyama, in 2D).

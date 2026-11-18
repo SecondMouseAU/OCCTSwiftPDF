@@ -11,10 +11,11 @@ import Foundation
 enum TextAssembly {
     /// The runs, in content order, with each run that continues the one before it joined to it.
     ///
-    /// A run continues the line when it has the same direction (within 1 degree), size (within 10
-    /// percent), layer and visibility, starts on the line's baseline (within 15 percent of the
-    /// size), and starts no more than 0.3 of the size back from the line's end or 0.8 ahead of it.
-    /// A gap over 0.3 of the size becomes a space.
+    /// A run continues the line when it has the same font, direction (within 1 degree), size
+    /// (within 10 percent), layer and visibility, starts on the line's baseline (within 15 percent
+    /// of the size), and starts no more than 0.3 of the size back from the line's end or 0.8 ahead
+    /// of it. A gap over 0.3 of the size becomes a space. Runs in different fonts stay apart, so
+    /// each keeps the way it was decoded.
     static func lines(_ runs: [PDF.TextRun]) -> [PDF.TextRun] {
         var out: [PDF.TextRun] = []
         for run in runs {
@@ -32,7 +33,8 @@ enum TextAssembly {
     static func continuation(of line: PDF.TextRun, by run: PDF.TextRun) -> Double? {
         let h = line.height
         guard h > 0, run.height > 0, abs(run.height - h) <= 0.1 * h,
-            run.layer == line.layer, run.isInvisible == line.isInvisible,
+            run.fontName == line.fontName, run.layer == line.layer,
+            run.isInvisible == line.isInvisible,
             abs(angleBetween(run.rotationDeg, line.rotationDeg)) <= 1
         else { return nil }
         let angle = line.rotationDeg * .pi / 180

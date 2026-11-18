@@ -37,6 +37,26 @@ struct ComparisonTests {
         #expect(result.textsMatched == 3)
     }
 
+    @Test("a text that matches by coincidence does not throw the fit off")
+    func coincidentalMatch() throws {
+        var paper = Self.sheet(scale: 1, dx: 0, dy: 0)
+        var reference = Self.sheet(scale: 80, dx: 0, dy: 0)
+        // A fourth value that occurs once in each, but in different places.
+        paper.entities.append(
+            .text(
+                at: DXF.Point(90, 55), height: 3, rotationDeg: 0, string: "B", layer: "0",
+                color: 7))
+        reference.entities.append(
+            .text(
+                at: DXF.Point(800, 400), height: 240, rotationDeg: 0, string: "B", layer: "0",
+                color: 7))
+        let result = try #require(PDF.compare(paper, with: reference))
+        #expect(result.anchors == 4)
+        #expect(result.anchorsUsed == 3)
+        #expect(abs(result.scale - 1.0 / 80) < 1e-9)
+        #expect(result.referenceCovered > 0.999)
+    }
+
     @Test("geometry missing from the PDF lowers the reference's coverage")
     func missingGeometry() throws {
         var paper = Self.sheet(scale: 1, dx: 0, dy: 0)
