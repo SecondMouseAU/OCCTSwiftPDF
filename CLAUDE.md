@@ -18,8 +18,9 @@ spike today (Option 1 of the research: Apple's frameworks only); see
 
 ## Licence rules (these are not optional)
 
-- The consumers are LGPL-2.1 (OpenCASCADE, OCCTSwiftIO). Only permissive or LGPL code may be linked:
-  Apple's frameworks, MIT, BSD, Apache-2.0, zlib.
+- This package is LGPL-2.1, as OCCTSwiftIO is. Only permissive or LGPL code may be linked: Apple's
+  frameworks, MIT, BSD, Apache-2.0, zlib. Today the library links SwiftDXF (MIT) and Apple's
+  frameworks, and `pdfprobe` also links SwiftJWW (MIT).
 - **Never link or copy Poppler, Xpdf (GPL) or MuPDF (AGPL).** Their command-line tools
   (`pdftotext`, `pdffonts`, `pdftocairo`) may be run during development to check results; nothing
   may depend on them.
@@ -48,5 +49,4 @@ swiftlint lint --strict
 - Docs ship with the change (`okf/policies/docs-current.md`).
 - Analytic, not pixels: correctness is shown against the paired DXF or JWW of the same drawing,
   by coordinates, never by comparing pictures.
-- CI runs on the organisation's self-hosted Mac runner (`[self-hosted, macOS, ARM64]`); the repo
-  must be in a runner group that allows it.
+- CI runs on GitHub's hosted `macos-15` runners, which are free for this public repo.
