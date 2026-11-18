@@ -16,14 +16,29 @@ library is linked.
 PDFs that CAD programs produce, or whether PDFium is needed. The results are in
 [`okf/experiments/option-1-spike.md`](okf/experiments/option-1-spike.md).
 
+What it does: interprets each page (paths, transforms, Form XObjects, layers, clipping), decodes
+text with its own font decoding and checks it against PDFKit, joins text shown a character at a
+time into lines, says whether each page is vector, raster or mixed, and turns a page into a
+`DXF.Drawing` in millimetres with an identity on every entity.
+
 Not built yet, on purpose: arc and circle recovery from curves and runs of short lines, dimension
-rebuilding, scale inference, and the wiring into OCCTSwiftIO.
+rebuilding, scale inference, reading text drawn as shapes, and the wiring into OCCTSwiftIO.
+
+## Use
+
+```swift
+import OCCTSwiftPDF
+
+let document = try PDF.read(contentsOf: url)
+for page in document.pages where page.kind == .vector {
+    let drawing = page.drawing()   // DXF.Drawing, millimetres on the sheet
+}
+```
 
 ## Command line
 
 ```bash
-swift run pdfprobe <file-or-folder>...
+swift run pdfprobe [--detail] <file-or-folder>...   # what each PDF is made of
+swift run pdfprobe compare <pdf> <dxf-or-zip>         # a PDF against the DXF of the same drawing
+swift run pdfprobe pairs <folder>                     # every <name>.pdf beside <name>_dxf.zip
 ```
-
-prints, for each PDF, whether its pages are vector, raster (scanned) or mixed, and what they are
-made of.
