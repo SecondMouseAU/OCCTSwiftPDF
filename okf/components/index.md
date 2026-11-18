@@ -38,19 +38,21 @@ timestamp: 2026-11-18
 - **Interpreter** (`Interpreter/PageInterpreter.swift`): runs a page's content stream through
   `CGPDFScanner`, keeping the graphics state stack, the current path, the text state, marked
   content (`BDC /OC` and a Form XObject's `/OC` become layers) and Form XObjects (followed with
-  their matrix and resources, at most 16 deep, never into themselves).
+  their matrix and resources, at most 16 deep, never into themselves). Colours are read in device,
+  calibrated, ICC-based and Separation spaces; others draw black.
 - **Fonts** (`Fonts/`): how a font's bytes split into codes (one byte, two, Shift-JIS lead bytes,
   or the code space of a CMap), each character's advance (`Widths`, `W`, `DW`), and decoding:
-  `ToUnicode` (a code it does not cover takes the font's own character when its encoding is
-  known, and U+FFFD otherwise), Shift-JIS (`*-RKSJ-*`), Unicode CMaps, and simple encodings
+  `ToUnicode` (a code it does not cover takes the font's own character when that is known, and
+  U+FFFD otherwise), Shift-JIS (`*-RKSJ-*`), Unicode CMaps, and simple encodings
   (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, `Differences` with standard glyph
-  names). A symbolic, TrueType, Type 3 or embedded font with no encoding is read as ASCII and marked
-  `asciiGuess`. Colours are read in device, calibrated, ICC-based and Separation spaces.
-- **Text pairing** (`TextPairing.swift`): asks PDFKit for the characters inside each run's box, as
-  a check on this reader's decoding and as its fallback where this reader has no characters. For a
+  names). In a symbolic, TrueType, Type 3 or embedded font with no base encoding, codes the
+  `Differences` array does not name are read as ASCII and marked `asciiGuess`.
+- **Text pairing** (`TextPairing.swift`): asks PDFKit for each run's characters (inside its box
+  for a run along or across the page, from its first character to its end for an inclined one),
+  as a check on this reader's decoding and as its fallback where this reader has no characters. For a
   run along or across the page, PDFKit's characters also replace guessed ASCII they contradict and
   a reading with U+FFFD; an inclined run's axis-aligned box can take in its neighbours, so there
-  they never replace this reader's own reading.
+  they never replace this reader's own reading and fill in only when they number its codes.
 - **Text assembly** (`TextAssembly.swift`): joins runs that continue one another along a baseline,
   since some writers show one character per operation.
 - **Comparison support** (`Comparison+Sampling.swift`, `Similarity.swift`, `SegmentIndex.swift`):

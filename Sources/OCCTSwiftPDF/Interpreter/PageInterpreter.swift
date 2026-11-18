@@ -469,7 +469,8 @@ final class PageInterpreter {
         let decoded = font.decode(allBytes)
         texts.append(
             PDF.TextRun(
-                codes: allBytes, text: decoded.text, decoding: decoded.decoding,
+                codes: allBytes, codeCount: font.codes(allBytes).count, text: decoded.text,
+                decoding: decoded.decoding,
                 ownText: decoded.text, pdfKitText: nil, origin: origin,
                 rotationDeg: atan2(axis.y, axis.x) * 180 / .pi, height: hypot(up.x, up.y),
                 width: width,

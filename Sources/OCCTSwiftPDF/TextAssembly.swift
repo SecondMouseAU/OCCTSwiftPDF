@@ -61,6 +61,7 @@ enum TextAssembly {
             return a + (space ? " " : "") + b
         }
         line.codes += run.codes
+        line.codeCount += run.codeCount
         line.text = joined(line.text, run.text)
         line.ownText = joined(line.ownText, run.ownText)
         line.pdfKitText = joined(line.pdfKitText, run.pdfKitText)

@@ -109,10 +109,11 @@ extension PDF {
         /// A simple font's encoding (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, or a
         /// `Differences` array of standard glyph names).
         case simpleEncoding
-        /// A symbolic, TrueType, Type 3 or embedded font with no encoding, whose codes were taken
-        /// as ASCII.
-        /// Such a font's built-in encoding can be anything, so PDFKit's characters replace these
-        /// when the two differ.
+        /// A symbolic, TrueType, Type 3 or embedded font with no base encoding, whose codes (those
+        /// its `Differences` array does not name) were taken as ASCII.
+        ///
+        /// Such a font's built-in encoding can be anything, so for a run along or across the page
+        /// PDFKit's characters replace these when the two differ.
         case asciiGuess
         /// The characters are PDFKit's, found by position: this reader had none, or (for a run
         /// along or across the page) only guessed ASCII that PDFKit contradicted, or a U+FFFD.
@@ -125,6 +126,8 @@ extension PDF {
     public struct TextRun: Sendable {
         /// The bytes shown.
         public var codes: [UInt8]
+        /// The number of character codes in ``codes``, by the font's code space.
+        public var codeCount: Int
         /// The characters, from this reader's own decoding or from PDFKit.
         ///
         /// PDFKit's stand in where this reader has none, and, for a run along or across the page,

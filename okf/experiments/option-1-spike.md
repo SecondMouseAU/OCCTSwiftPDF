@@ -152,8 +152,10 @@ radius fitted over the whole run.
 - Character widths in fonts with a predefined CMap other than Identity use the font's default
   width, since the code-to-CID tables are not carried.
 - The PDFKit pairing assumes PDFKit's page coordinates are the PDF's own; this was checked on
-  sheets whose page box starts at the origin. PDFKit is asked through an axis-aligned box, which
-  for an inclined run can take in its neighbours.
+  sheets whose page box starts at the origin. A run along or across the page is asked for through
+  an axis-aligned box; an inclined run, whose box would take in its neighbours, from a point inside
+  its first character to its end, which follows PDFKit's text flow along the run, and is filled
+  only when the characters number its codes.
 - Colours in Indexed, Pattern, DeviceN and Lab spaces are drawn black; device, calibrated,
   ICC-based and Separation colours are read.
 - The comparison's reference reader runs `/usr/bin/unzip`, so it is macOS only.

@@ -1,6 +1,7 @@
 import CoreGraphics
 import CoreText
 import Foundation
+import PDFKit
 import Testing
 
 @testable import OCCTSwiftPDF
@@ -72,7 +73,7 @@ struct TextTests {
         #expect(page.texts.first?.decoding == .asciiGuess)
     }
 
-    @Test("an inclined run keeps its own reading; PDFKit's box would take in its neighbours")
+    @Test("an inclined run keeps its own reading, and PDFKit is asked along it, not in a box")
     func inclinedRun() throws {
         let page = try Self.page(
             """
@@ -81,9 +82,9 @@ struct TextTests {
             """,
             font: "<< /Type /Font /Subtype /TrueType /BaseFont /Helvetica >>")
         let run = try #require(page.texts.first)
-        // "XYZ" sits inside the run's axis-aligned box, so PDFKit's characters for the box are
-        // not the run's; they must not replace its own reading.
-        #expect(run.pdfKitText?.contains("XYZ") == true)
+        // "XYZ" sits inside the run's axis-aligned box; PDFKit is asked along the run instead, so
+        // it is not picked up, and the run keeps its own reading.
+        #expect(run.pdfKitText?.contains("XYZ") != true)
         #expect(run.text == "ABCDEFGHIJ")
         #expect(run.decoding == .asciiGuess)
     }
@@ -106,6 +107,62 @@ struct TextTests {
             font: "<< /Type /Font /Subtype /TrueType /BaseFont /X /ToUnicode {2} >>",
             extra: [MiniPDF.stream("", "1 beginbfchar <41> <2300> endbfchar")])
         #expect(page.texts.first?.ownText == "\u{2300}\u{FFFD}")
+    }
+
+    @Test("an inclined run with no text of its own is filled by PDFKit only when the count fits")
+    func inclinedFill() throws {
+        let font = "<< /Type /Font /Subtype /TrueType /BaseFont /Helvetica >>"
+        func runs(_ content: String) throws -> ([PDF.TextRun], PDFPage) {
+            var pdf = MiniPDF(content: content)
+            pdf.objects = [font]
+            pdf.resources = "<< /Font << /F1 {1} >> >>"
+            let url = try pdf.file()
+            let page = try #require(try PDF.read(contentsOf: url).pages.first)
+            let kit = try #require(PDFDocument(url: url)?.page(at: 0))
+            // As if this reader had no characters for them.
+            let blank = page.texts.map { run -> PDF.TextRun in
+                var copy = run
+                copy.text = nil
+                copy.ownText = nil
+                copy.pdfKitText = nil
+                copy.decoding = .none
+                return copy
+            }
+            return (blank, kit)
+        }
+        var (alone, kit) = try runs(
+            "BT /F1 10 Tf 0.7071 0.7071 -0.7071 0.7071 100 100 Tm (R5) Tj ET")
+        TextPairing.pair(&alone, with: kit)
+        #expect(alone.first?.text == "R5")
+        #expect(alone.first?.decoding == .pdfKit)
+
+        var (crowded, crowdedKit) = try runs(
+            """
+            BT /F1 10 Tf 0.7071 0.7071 -0.7071 0.7071 100 100 Tm (ABCDEFGHIJ) Tj ET
+            BT /F1 10 Tf 104 122 Td (XYZ) Tj ET
+            """)
+        TextPairing.pair(&crowded, with: crowdedKit)
+        // PDFKit's box holds "XYZ" as well as the run's own characters: too many to be the run's.
+        #expect(crowded.first?.text == nil)
+    }
+
+    @Test("codes a Differences array does not name, in an embedded font, are guesses")
+    func differencesInEmbeddedFont() throws {
+        let font = """
+            << /Type /Font /Subtype /Type1 /BaseFont /ABCDEF+Gothic \
+            /Encoding << /Type /Encoding /Differences [65 /degree] >> /FontDescriptor {2} \
+            /ToUnicode {4} >>
+            """
+        let descriptor =
+            "<< /Type /FontDescriptor /FontName /ABCDEF+Gothic /Flags 32 /FontFile {3} >>"
+        let page = try Self.page(
+            "BT /F1 10 Tf 100 100 Td (AB) Tj 0 -20 Td (AC) Tj ET", font: font,
+            extra: [
+                descriptor, MiniPDF.stream("/Length1 1", "x"),
+                MiniPDF.stream("", "1 beginbfchar <41> <2300> endbfchar"),
+            ])
+        // The map covers A only; B and C are not in Differences, so they could only be guessed.
+        #expect(page.texts.map(\.ownText) == ["\u{2300}\u{FFFD}", "\u{2300}\u{FFFD}"])
     }
 
     @Test("invisible text is flagged and kept in the drawing")

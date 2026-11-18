@@ -113,6 +113,13 @@ func summary(_ url: URL, detail: Bool) {
         if a == b { agree += 1 } else { differ.append((a, b)) }
     }
     print("  own decoding against PDFKit: \(agree) agree, \(differ.count) differ")
+    let filled = texts.filter { $0.decoding == .pdfKit }
+    if !filled.isEmpty {
+        let shown = filled.prefix(8).map {
+            "\"\($0.text ?? "")\" at \(Int($0.rotationDeg.rounded())) degrees"
+        }
+        print("  PDFKit's characters used: \(shown.joined(separator: ", "))")
+    }
     for (mine, kit) in differ.prefix(5) { print("    own \"\(mine)\" PDFKit \"\(kit)\"") }
     let shown = texts.isEmpty ? invisibleRuns : texts
     let samples = shown.compactMap(\.text).prefix(12).map { "\"\($0)\"" }.joined(separator: " ")
