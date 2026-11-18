@@ -16,13 +16,12 @@ extension PDF {
         init(_ segments: [(DXF.Point2, DXF.Point2)], cell: Double) {
             self.cell = cell
             self.segments = segments
-            for (index, (a, b)) in segments.enumerated()
-            where a.x.isFinite && a.y.isFinite && b.x.isFinite && b.y.isFinite {
-                let x0 = Int64(floor(min(a.x, b.x) / cell))
-                let x1 = Int64(floor(max(a.x, b.x) / cell))
-                let y0 = Int64(floor(min(a.y, b.y) / cell))
-                let y1 = Int64(floor(max(a.y, b.y) / cell))
-                guard (x1 - x0 + 1) * (y1 - y0 + 1) < 100_000 else { continue }
+            for (index, (a, b)) in segments.enumerated() {
+                // A segment off the grid's range, or touching too many cells, is left out.
+                guard let x0 = cellIndex(min(a.x, b.x)), let x1 = cellIndex(max(a.x, b.x)),
+                    let y0 = cellIndex(min(a.y, b.y)), let y1 = cellIndex(max(a.y, b.y)),
+                    Double(x1 - x0 + 1) * Double(y1 - y0 + 1) < 100_000
+                else { continue }
                 for x in x0...x1 {
                     for y in y0...y1 { buckets[Self.key(x, y), default: []].append(index) }
                 }
@@ -31,13 +30,19 @@ extension PDF {
 
         static func key(_ x: Int64, _ y: Int64) -> Int64 { x << 32 ^ (y & 0xFFFF_FFFF) }
 
+        /// The cell a coordinate falls in, or `nil` for a coordinate that is not finite or is too
+        /// far out for the grid (beyond a billion cells from the origin).
+        func cellIndex(_ value: Double) -> Int64? {
+            let index = (value / cell).rounded(.down)
+            guard index.isFinite, abs(index) < 1e9 else { return nil }
+            return Int64(index)
+        }
+
         /// The nearest point on any segment, when one is within `radius`.
         func nearest(from p: DXF.Point2, within radius: Double) -> DXF.Point2? {
-            guard p.x.isFinite && p.y.isFinite else { return nil }
+            guard let cx = cellIndex(p.x), let cy = cellIndex(p.y) else { return nil }
             var best = radius
             var found: DXF.Point2?
-            let cx = Int64(floor(p.x / cell))
-            let cy = Int64(floor(p.y / cell))
             for x in (cx - 1)...(cx + 1) {
                 for y in (cy - 1)...(cy + 1) {
                     for index in buckets[Self.key(x, y)] ?? [] {
@@ -65,10 +70,8 @@ extension PDF {
 
         /// The distance to the nearest segment, or `radius` when none is that close.
         func distance(from p: DXF.Point2, within radius: Double) -> Double {
-            guard p.x.isFinite && p.y.isFinite else { return radius }
+            guard let cx = cellIndex(p.x), let cy = cellIndex(p.y) else { return radius }
             var best = radius
-            let cx = Int64(floor(p.x / cell))
-            let cy = Int64(floor(p.y / cell))
             var seen = Set<Int>()
             for x in (cx - 1)...(cx + 1) {
                 for y in (cy - 1)...(cy + 1) {

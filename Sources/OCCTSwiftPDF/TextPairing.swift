@@ -10,14 +10,21 @@ import PDFKit
 /// Pairs text runs with the characters PDFKit finds in their boxes.
 ///
 /// PDFKit decodes some text this reader cannot (fonts it gives no other way back from codes to
-/// characters). Its selections are in the same page coordinates the interpreter uses. A character's
+/// characters). Its selections are in the same page coordinates the interpreter uses, and only runs
+/// along or across the page (within 1 degree) are paired. A character's
 /// box must be asked for through a selection: `characterBounds(at:)` indexes PDFKit's own character
 /// list, which is not `PDFPage.string`, since the string has spaces and line breaks added.
 enum TextPairing {
     static func pair(_ runs: inout [PDF.TextRun], with page: PDFPage) {
         for index in runs.indices {
             let run = runs[index]
-            guard run.width > 0, run.height > 0, let rect = innerRect(run) else { continue }
+            // PDFKit is asked through an axis-aligned box, which fits a run only when it runs
+            // along or across the page; an inclined run's box takes in its neighbours.
+            let quarterTurns = run.rotationDeg / 90
+            guard run.width > 0, run.height > 0,
+                abs(quarterTurns - quarterTurns.rounded()) < 1.0 / 90,
+                let rect = innerRect(run)
+            else { continue }
             let found = page.selection(for: rect)?.string?
                 .filter { !$0.isWhitespace && !$0.isNewline }
             guard let found, !found.isEmpty else { continue }

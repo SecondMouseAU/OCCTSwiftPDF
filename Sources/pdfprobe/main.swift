@@ -119,37 +119,6 @@ func summary(_ url: URL, detail: Bool) {
     print("  first texts: \(samples)")
 }
 
-func readReference(_ path: String) throws -> DXF.Drawing {
-    let url = URL(fileURLWithPath: path)
-    let options = DXF.ReadOptions(expandBlocks: true)
-    guard url.pathExtension.lowercased() == "zip" else {
-        return try DXF.read(contentsOf: url, options: options)
-    }
-    let list = Process()
-    list.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-    list.arguments = ["-Z1", path]
-    let listing = Pipe()
-    list.standardOutput = listing
-    try list.run()
-    let names = String(decoding: listing.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-    list.waitUntilExit()
-    // The entry names are often Shift-JIS, which a name round trip through UTF-8 loses, so only a
-    // zip holding exactly one entry, a DXF, is read, and it is extracted whole rather than by name.
-    let entries = names.split(separator: "\n")
-    guard entries.count == 1, entries[0].lowercased().hasSuffix(".dxf") else {
-        throw PDF.Error.cannotOpen
-    }
-    let extract = Process()
-    extract.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-    extract.arguments = ["-p", path]
-    let output = Pipe()
-    extract.standardOutput = output
-    try extract.run()
-    let data = output.fileHandleForReading.readDataToEndOfFile()
-    extract.waitUntilExit()
-    return try DXF.read(data: data, options: options)
-}
-
 func compareLine(_ pdf: String, _ reference: String) -> (
     line: String, result: PDF.Comparison?, pages: Int
 ) {
@@ -157,7 +126,7 @@ func compareLine(_ pdf: String, _ reference: String) -> (
     guard let document = try? PDF.read(contentsOf: URL(fileURLWithPath: pdf), maximumPages: 1),
         let page = document.pages.first
     else { return ("\(name)\tcannot open the PDF", nil, 0) }
-    guard var ref = try? readReference(reference) else {
+    guard var ref = try? PDF.readReference(at: URL(fileURLWithPath: reference)) else {
         return ("\(name)\tcannot read the DXF", nil, document.pageCount)
     }
     if !excludedLayers.isEmpty {

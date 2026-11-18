@@ -204,4 +204,43 @@ struct InterpreterTests {
         #expect(page.inlineImages == 1)
         #expect(page.kind == .raster)
     }
+
+    @Test("a form's extra Q and EMC do not pop the page's saved state or layer")
+    func formCannotPopPage() throws {
+        var pdf = MiniPDF(
+            content: "/OC /oc1 BDC q 2 0 0 2 0 0 cm /Fm0 Do Q 0 0 m 10 0 l S EMC")
+        pdf.objects = [
+            MiniPDF.stream("/Type /XObject /Subtype /Form /BBox [0 0 100 100]", "Q EMC EMC"),
+            "<< /Type /OCG /Name (Page) >>",
+        ]
+        pdf.resources = "<< /XObject << /Fm0 {1} >> /Properties << /oc1 {2} >> >>"
+        let path = try #require(try Self.page(pdf).paths.first)
+        #expect(path.subpaths[0].segments == [.line(to: CGPoint(x: 10, y: 0))])
+        #expect(path.layer == "Page")
+    }
+
+    @Test("colours follow the space set by cs and CS: device, ICC-based and separation")
+    func colourSpaces() throws {
+        var pdf = MiniPDF(
+            content: """
+                /DeviceRGB CS 1 0 0 SC 0 0 m 10 0 l S
+                /Ink cs 1 sc 0 0 5 5 re f
+                /Icc CS 0 0 1 SC 0 5 m 10 5 l S
+                """)
+        pdf.objects = [
+            "[/Separation /Black /DeviceGray {2}]",
+            "<< /FunctionType 2 /Domain [0 1] /C0 [1] /C1 [0] /N 1 >>",
+            "[/ICCBased {4}]",
+            MiniPDF.stream("/N 3", "x"),
+        ]
+        pdf.resources = "<< /ColorSpace << /Ink {1} /Icc {3} >> >>"
+        let page = try Self.page(pdf)
+        func same(_ a: PDF.Colour, _ r: Double, _ g: Double, _ b: Double) -> Bool {
+            abs(a.red - r) < 1e-9 && abs(a.green - g) < 1e-9 && abs(a.blue - b) < 1e-9
+        }
+        #expect(same(page.paths[0].strokeColour, 1, 0, 0))
+        // A full tint of ink is black, not white.
+        #expect(same(page.paths[1].fillColour, 0, 0, 0))
+        #expect(same(page.paths[2].strokeColour, 0, 0, 1))
+    }
 }

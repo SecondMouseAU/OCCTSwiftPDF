@@ -72,6 +72,31 @@ struct TextTests {
         #expect(page.texts.first?.decoding == .asciiGuess)
     }
 
+    @Test("an inclined run keeps its own reading; PDFKit's box would take in its neighbours")
+    func inclinedRun() throws {
+        let page = try Self.page(
+            """
+            BT /F1 10 Tf 0.7071 0.7071 -0.7071 0.7071 100 100 Tm (ABCDEFGHIJ) Tj ET
+            BT /F1 10 Tf 125 140 Td (XYZ) Tj ET
+            """,
+            font: "<< /Type /Font /Subtype /TrueType /BaseFont /Symbolic /FirstChar 32 >>")
+        let run = try #require(page.texts.first)
+        #expect(run.text == "ABCDEFGHIJ")
+        #expect(run.decoding == .asciiGuess)
+        #expect(run.pdfKitText == nil)
+    }
+
+    @Test("a code missing from a simple font's ToUnicode map takes the font's own character")
+    func partialToUnicode() throws {
+        let cmap = "1 beginbfchar <41> <2300> endbfchar 1 beginbfchar <42> <0032> endbfchar"
+        let page = try Self.page(
+            "BT /F1 10 Tf 100 100 Td (ABC) Tj ET",
+            font: "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /ToUnicode {2} >>",
+            extra: [MiniPDF.stream("", cmap)])
+        #expect(page.texts.first?.text == "\u{2300}2C")
+        #expect(page.texts.first?.decoding == .toUnicode)
+    }
+
     @Test("invisible text is flagged and kept in the drawing")
     func invisible() throws {
         let page = try Self.page("BT /F1 10 Tf 3 Tr 100 100 Td (1,956) Tj ET")

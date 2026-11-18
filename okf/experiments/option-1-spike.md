@@ -18,19 +18,25 @@ wiring were left out on purpose.
 
 ## The corpus
 
-`~/Projects/OCCTDesignLoop/drawingfiles`: 46 PDFs in `PDFs/` (the McMaster sheets, the Fowler
-set, UK railway sheets and eight probed files from as many CAD programs and PDF writers), and
+`~/Projects/OCCTDesignLoop/drawingfiles`: 47 PDFs in `PDFs/` (the McMaster sheets, the Fowler
+set, UK railway sheets, a model engineering set and eight probed files from as many CAD programs
+and PDF writers), and
 the TECS drawings in `tecs-pairs/`, each a PDF beside a zipped DXF of the same drawing.
 
 ## Results
 
 ### 1. Vector, raster or mixed
 
-`PDFs/`: 45 vector, 1 mixed (`07B-18-00-A3.pdf`, a drawing over full-page images), no scans. The
-McMaster sheets carry a logo image of 3 to 6 percent of the page; the threshold for vector is
-images under a quarter of the page. The TECS PDFs include scans: see the pairs below.
+`PDFs/` (47 files): 43 vector; 3 mixed (`07B-18-00-A3.pdf` and `MAURICIUS-A3.pdf`, drawings over
+full-page images, and the three-page `h-potty-mill-engine` file); and the four-page
+`h-potty-mill-engine` file, mixed on three pages and raster on one. The images are real (2048 by
+1444 pixels in `MAURICIUS-A3.pdf`); two of these files hold them as inline images, which count
+towards a page's image coverage like image XObjects. The McMaster sheets carry a logo image of 3 to
+6 percent of the page; the threshold for vector is images under a quarter of the page. The TECS
+PDFs include scans: see the pairs below.
 
-All 46 files read in about 4 seconds in a release build.
+All 47 files read in a few seconds in a release build (the summary reads the first five pages of a
+longer file).
 
 ### 2. Text
 
@@ -100,7 +106,7 @@ The DXF's Jw_cad auxiliary lines (layer `ADD_LINE` in the TECS DXFs: dotted boxe
 construction lines) are left out, since Jw_cad never prints them.
 
 **The 2120** (PDF printed from Jw_cad, against the DXF written from its JWW by SwiftJWW): scale
-1.00003, rotation 0.00 degrees, geometry residual 0.024 mm. The PDF's geometry is all within
+1.00003, rotation 0.00 degrees, geometry residual 0.025 mm. The PDF's geometry is all within
 0.2 mm of the DXF's. The DXF's is too, except a box of seven lines on JWW layer 15 that was not
 printed (336 mm of line, 2 percent of the drawing): 98.0 percent covered in all, 99.96 percent
 without that box. Median distance 0.019 mm, 90th percentile 0.039 mm, on the paper; at 1:80 that
@@ -113,7 +119,7 @@ is about 1.5 and 3 mm at full size. 31 of the 34 texts match within 2 mm.
   or mixed (5 raster, 7 mixed) with no text in common; 1 PDF does not open.
 - 228 compared, 225 of them single-page. For **206 of the 225, each drawing is at least 95 percent
   within 0.2 mm of the other**; in those, the median distance is 0.010 mm and the 90th percentile
-  0.023 mm on the paper. Over all 225: the DXF's geometry is covered at a median of 98.5 percent
+  0.024 mm on the paper. Over all 225: the DXF's geometry is covered at a median of 98.5 percent
   and the PDF's at 100 percent. 17,124 of 18,085 texts match within 2 mm.
 - The fits found the sheets' scales, 1:80 (114), 1:100 (86), 1:50 (18) and 1:64 (10), all with
   no rotation.
@@ -146,7 +152,10 @@ radius fitted over the whole run.
 - Character widths in fonts with a predefined CMap other than Identity use the font's default
   width, since the code-to-CID tables are not carried.
 - The PDFKit pairing assumes PDFKit's page coordinates are the PDF's own; this was checked on
-  sheets whose page box starts at the origin.
+  sheets whose page box starts at the origin. Only runs along or across the page are paired, since
+  PDFKit is asked through an axis-aligned box.
+- Colours in Indexed, Pattern and DeviceN spaces are drawn black; device, calibrated, ICC-based and
+  Separation colours are read.
 - Codes a `ToUnicode` map does not cover become U+FFFD rather than being dropped; codes from a
   symbolic, TrueType or Type 3 font with no encoding are only guessed to be ASCII
   (`TextDecoding.asciiGuess`), and PDFKit's characters replace them where the two differ.

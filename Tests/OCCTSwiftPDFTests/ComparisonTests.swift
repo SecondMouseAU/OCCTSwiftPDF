@@ -97,4 +97,37 @@ struct ComparisonTests {
         ])
         #expect(PDF.compare(paper, with: Self.sheet(scale: 1, dx: 0, dy: 0)) == nil)
     }
+
+    @Test("a closed polyline of two bulged vertices is sampled all round")
+    func twoVertexCircle() {
+        let circle = DXF.Drawing(entities: [
+            .polyline(
+                vertices: [
+                    DXF.PolyVertex(DXF.Point(-10, 0), bulge: 1),
+                    DXF.PolyVertex(DXF.Point(10, 0), bulge: 1),
+                ], closed: true, layer: "0", color: 7)
+        ])
+        let length = PDF.segments(circle, transform: nil).reduce(0.0) {
+            $0 + $1.0.distance(to: $1.1)
+        }
+        // Chords fall a little short of the arc; half a circle would be 31.4 short.
+        #expect(abs(length - 20 * Double.pi) < 0.1)
+    }
+
+    @Test("a large arc is cut finely enough to stay within 0.01 mm of the curve")
+    func largeArc() {
+        let radius = 3000.0
+        let n = PDF.pieces(sweep: .pi / 2, radius: radius)
+        let chordError = radius * (1 - cos(Double.pi / 2 / Double(n) / 2))
+        #expect(chordError <= 0.01 + 1e-12)
+    }
+
+    @Test("coordinates too large for the grid are passed over, not a crash")
+    func hugeCoordinates() {
+        var paper = Self.sheet(scale: 1, dx: 0, dy: 0)
+        paper.entities.append(
+            .line(a: DXF.Point(0, 0), b: DXF.Point(1e20, 1e12), layer: "0", color: 7))
+        let result = PDF.compare(paper, with: Self.sheet(scale: 1, dx: 0, dy: 0))
+        #expect(result != nil)
+    }
 }

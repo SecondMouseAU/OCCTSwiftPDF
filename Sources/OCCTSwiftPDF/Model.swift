@@ -108,7 +108,8 @@ extension PDF {
         /// A simple font's encoding (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, or a
         /// `Differences` array of standard glyph names).
         case simpleEncoding
-        /// A symbolic, TrueType or Type 3 font with no encoding, whose codes were taken as ASCII.
+        /// A symbolic, TrueType, Type 3 or embedded font with no encoding, whose codes were taken
+        /// as ASCII.
         /// Such a font's built-in encoding can be anything, so PDFKit's characters replace these
         /// when the two differ.
         case asciiGuess
@@ -122,9 +123,12 @@ extension PDF {
     public struct TextRun: Sendable {
         /// The bytes shown.
         public var codes: [UInt8]
-        /// The characters: this reader's own decoding when it has one, otherwise PDFKit's.
+        /// The characters, from this reader's own decoding or from PDFKit.
         ///
-        /// U+FFFD stands for a code the font's `ToUnicode` map does not cover.
+        /// PDFKit's stand in where this reader has none, only guessed ASCII that PDFKit
+        /// contradicts (``TextDecoding/asciiGuess``), or a code its `ToUnicode` map does not
+        /// cover. PDFKit is asked only for runs along or across the page. U+FFFD stands for a code
+        /// that nothing decoded.
         public var text: String?
         public var decoding: TextDecoding
         /// This reader's own decoding of ``codes``, or `nil`.

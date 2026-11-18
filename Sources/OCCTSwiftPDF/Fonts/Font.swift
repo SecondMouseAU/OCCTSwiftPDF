@@ -27,6 +27,8 @@ final class Font {
     /// The font descriptor's symbolic flag: its glyphs are outside the standard Latin set, so its
     /// built-in encoding cannot be assumed.
     let isSymbolic: Bool
+    /// The font program is in the file, so its built-in encoding is its own.
+    let isEmbedded: Bool
     let defaultWidth: Double
     let cidWidths: [UInt32: Double]
     /// Glyph space to text space: 0.001, or a Type 3 font's own matrix.
@@ -67,10 +69,15 @@ final class Font {
         widths = PDFObjects.array(dict, "Widths").map(PDFObjects.numbers) ?? []
         var missing = 0.0
         var flags = 0
+        var embedded = false
         if let descriptor = PDFObjects.dictionary(dict, "FontDescriptor") {
             missing = PDFObjects.number(descriptor, "MissingWidth") ?? 0
             flags = PDFObjects.integer(descriptor, "Flags") ?? 0
+            embedded = ["FontFile", "FontFile2", "FontFile3"].contains {
+                PDFObjects.stream(descriptor, $0) != nil
+            }
         }
+        isEmbedded = embedded
         missingWidth = missing
         isSymbolic = flags & 4 != 0
 
@@ -152,28 +159,31 @@ final class Font {
 
     /// `bytes` as characters, and how they were found; `nil` text when the font gives no way back.
     ///
-    /// A code the `ToUnicode` map does not cover becomes U+FFFD, unless another decoding covers
-    /// every code, so a value is never shortened silently (an unmapped `⌀` before `25.4` must not
-    /// leave `25.4`).
+    /// With a `ToUnicode` map, a code it does not cover takes the simple font's own character for
+    /// that code when there is one, and U+FFFD otherwise, so a value is never shortened silently
+    /// (an unmapped `⌀` before `25.4` must not leave `25.4`). A composite font with gaps in its map
+    /// is decoded through its CMap instead when that covers every code.
     func decode(_ bytes: [UInt8]) -> (text: String?, decoding: PDF.TextDecoding) {
         let codes = codes(bytes)
-        var mapped: String?
-        if let toUnicode {
-            var text = ""
-            var missing = 0
-            for (code, _) in codes {
-                if let found = toUnicode.string(for: code) {
-                    text += found
-                } else {
-                    text += "\u{FFFD}"
-                    missing += 1
-                }
-            }
-            if missing == 0 { return (text, .toUnicode) }
-            mapped = text
+        guard let toUnicode else {
+            return decodeWithoutToUnicode(bytes, codes) ?? (nil, .none)
         }
-        if let other = decodeWithoutToUnicode(bytes, codes) { return other }
-        return mapped.map { ($0, .toUnicode) } ?? (nil, .none)
+        var text = ""
+        var missing = 0
+        for (code, _) in codes {
+            if let found = toUnicode.string(for: code) {
+                text += found
+            } else if !isComposite, let character = simpleCharacter(code) {
+                text.append(character)
+            } else {
+                text += "\u{FFFD}"
+                missing += 1
+            }
+        }
+        if missing > 0, isComposite, let other = decodeWithoutToUnicode(bytes, codes) {
+            return other
+        }
+        return (text, .toUnicode)
     }
 
     private func decodeWithoutToUnicode(_ bytes: [UInt8], _ codes: [(code: UInt32, length: Int)])
@@ -189,12 +199,12 @@ final class Font {
             guard let character = simpleCharacter(code) else { return nil }
             text.append(character)
         }
-        // With no encoding, a standard Type 1 font uses StandardEncoding, which agrees with ASCII
-        // for printable codes. A symbolic, TrueType or Type 3 font's built-in encoding can be
-        // anything, so for those the codes are only guessed to be ASCII.
+        // With no encoding, one of the standard Type 1 fonts uses StandardEncoding, which agrees
+        // with ASCII for printable codes. A symbolic, TrueType, Type 3 or embedded font's built-in
+        // encoding can be anything, so for those the codes are only guessed to be ASCII.
         let guessed =
             encodingName == nil && differences.isEmpty
-            && (isSymbolic || subtype == "TrueType" || subtype == "Type3")
+            && (isSymbolic || subtype == "TrueType" || subtype == "Type3" || isEmbedded)
         return (text, guessed ? .asciiGuess : .simpleEncoding)
     }
 

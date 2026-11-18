@@ -18,6 +18,8 @@ final class PageInterpreter {
         var dash: [Double] = []
         var stroke = PDF.Colour.black
         var fill = PDF.Colour.black
+        var strokeSpace = ColourSpace.gray
+        var fillSpace = ColourSpace.gray
         var charSpacing = 0.0
         var wordSpacing = 0.0
         var horizontalScale = 1.0
@@ -47,6 +49,10 @@ final class PageInterpreter {
     private var operatorIndex = 0
     /// Marked-content layers, innermost last; `nil` for marked content that is not a layer.
     private var layerStack: [String?] = []
+    /// While a Form XObject runs, the depths of ``stack`` and ``layerStack`` it started at: its
+    /// own `Q` and `EMC` may not pop below them, into the page's saved states and layers.
+    private var stackFloor = 0
+    private var layerFloor = 0
     private var formStack: [String] = []
     private var formCounts: [String: Int] = [:]
     private var activeForms: Set<Int> = []
@@ -104,7 +110,8 @@ final class PageInterpreter {
     fileprivate func save() { stack.append(state) }
 
     fileprivate func restore() {
-        if let last = stack.popLast() { state = last }
+        guard stack.count > stackFloor, let last = stack.popLast() else { return }
+        state = last
     }
 
     fileprivate func concat(_ scanner: CGPDFScannerRef) {
@@ -125,34 +132,112 @@ final class PageInterpreter {
         state.dash = PDFObjects.numbers(array)
     }
 
-    /// `G`, `g`, `RG`, `rg`, `K`, `k` (a fixed number of components) or `SC`, `SCN`, `sc`, `scn`
-    /// (`components` `nil`: as many numbers as were written, then perhaps a pattern name).
+    /// The colour spaces this reader turns into a colour; anything else draws black.
+    enum ColourSpace {
+        case gray, rgb, cmyk
+        /// One tint, from no ink (0) to full ink (1), drawn as gray.
+        case separation
+        /// Indexed, pattern, DeviceN or an unknown space.
+        case other
+    }
+
+    /// `G`, `g`, `RG`, `rg`, `K`, `k`: a fixed number of components, which also set the space.
+    fileprivate func setDeviceColour(_ scanner: CGPDFScannerRef, _ space: ColourSpace, stroke: Bool)
+    {
+        if stroke { state.strokeSpace = space } else { state.fillSpace = space }
+        setColour(scanner, stroke: stroke)
+    }
+
+    /// Sets the colour space for `SC`, `SCN`, `sc` and `scn` (`CS`, `cs`).
+    ///
+    /// The space is named, or found through the `ColorSpace` resources. The colour becomes the
+    /// space's initial colour, black.
+    fileprivate func setColourSpace(_ scanner: CGPDFScannerRef, stroke: Bool) {
+        var name: UnsafePointer<CChar>?
+        guard CGPDFScannerPopName(scanner, &name), let name else { return }
+        let space: ColourSpace
+        switch String(cString: name) {
+        case "DeviceGray", "G", "CalGray": space = .gray
+        case "DeviceRGB", "RGB", "CalRGB": space = .rgb
+        case "DeviceCMYK", "CMYK": space = .cmyk
+        default:
+            let stream = CGPDFScannerGetContentStream(scanner)
+            space = resource("ColorSpace", name, in: stream).map(Self.colourSpace) ?? .other
+        }
+        if stroke {
+            state.strokeSpace = space
+            state.stroke = .black
+        } else {
+            state.fillSpace = space
+            state.fill = .black
+        }
+    }
+
+    /// A colour space resource: an array whose first entry names the family.
+    static func colourSpace(_ object: CGPDFObjectRef) -> ColourSpace {
+        var array: CGPDFArrayRef?
+        var family: UnsafePointer<CChar>?
+        guard CGPDFObjectGetValue(object, .array, &array), let array,
+            CGPDFArrayGetName(array, 0, &family), let family
+        else { return .other }
+        switch String(cString: family) {
+        case "CalGray": return .gray
+        case "CalRGB": return .rgb
+        case "Separation": return .separation
+        case "ICCBased":
+            var stream: CGPDFStreamRef?
+            guard CGPDFArrayGetStream(array, 1, &stream), let stream,
+                let dict = CGPDFStreamGetDictionary(stream)
+            else { return .other }
+            switch PDFObjects.integer(dict, "N") {
+            case 1: return .gray
+            case 3: return .rgb
+            case 4: return .cmyk
+            default: return .other
+            }
+        default: return .other
+        }
+    }
+
+    /// The colour from the current space's components.
     ///
     /// Operands are popped as objects and their type checked: `CGPDFScannerPopName` removes the
-    /// top operand even when it is a number.
-    fileprivate func setColour(_ scanner: CGPDFScannerRef, components: Int?, stroke: Bool) {
+    /// top operand even when it is a number. A pattern name on top of `scn` is passed over.
+    fileprivate func setColour(_ scanner: CGPDFScannerRef, stroke: Bool) {
+        let space = stroke ? state.strokeSpace : state.fillSpace
+        let wanted: Int
+        switch space {
+        case .gray, .separation: wanted = 1
+        case .rgb: wanted = 3
+        case .cmyk: wanted = 4
+        case .other:
+            if stroke { state.stroke = .black } else { state.fill = .black }
+            return
+        }
         var values: [Double] = []
         var object: CGPDFObjectRef?
-        while values.count < (components ?? 4), CGPDFScannerPopObject(scanner, &object), let object
-        {
+        while values.count < wanted, CGPDFScannerPopObject(scanner, &object), let object {
             var value: CGPDFReal = 0
             if CGPDFObjectGetValue(object, .real, &value) {
                 values.insert(Double(value), at: 0)
-            } else if components != nil || !values.isEmpty {
+            } else if !values.isEmpty {
                 return
             }
-            // A pattern name on top of `scn`: the numbers below it, if any, still follow.
         }
+        guard values.count == wanted else { return }
         let colour: PDF.Colour
-        switch values.count {
-        case 1: colour = PDF.Colour(red: values[0], green: values[0], blue: values[0])
-        case 3: colour = PDF.Colour(red: values[0], green: values[1], blue: values[2])
-        case 4:
+        switch space {
+        case .gray: colour = PDF.Colour(red: values[0], green: values[0], blue: values[0])
+        case .separation:
+            let gray = 1 - values[0]
+            colour = PDF.Colour(red: gray, green: gray, blue: gray)
+        case .rgb: colour = PDF.Colour(red: values[0], green: values[1], blue: values[2])
+        case .cmyk:
             let k = values[3]
             colour = PDF.Colour(
                 red: (1 - values[0]) * (1 - k), green: (1 - values[1]) * (1 - k),
                 blue: (1 - values[2]) * (1 - k))
-        default: return
+        case .other: return
         }
         if stroke { state.stroke = colour } else { state.fill = colour }
     }
@@ -425,7 +510,9 @@ final class PageInterpreter {
         layerStack.append(layer)
     }
 
-    fileprivate func endMarkedContent() { _ = layerStack.popLast() }
+    fileprivate func endMarkedContent() {
+        if layerStack.count > layerFloor { layerStack.removeLast() }
+    }
 
     /// The name of the layer a `BDC /OC` operand names, directly or through `Properties`.
     private func layerName(_ object: CGPDFObjectRef, stream: CGPDFContentStreamRef) -> String? {
@@ -501,6 +588,8 @@ final class PageInterpreter {
         let savedState = state
         let stackDepth = stack.count
         let layerDepth = layerStack.count
+        let outerFloors = (stackFloor, layerFloor)
+        stackFloor = stackDepth
         let savedSubpaths = subpaths
         let savedTextMatrix = textMatrix
         let savedLineMatrix = lineMatrix
@@ -511,6 +600,7 @@ final class PageInterpreter {
         var formLayer: String?
         if let oc = PDFObjects.dictionary(dict, "OC") { formLayer = Self.optionalContentName(oc) }
         layerStack.append(formLayer)
+        layerFloor = layerStack.count
         formStack.append("\(name)#\(formCounts[name] ?? 1)")
         activeForms.insert(Self.key(xobject))
         subpaths = []
@@ -526,6 +616,7 @@ final class PageInterpreter {
         formStack.removeLast()
         if stack.count > stackDepth { stack.removeSubrange(stackDepth...) }
         if layerStack.count > layerDepth { layerStack.removeSubrange(layerDepth...) }
+        (stackFloor, layerFloor) = outerFloors
         state = savedState
         subpaths = savedSubpaths
         textMatrix = savedTextMatrix
@@ -600,34 +691,21 @@ extension PageInterpreter {
         on("cm") { scanner, info in interpreter(info).concat(scanner) }
         on("w") { scanner, info in interpreter(info).setLineWidth(scanner) }
         on("d") { scanner, info in interpreter(info).setDash(scanner) }
-        on("G") { scanner, info in interpreter(info).setColour(scanner, components: 1, stroke: true)
+        on("G") { scanner, info in interpreter(info).setDeviceColour(scanner, .gray, stroke: true) }
+        on("g") { scanner, info in interpreter(info).setDeviceColour(scanner, .gray, stroke: false)
         }
-        on("g") { scanner, info in
-            interpreter(info).setColour(scanner, components: 1, stroke: false)
+        on("RG") { scanner, info in interpreter(info).setDeviceColour(scanner, .rgb, stroke: true) }
+        on("rg") { scanner, info in interpreter(info).setDeviceColour(scanner, .rgb, stroke: false)
         }
-        on("RG") { scanner, info in
-            interpreter(info).setColour(scanner, components: 3, stroke: true)
+        on("K") { scanner, info in interpreter(info).setDeviceColour(scanner, .cmyk, stroke: true) }
+        on("k") { scanner, info in interpreter(info).setDeviceColour(scanner, .cmyk, stroke: false)
         }
-        on("rg") { scanner, info in
-            interpreter(info).setColour(scanner, components: 3, stroke: false)
-        }
-        on("K") { scanner, info in interpreter(info).setColour(scanner, components: 4, stroke: true)
-        }
-        on("k") { scanner, info in
-            interpreter(info).setColour(scanner, components: 4, stroke: false)
-        }
-        on("SC") { scanner, info in
-            interpreter(info).setColour(scanner, components: nil, stroke: true)
-        }
-        on("SCN") { scanner, info in
-            interpreter(info).setColour(scanner, components: nil, stroke: true)
-        }
-        on("sc") { scanner, info in
-            interpreter(info).setColour(scanner, components: nil, stroke: false)
-        }
-        on("scn") { scanner, info in
-            interpreter(info).setColour(scanner, components: nil, stroke: false)
-        }
+        on("SC") { scanner, info in interpreter(info).setColour(scanner, stroke: true) }
+        on("SCN") { scanner, info in interpreter(info).setColour(scanner, stroke: true) }
+        on("sc") { scanner, info in interpreter(info).setColour(scanner, stroke: false) }
+        on("scn") { scanner, info in interpreter(info).setColour(scanner, stroke: false) }
+        on("CS") { scanner, info in interpreter(info).setColourSpace(scanner, stroke: true) }
+        on("cs") { scanner, info in interpreter(info).setColourSpace(scanner, stroke: false) }
         on("m") { scanner, info in interpreter(info).moveTo(scanner) }
         on("l") { scanner, info in interpreter(info).lineTo(scanner) }
         on("c") { scanner, info in interpreter(info).curveTo(scanner, kind: "c") }

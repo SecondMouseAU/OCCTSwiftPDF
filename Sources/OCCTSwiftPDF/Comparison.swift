@@ -53,9 +53,10 @@ extension PDF {
         let refUnique = Dictionary(grouping: refTexts, by: \.key).compactMapValues {
             $0.count == 1 ? $0[0] : nil
         }
+        // In key order, so the robust fit's sampling sees the same list every run.
         var pairs: [(from: DXF.Point2, to: DXF.Point2)] = []
-        for (key, ref) in refUnique {
-            if let pdf = pdfUnique[key] { pairs.append((ref.at, pdf.at)) }
+        for key in refUnique.keys.sorted() {
+            if let ref = refUnique[key], let pdf = pdfUnique[key] { pairs.append((ref.at, pdf.at)) }
         }
         // Many values repeat on a sheet, so some texts that occur once in each drawing are
         // different texts that happen to match. Take the transform that most anchors agree with:
@@ -77,8 +78,9 @@ extension PDF {
         let pdfIndex = SegmentIndex(pdfSegments, cell: radius)
         // Texts are placed by different reference points in different formats, so refine the fit
         // on the geometry: match reference samples to their nearest PDF geometry and refit.
-        let refRaw = segments(reference, transform: nil)
-        let rawSamples = samples(refRaw, step: step)
+        // The reference is in its own units: sample it at the paper step through the fitted scale.
+        let refRaw = segments(reference, transform: nil, units: fit.scale)
+        let rawSamples = samples(refRaw, step: step / fit.scale)
         let stride = max(1, rawSamples.count / 20_000)
         let probe = Swift.stride(from: 0, to: rawSamples.count, by: stride).map { rawSamples[$0] }
         var refinedResidual = residual

@@ -30,29 +30,6 @@ struct CorpusTests {
         fileURLWithPath: NSString(string: "~/Documents/Modelling/2DFiles/2120_from_2120j.dxf")
             .expandingTildeInPath)
 
-    /// The single DXF in a TECS zip, extracted whole (its entry name is Shift-JIS).
-    static func dxf(inZip url: URL) throws -> DXF.Drawing {
-        let list = Process()
-        list.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        list.arguments = ["-Z1", url.path]
-        let listing = Pipe()
-        list.standardOutput = listing
-        try list.run()
-        let names = String(
-            decoding: listing.fileHandleForReading.readDataToEndOfFile(), as: UTF8.self)
-        list.waitUntilExit()
-        try #require(names.split(separator: "\n").count == 1, "the zip must hold one entry")
-        let unzip = Process()
-        unzip.executableURL = URL(fileURLWithPath: "/usr/bin/unzip")
-        unzip.arguments = ["-p", url.path]
-        let output = Pipe()
-        unzip.standardOutput = output
-        try unzip.run()
-        let data = output.fileHandleForReading.readDataToEndOfFile()
-        unzip.waitUntilExit()
-        return try DXF.read(data: data, options: DXF.ReadOptions(expandBlocks: true))
-    }
-
     @Test(
         "the McMaster sheets are vector, and all their text is decoded by this reader",
         .enabled(if: CorpusTests.exists("PDFs/McMaster")))
@@ -80,7 +57,7 @@ struct CorpusTests {
     func tecsPair() throws {
         let page = try #require(
             try PDF.read(contentsOf: Self.file("tecs-pairs/ec01.pdf"), maximumPages: 1).pages.first)
-        let reference = try Self.dxf(inZip: Self.file("tecs-pairs/ec01_dxf.zip"))
+        let reference = try PDF.readReference(at: Self.file("tecs-pairs/ec01_dxf.zip"))
         let result = try #require(PDF.compare(page.drawing(), with: reference))
         #expect(result.referenceCovered >= 0.99)
         #expect(result.pdfCovered >= 0.99)
