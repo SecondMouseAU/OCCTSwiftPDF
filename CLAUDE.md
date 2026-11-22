@@ -41,6 +41,8 @@ swift test --filter InterpreterTests          # one suite
 swift test --filter TextTests/invisible       # one test: <Suite>/<function name>
 swift test list                               # identifiers, to build a --filter from
 swift run pdfprobe <file-or-folder>...
+xcodebuild build -scheme OCCTSwiftPDF-Package -destination 'generic/platform=tvOS'   # also iOS, visionOS
+Scripts/build-without-pdfkit.sh tvOS          # PDFKit rewritten out: catches a use outside a guard
 swift-format lint --strict --recursive Sources Tests
 swiftlint lint --strict
 ```
@@ -52,29 +54,35 @@ subcommands (`compare`, `pairs`, `debug-text`); see the README.
 
 ## Architecture
 
-One library target, `OCCTSwiftPDF`, which `@_exported import`s SwiftDXF so callers get
-`DXF.Drawing` without a second import. `pdfprobe` is a separate executable and the only target that
-links SwiftJWW. The package is macOS only (`platforms: [.macOS(.v15)]`): PDFKit is missing on tvOS,
-which OCCTSwiftIO also builds for, so PDFKit use must be guarded before OCCTSwiftIO links this.
+One library target, `OCCTSwiftPDF`, which `@_exported import`s SwiftDXF so callers get `DXF.Drawing`
+without a second import. `pdfprobe` is a separate executable and the only target that links
+SwiftJWW. The package builds for the platforms OCCTSwiftIO does (macOS, iOS, visionOS, tvOS). PDFKit
+is not used on tvOS (older SDKs lack it, and an app built with a newer one might not launch on a
+tvOS without it), so every use of it is behind `#if canImport(PDFKit) && !os(tvOS)`, and on tvOS the
+text is the package's own decoding alone. `PDF.readReference` (`Process`, `unzip`) and `pdfprobe`
+are macOS only. A new `import PDFKit` or `Process` outside such a guard breaks the build on an SDK
+without it; `Scripts/build-without-pdfkit.sh` builds for tvOS with PDFKit rewritten out, which
+catches a use outside a guard even on an SDK that has the framework.
 
 The read path is a pipeline, and the stages only make sense together:
 
 1. **`PDF.read(contentsOf:)`** (`PDF+Read.swift`) opens a `CGPDFDocument` (an empty password is
    tried), and for each page runs the stages below, then collects document-level layers (optional
    content groups) and the producer and creator strings.
-2. **`PageInterpreter`** (`Interpreter/`) drives `CGPDFScanner` over the content stream. CoreGraphics
-   only tokenises operators; this class keeps the graphics-state stack, current path, text state,
-   marked content (layers) and Form XObjects itself, and emits `PDF.Path`, `PDF.TextRun` and
-   `PDF.Image` values in page coordinates (points, y up). It is single-use and not thread-safe: one
-   instance per page.
+2. **`PageInterpreter`** (`Interpreter/`) drives `CGPDFScanner` over the content stream.
+   CoreGraphics only tokenises operators; this class keeps the graphics-state stack, current path,
+   text state, marked content (layers) and Form XObjects itself, and emits `PDF.Path`, `PDF.TextRun`
+   and `PDF.Image` values in page coordinates (points, y up). It is single-use and not thread-safe:
+   one instance per page.
 3. **Fonts** (`Fonts/`) are this package's own decoding, called from the interpreter as text is
    shown: how a font's bytes split into codes, each code's advance, and code to Unicode (ToUnicode,
    Shift-JIS `*-RKSJ-*`, Unicode CMaps, simple encodings with `Differences`). Each run records how
    it was decoded (`TextDecoding`), including `asciiGuess` where a symbolic or embedded font gave
    nothing better.
-4. **`TextPairing`** asks PDFKit for the characters inside each run's box, as a cross-check on the
-   package's own decoding and as a fallback where it has none. PDFKit's characters replace only
-   guesses and U+FFFD, and for an inclined run they never replace a reading, only fill a gap.
+4. **`TextPairing`** asks PDFKit (where it exists) for the characters inside each run's box, as a
+   cross-check on the package's own decoding and as a fallback where it has none. PDFKit's
+   characters replace only guesses and U+FFFD, and for an inclined run they never replace a reading,
+   only fill a gap.
 5. **`TextAssembly`** joins runs that continue one another along a baseline, because some writers
    (Jw_cad) show one character per `Tj`.
 
@@ -87,18 +95,21 @@ on the page edge are not drawn but counted in `skipped` by layer. Every entity g
 `DXF.Identity` whose locator is `p<page>:op<operatorIndex>[:<piece>]` and whose `via` lists the
 Form XObjects it came through.
 
-The comparison code (`Comparison*.swift`, `Similarity.swift`, `SegmentIndex.swift`, `Reference.swift`)
-is spike tooling, not part of the reader. It reads the DXF (or a zip holding one, through
-`/usr/bin/unzip`) of the same drawing, fits a similarity transform from the texts that occur once in
-each drawing (robust, with a fixed-seed sampler so results repeat, then refined on the geometry),
-and reports how much of each drawing lies within a tolerance of the other. `pdfprobe` and the
-corpus tests are its callers.
+The comparison code (`Comparison*.swift`, `Similarity.swift`, `SegmentIndex.swift`,
+`Reference.swift`) is spike tooling, not part of the reader. It reads the DXF (or a zip holding one,
+through `/usr/bin/unzip`) of the same drawing, fits a similarity transform from the texts that occur
+once in each drawing (robust, with a fixed-seed sampler so results repeat, then refined on the
+geometry), and reports how much of each drawing lies within a tolerance of the other. `pdfprobe` and
+the corpus tests are its callers.
 
 ## Testing notes
 
 - `Tests/.../MiniPDF.swift` writes a PDF by hand from a content stream, resources and extra objects,
   so a test controls every operator. Use it for new interpreter and text tests rather than a corpus
   file.
+- The test target builds for macOS only: the corpus tests call the macOS-only
+  `PDF.readReference`, and `TextTests` uses PDFKit directly. CI builds the library for the
+  other platforms; it does not run tests there.
 - `CorpusTests` read real drawings from `PDF_CORPUS` and gate each test with
   `.enabled(if: CorpusTests.exists(...))`. One test also reads a DXF kept outside the corpus
   (`~/Documents/Modelling/2DFiles/2120_from_2120j.dxf`).
@@ -120,4 +131,5 @@ corpus tests are its callers.
   updates the experiment page.
 - Analytic, not pixels: correctness is shown against the paired DXF or JWW of the same drawing,
   by coordinates, never by comparing pictures.
-- CI runs on GitHub's hosted `macos-15` runners, which are free for this public repo.
+- CI runs on GitHub's hosted `macos-15` runners, which are free for this public repo. `tests.yml`
+  also builds the package for iOS, tvOS and visionOS.
