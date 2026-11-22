@@ -155,6 +155,30 @@ struct EmbeddedFontTests {
         #expect(identity.character(forCID: 0x1_0002) == nil)
     }
 
+    @Test("code points that share a glyph: the CID's own is the character, and CIDs stay Unicode")
+    func sharedGlyph() throws {
+        // U+00B5 (micro) and U+03BC (Greek mu) are one glyph, 7. The lowest, U+00B5, is what the
+        // glyph alone gives, but a CID of 0x3BC is the Greek letter, and agrees with the font.
+        let characters = try #require(
+            Self.characters([
+                (3, 10, Self.format12([(0x41, 0x42, 1), (0xB5, 0xB5, 7), (0x3BC, 0x3BC, 7)]))
+            ]))
+        #expect(characters.scalar(forGlyph: 7) == "\u{B5}")
+        var glyphs = [UInt16](repeating: 0, count: 0x3BD)
+        glyphs[0x41] = 1
+        glyphs[0x42] = 2
+        glyphs[0x3BC] = 7
+        let font = EmbeddedCharacters(characters: characters, glyphs: glyphs)
+        #expect(font.cidsAreUnicode)
+        #expect(font.character(forCID: 0x3BC) == "\u{3BC}")
+        #expect(font.character(forCID: 0x20) == " ")
+        // And a CID that is not that code point reads as the glyph's lowest.
+        glyphs[0x10] = 7
+        let other = EmbeddedCharacters(characters: characters, glyphs: glyphs)
+        #expect(other.character(forCID: 0x10) == "\u{B5}")
+        #expect(!other.cidsAreUnicode)
+    }
+
     @Test("a CIDToGIDMap stream is two-byte entries, and a trailing byte is ignored")
     func glyphMap() {
         #expect(
@@ -349,5 +373,18 @@ struct EmbeddedFontTests {
         // CIDs, and nothing else reads them.
         let gbk = Self.pdf(codes: "004100420043", font: font, glyphs: glyphs, encoding: "GBK-EUC-H")
         #expect(try Self.run(gbk).ownText == nil)
+    }
+
+    @Test("a run the font resolves none of has no text, not a row of U+FFFD")
+    func nothingResolves() throws {
+        let font = Self.font(Self.letters)
+        let glyphs = Self.glyphs([0x41: 1, 0x42: 2], last: 0x50)
+        // 0x4F and 0x50 are in the map's range but on no glyph, and the CIDs are Unicode, so the
+        // missing ones are U+FFFD in a run that has a letter; with none, there is no text.
+        #expect(
+            try Self.run(Self.pdf(codes: "0041004F", font: font, glyphs: glyphs)).ownText
+                == "A\u{FFFD}")
+        #expect(
+            try Self.run(Self.pdf(codes: "004F0050", font: font, glyphs: glyphs)).ownText == nil)
     }
 }

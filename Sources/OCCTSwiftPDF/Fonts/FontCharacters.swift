@@ -24,6 +24,12 @@ struct FontCharacters {
     /// space reads as the space.
     private var byGlyph: [UInt16: UInt32] = [:]
 
+    /// The glyph the `cmap` gives each code point, as the font itself maps them.
+    private var byCode: [UInt32: UInt16] = [:]
+
+    /// The glyph the `cmap` maps `code` to, or `nil` when it does not.
+    func glyph(forCode code: UInt32) -> UInt16? { byCode[code] }
+
     /// The character for `glyph`, or `nil` when the font's Unicode `cmap` has none.
     func scalar(forGlyph glyph: UInt16) -> Unicode.Scalar? {
         byGlyph[glyph].flatMap { Unicode.Scalar($0) }
@@ -115,6 +121,7 @@ struct FontCharacters {
             code <= 0x10FFFF
         else { return }
         let key = UInt16(glyph)
+        if byCode[UInt32(code)] == nil { byCode[UInt32(code)] = key }
         if let existing = byGlyph[key], Int(existing) <= code { return }
         byGlyph[key] = UInt32(code)
     }
@@ -147,8 +154,9 @@ struct EmbeddedCharacters {
     let glyphs: [UInt16]?
     /// The font itself shows its CIDs are Unicode values.
     ///
-    /// It resolves at least two CIDs, and every one it resolves is the CID: one agreeing CID could
-    /// be a coincidence in a font that numbers its CIDs in order. ODA's writer works this way.
+    /// It resolves at least two CIDs, and its `cmap` maps each one's code point to the glyph the
+    /// `CIDToGIDMap` gives it: one agreeing CID could be a coincidence in a font that numbers its
+    /// CIDs in order. ODA's writer works this way.
     let cidsAreUnicode: Bool
 
     init(characters: FontCharacters, glyphs: [UInt16]?) {
@@ -157,8 +165,8 @@ struct EmbeddedCharacters {
         var agreed = 0
         var contradicted = false
         for (cid, glyph) in (glyphs ?? []).enumerated() where glyph != 0 {
-            guard let scalar = characters.scalar(forGlyph: glyph) else { continue }
-            if Int(scalar.value) == cid {
+            guard characters.scalar(forGlyph: glyph) != nil else { continue }
+            if characters.glyph(forCode: UInt32(cid)) == glyph {
                 agreed += 1
             } else {
                 contradicted = true
@@ -183,7 +191,14 @@ struct EmbeddedCharacters {
     func character(forCID cid: UInt32) -> Character? {
         let scalar: Unicode.Scalar?
         if let glyphs {
-            scalar = Int(cid) < glyphs.count ? characters.scalar(forGlyph: glyphs[Int(cid)]) : nil
+            let glyph = Int(cid) < glyphs.count ? glyphs[Int(cid)] : 0
+            // Where the `cmap` maps the CID's own code point to the glyph, that is the character,
+            // not the lowest of several code points that share it (µ and μ).
+            if glyph != 0, characters.glyph(forCode: cid) == glyph {
+                scalar = Unicode.Scalar(cid)
+            } else {
+                scalar = characters.scalar(forGlyph: glyph)
+            }
         } else {
             scalar = UInt16(exactly: cid).flatMap { characters.scalar(forGlyph: $0) }
         }
