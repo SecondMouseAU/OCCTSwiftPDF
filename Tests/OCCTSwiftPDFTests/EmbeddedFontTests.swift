@@ -9,23 +9,48 @@ struct EmbeddedFontTests {
     // MARK: Building fonts by hand
 
     static func be16(_ value: Int) -> [UInt8] { [UInt8(value >> 8 & 0xFF), UInt8(value & 0xFF)] }
-    static func be32(_ value: Int) -> [UInt8] { be16(value >> 16) + be16(value & 0xFFFF) }
+    static func be32(_ value: Int) -> [UInt8] {
+        var out: [UInt8] = be16(value >> 16)
+        out += be16(value & 0xFFFF)
+        return out
+    }
 
     /// A format 12 subtable: groups of `(first code, last code, first glyph)`.
     static func format12(_ groups: [(Int, Int, Int)]) -> [UInt8] {
-        let body = groups.flatMap { be32($0.0) + be32($0.1) + be32($0.2) }
-        return be16(12) + be16(0) + be32(16 + body.count) + be32(0) + be32(groups.count) + body
+        var body: [UInt8] = []
+        for (first, last, glyph) in groups {
+            body += be32(first)
+            body += be32(last)
+            body += be32(glyph)
+        }
+        var out: [UInt8] = be16(12)
+        out += be16(0)
+        out += be32(16 + body.count)
+        out += be32(0)
+        out += be32(groups.count)
+        out += body
+        return out
     }
 
     /// A format 4 subtable: segments of `(first, last, idDelta, idRangeOffset)`, then the glyph
     /// index array the range offsets point into.
     static func format4(_ segments: [(Int, Int, Int, Int)], glyphArray: [Int] = []) -> [UInt8] {
-        let tables =
-            segments.flatMap { be16($0.1) } + be16(0) + segments.flatMap { be16($0.0) }
-            + segments.flatMap { be16($0.2 & 0xFFFF) } + segments.flatMap { be16($0.3) }
-            + glyphArray.flatMap { be16($0) }
-        let header = be16(4) + be16(14 + tables.count) + be16(0) + be16(segments.count * 2)
-        return header + be16(0) + be16(0) + be16(0) + tables
+        var tables: [UInt8] = []
+        for segment in segments { tables += be16(segment.1) }
+        tables += be16(0)
+        for segment in segments { tables += be16(segment.0) }
+        for segment in segments { tables += be16(segment.2 & 0xFFFF) }
+        for segment in segments { tables += be16(segment.3) }
+        for glyph in glyphArray { tables += be16(glyph) }
+        var out: [UInt8] = be16(4)
+        out += be16(14 + tables.count)
+        out += be16(0)
+        out += be16(segments.count * 2)
+        out += be16(0)
+        out += be16(0)
+        out += be16(0)
+        out += tables
+        return out
     }
 
     /// A TrueType font that has only a `cmap` table.
@@ -37,15 +62,27 @@ struct EmbeddedFontTests {
         var records: [UInt8] = []
         var bodies: [UInt8] = []
         for (platform, encoding, subtable) in subtables {
-            records += be16(platform) + be16(encoding) + be32(offset)
+            records += be16(platform)
+            records += be16(encoding)
+            records += be32(offset)
             bodies += subtable
             offset += subtable.count
         }
-        let cmap = be16(0) + be16(subtables.count) + records + bodies
-        let header =
-            be32(0x0001_0000) + be16(1) + be16(0) + be16(0) + be16(0)
-            + Array("cmap".utf8) + be32(0) + be32(28) + be32(cmap.count)
-        return Data(header + cmap)
+        var cmap: [UInt8] = be16(0)
+        cmap += be16(subtables.count)
+        cmap += records
+        cmap += bodies
+        var out: [UInt8] = be32(0x0001_0000)
+        out += be16(1)
+        out += be16(0)
+        out += be16(0)
+        out += be16(0)
+        out += Array("cmap".utf8)
+        out += be32(0)
+        out += be32(28)
+        out += be32(cmap.count)
+        out += cmap
+        return Data(out)
     }
 
     static func characters(_ subtables: [(Int, Int, [UInt8])]) -> FontCharacters? {
@@ -261,11 +298,15 @@ struct EmbeddedFontTests {
         var map = "/CIDToGIDMap /Identity"
         if let glyphs {
             let entries = glyphs.flatMap(Self.be16)
-            map =
-                "/CIDToGIDMap " + add(MiniPDF.stream("", String(decoding: entries, as: UTF8.self)))
+            let stream = MiniPDF.stream("", String(decoding: entries, as: UTF8.self))
+            let reference: String = add(stream)
+            map = "/CIDToGIDMap \(reference)"
         }
         var unicode = ""
-        if let toUnicode { unicode = "/ToUnicode " + add(MiniPDF.stream("", toUnicode)) }
+        if let toUnicode {
+            let reference: String = add(MiniPDF.stream("", toUnicode))
+            unicode = "/ToUnicode \(reference)"
+        }
         objects[0] = """
             << /Type /Font /Subtype /Type0 /BaseFont /AAAAAA+Test /Encoding /\(encoding) \
             /DescendantFonts [{2}] \(unicode) >>
