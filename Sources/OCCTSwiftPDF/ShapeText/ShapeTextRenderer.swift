@@ -94,14 +94,14 @@ enum ShapeTextRenderer {
     static func scale(for region: ShapeTextRegion, glyphPixels: Double) -> Double {
         let wanted = min(32, max(0.25, glyphPixels / max(region.height, 1e-6)))
         var step = (2 * log2(wanted)).rounded()
-        func scale(_ step: Double) -> Double { pow(2, step / 2) }
+        func pixelsPerUnit(_ step: Double) -> Double { pow(2, step / 2) }
         while step > -4,
-            (region.length + 2 * padding(for: region, scale: scale(step))) * scale(step)
-                > Double(ShapeTextTile.maximumCropSide)
+            (region.length + 2 * Self.padding(for: region, scale: pixelsPerUnit(step)))
+                * pixelsPerUnit(step) > Double(ShapeTextTile.maximumCropSide)
         {
             step -= 1
         }
-        return scale(step)
+        return pixelsPerUnit(step)
     }
 
     /// Renders the page in tiles and calls `body` for each with the indices (into `regions`) of
@@ -125,11 +125,11 @@ enum ShapeTextRenderer {
         }
         var groups: [Key: [Int]] = [:]
         for (index, region) in regions.enumerated() {
-            let scale = scale(for: region, glyphPixels: glyphPixels)
-            let side = tileSide / scale
+            let regionScale = Self.scale(for: region, glyphPixels: glyphPixels)
+            let side = tileSide / regionScale
             let centre = CGPoint(x: region.bounds.midX, y: region.bounds.midY)
             let key = Key(
-                scale: scale, x: Int((centre.x / side).rounded(.down)),
+                scale: regionScale, x: Int((centre.x / side).rounded(.down)),
                 y: Int((centre.y / side).rounded(.down)))
             groups[key, default: []].append(index)
         }

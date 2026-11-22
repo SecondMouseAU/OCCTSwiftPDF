@@ -94,13 +94,13 @@ enum ShapeTextRegions {
         if let axis = principalAxis(blob, glyphs: glyphs) { candidates.append(axis) }
         var best = (direction: candidates[0], lines: [[Int]](), score: -1, thickness: 0.0)
         for direction in candidates {
-            let lines = lines(in: blob, glyphs: glyphs, direction: direction)
-            let score = lines.reduce(0) { $0 + ($1.count >= 2 ? $1.count * $1.count : 0) }
-            let thickness = lines.reduce(0.0) {
-                $0 + thickness(of: $1, glyphs: glyphs, direction: direction)
+            let cut = Self.lines(in: blob, glyphs: glyphs, direction: direction)
+            let score = cut.reduce(0) { $0 + ($1.count >= 2 ? $1.count * $1.count : 0) }
+            let total = cut.reduce(0.0) {
+                $0 + Self.thickness(of: $1, glyphs: glyphs, direction: direction)
             }
-            if score > best.score || (score == best.score && thickness < best.thickness - 1e-6) {
-                best = (direction, lines, score, thickness)
+            if score > best.score || (score == best.score && total < best.thickness - 1e-6) {
+                best = (direction, cut, score, total)
             }
         }
         return (best.direction, best.lines)
