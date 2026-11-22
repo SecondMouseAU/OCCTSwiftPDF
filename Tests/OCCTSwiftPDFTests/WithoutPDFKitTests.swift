@@ -58,23 +58,31 @@ struct WithoutPDFKitTests {
         return (try? page(url, crossCheck: true).texts.first?.pdfKitText) == "ABC"
     }()
 
+    @Test("a run only PDFKit could read has no text without it, and is counted as skipped")
+    func unreadableRunHasNoText() throws {
+        let page = try Self.page(try Self.japan1File(), crossCheck: false)
+        let run = try #require(page.texts.first)
+        #expect(run.text == nil)
+        #expect(run.pdfKitText == nil)
+        #expect(run.decoding == .none)
+        #expect(run.codeCount == 3)
+        let drawing = page.drawing()
+        #expect(drawing.skipped["TEXT"] == 1)
+        #expect(drawing.counts.text == 0)
+    }
+
     @Test(
-        "text only PDFKit can read is read with it and left without text when it is absent",
+        "PDFKit reads that run when the cross-check is on",
         .enabled(
             if: WithoutPDFKitTests.pdfKitReadsJapan1,
             "PDFKit does not read the Adobe-Japan1 fixture on this machine"))
-    func pdfKitOnlyText() throws {
-        let url = try Self.japan1File()
-        let checked = try #require(try Self.page(url, crossCheck: true).texts.first)
-        #expect(checked.ownText == nil)
-        #expect(checked.text == "ABC")
-        #expect(checked.decoding == .pdfKit)
-
-        let alone = try #require(try Self.page(url, crossCheck: false).texts.first)
-        #expect(alone.text == nil)
-        #expect(alone.pdfKitText == nil)
-        #expect(alone.decoding == .none)
-        #expect(alone.codeCount == 3)
+    func pdfKitReadsIt() throws {
+        let page = try Self.page(try Self.japan1File(), crossCheck: true)
+        let run = try #require(page.texts.first)
+        #expect(run.ownText == nil)
+        #expect(run.text == "ABC")
+        #expect(run.decoding == .pdfKit)
+        #expect(page.drawing().counts.text == 1)
     }
 
     @Test("one character per operation is still joined into lines")

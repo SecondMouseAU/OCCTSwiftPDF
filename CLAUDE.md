@@ -42,6 +42,7 @@ swift test --filter TextTests/invisible       # one test: <Suite>/<function name
 swift test list                               # identifiers, to build a --filter from
 swift run pdfprobe <file-or-folder>...
 xcodebuild build -scheme OCCTSwiftPDF-Package -destination 'generic/platform=tvOS'   # also iOS, visionOS
+Scripts/build-without-pdfkit.sh tvOS          # PDFKit rewritten out: catches a use outside a guard
 swift-format lint --strict --recursive Sources Tests
 swiftlint lint --strict
 ```
