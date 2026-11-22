@@ -9,13 +9,20 @@ import Testing
 /// Text placement, decoding and joining.
 @Suite("Text")
 struct TextTests {
-    static func page(_ content: String, font: String = MiniPDF.helvetica, extra: [String] = [])
-        throws -> PDF.Page
+    /// A PDF showing `content` with `font` as `/F1`; `extra` objects follow it as `{2}`, `{3}`.
+    static func pdf(_ content: String, font: String = MiniPDF.helvetica, extra: [String] = [])
+        -> MiniPDF
     {
         var pdf = MiniPDF(content: content)
         pdf.objects = [font] + extra
         pdf.resources = "<< /Font << /F1 {1} >> >>"
-        return try InterpreterTests.page(pdf)
+        return pdf
+    }
+
+    static func page(_ content: String, font: String = MiniPDF.helvetica, extra: [String] = [])
+        throws -> PDF.Page
+    {
+        try InterpreterTests.page(pdf(content, font: font, extra: extra))
     }
 
     @Test("a run's origin, size, direction and width come from the text and graphics state")
@@ -220,8 +227,8 @@ struct TextTests {
         #expect(run.decoding == .toUnicode)
     }
 
-    @Test("text written by Apple's PDF writer decodes the same by this reader and by PDFKit")
-    func applePDF() throws {
+    /// A one-page PDF with "M26 x 5.0mm" at (72, 100), written by CoreGraphics' own PDF writer.
+    static func appleWritten() throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("OCCTSwiftPDFTests-\(UUID().uuidString).pdf")
         var box = CGRect(x: 0, y: 0, width: 612, height: 792)
@@ -235,7 +242,12 @@ struct TextTests {
         CTLineDraw(line, context)
         context.endPDFPage()
         context.closePDF()
+        return url
+    }
 
+    @Test("text written by Apple's PDF writer decodes the same by this reader and by PDFKit")
+    func applePDF() throws {
+        let url = try Self.appleWritten()
         let page = try #require(try PDF.read(contentsOf: url).pages.first)
         let run = try #require(page.texts.first)
         #expect(run.ownText?.filter { !$0.isWhitespace } == "M26x5.0mm")

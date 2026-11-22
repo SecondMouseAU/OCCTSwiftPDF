@@ -28,6 +28,11 @@ timestamp: 2026-11-22
     painted path became (`p1:op120:0`, via `Fm0#1`). Filled-only paths, images and text with no
     characters are counted in `skipped` by layer.
   - `PDF.Source` is where something came from: page, operator index, Form XObjects.
+  - The library builds for macOS 15, iOS 18, visionOS 1 and tvOS 18, as OCCTSwiftIO does. PDFKit is
+    not used on tvOS, so there a text run keeps the text this package's own decoding gave it (it
+    may have none, and `drawing()` then counts it in `skipped["TEXT"]`, or hold a guess or a U+FFFD
+    that PDFKit would have corrected).
+    `Scripts/build-without-pdfkit.sh` builds for tvOS with PDFKit rewritten out, which CI runs.
   - `PDF.readReference(at:)` (spike tooling, macOS only) reads the drawing to compare with from a
     DXF, or from a zip holding exactly one entry, a DXF, through `/usr/bin/unzip`.
   - `PDF.compare(_:with:tolerance:)` (spike tooling) places a reference drawing of the same sheet
@@ -54,12 +59,14 @@ timestamp: 2026-11-22
   read as a space where the font has shown its CIDs are Unicode (at least two resolve, and every one
   resolves to itself). A font that has a map keeps it, gaps included; CFF programs (`FontFile3`) and
   other encodings are not read this way.
-- **Text pairing** (`TextPairing.swift`): asks PDFKit for each run's characters (inside its box
-  for a run along or across the page, from its first character to its end for an inclined one),
-  as a check on this reader's decoding and as its fallback where this reader has no characters. For a
-  run along or across the page, PDFKit's characters also replace guessed ASCII they contradict and
-  a reading with U+FFFD; an inclined run's axis-aligned box can take in its neighbours, so there
-  they never replace this reader's own reading and fill in only when they number its codes.
+- **Text pairing** (`TextPairing.swift`, `TextPairing+PDFKit.swift`): on every platform but tvOS
+  (the asking is behind `#if canImport(PDFKit) && !os(tvOS)`), asks PDFKit for each run's characters
+  (inside its box for a run along or across the page, from its first character to its end for an
+  inclined one), as a check on this reader's decoding and as its fallback where this reader has no
+  characters. For a run along or across the page, PDFKit's characters also replace guessed ASCII
+  they contradict and a reading with U+FFFD; an inclined run's axis-aligned box can take in its
+  neighbours, so there they never replace this reader's own reading and fill in only when they
+  number its codes.
 - **Text assembly** (`TextAssembly.swift`): joins runs that continue one another along a baseline,
   since some writers show one character per operation.
 - **Comparison support** (`Comparison+Sampling.swift`, `Similarity.swift`, `SegmentIndex.swift`):

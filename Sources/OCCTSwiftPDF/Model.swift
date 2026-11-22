@@ -123,6 +123,8 @@ extension PDF {
         case asciiGuess
         /// The characters are PDFKit's, found by position: this reader had none, or (for a run
         /// along or across the page) only guessed ASCII that PDFKit contradicted, or a U+FFFD.
+        ///
+        /// Never on tvOS, where PDFKit is not used.
         case pdfKit
         /// Nothing could decode it: the font has no way back from codes to characters.
         case none
@@ -144,6 +146,10 @@ extension PDF {
         /// This reader's own decoding of ``codes``, or `nil`.
         public var ownText: String?
         /// The characters PDFKit reports inside the run's box, or `nil` when not paired.
+        ///
+        /// Always `nil` on tvOS, where PDFKit is not used: ``text`` is then this reader's own
+        /// decoding alone. That is `nil` (with a ``decoding`` of ``TextDecoding/none``) for a run it
+        /// cannot read, and a guess (``TextDecoding/asciiGuess``) or a U+FFFD stays as it is.
         public var pdfKitText: String?
         /// The start of the baseline.
         public var origin: CGPoint

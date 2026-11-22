@@ -197,6 +197,10 @@ radius fitted over the whole run.
   `ToUnicode` map (or, if composite, an empty one); one that has a map keeps it, gaps included.
   Where a `CIDToGIDMap` stream does not show the CIDs to be Unicode, a space the subset left out is
   U+FFFD. One corpus file reaches this path, so how far it generalises is not measured.
+- On tvOS PDFKit is not used. A run only PDFKit can read (the HiraginoSans runs on the Fowler
+  sheets) has no text there, and `drawing()` counts it in `skipped["TEXT"]`; a run this reader only
+  guessed (`asciiGuess`) or read with U+FFFD keeps that reading, which can be wrong text, not
+  missing text.
 - A code a `ToUnicode` map does not cover takes the font's own character when its encoding is
   known, and U+FFFD otherwise, rather than being dropped. Codes from a symbolic, TrueType, Type 3
   or embedded font with no encoding are only guessed to be ASCII (`TextDecoding.asciiGuess`).
@@ -222,8 +226,9 @@ binary for nothing the corpus needs.
    lines.
 4. Scale inference from values against drawn lengths, per view.
 5. Wire into OCCTSwiftIO's `DrawingLoader` as `.pdf`. This package is public and LGPL-2.1 like
-   OCCTSwiftIO, which builds for iOS, visionOS and tvOS: guard the PDFKit use (no PDFKit on tvOS)
-   and keep the comparison's `unzip` reader out of what OCCTSwiftIO links (no `Process` outside
-   macOS).
+   OCCTSwiftIO, which builds for iOS, visionOS and tvOS. The PDFKit use is now guarded and off on
+   tvOS ([#3](https://github.com/SecondMouseAU/OCCTSwiftPDF/issues/3)), and the comparison's `unzip`
+   reader is macOS only, so the package builds on all four; what is left is the wiring and a first
+   tag to pin.
 6. Text drawn as shapes: OCR on the rendered area (Apple Vision), accepted only where it agrees
    with the measured geometry. The first piece of the raster path.
