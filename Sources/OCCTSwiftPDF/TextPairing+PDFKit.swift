@@ -1,8 +1,8 @@
 // TextPairing+PDFKit.swift
 // OCCTSwiftPDF
 //
-// Asking PDFKit for each run's characters. tvOS has no PDFKit, so there this file is empty and a
-// run keeps the text this reader's own font decoding gave it.
+// Asking PDFKit for each run's characters. Where the SDK has no PDFKit (older tvOS SDKs) this file
+// is empty and a run keeps the text this reader's own font decoding gave it.
 
 #if canImport(PDFKit)
     import CoreGraphics

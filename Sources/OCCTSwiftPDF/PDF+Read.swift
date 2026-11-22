@@ -21,14 +21,14 @@ extension PDF {
     /// Read every page of the PDF at `url`, or the first `maximumPages`.
     ///
     /// A file encrypted with an empty user password (only its permissions restricted) is opened.
-    /// Where PDFKit exists each text run is also checked against it; on tvOS, which has none, a run
-    /// keeps the text this reader's own font decoding gave it.
+    /// Where the SDK has PDFKit each text run is also checked against it; where it has none (older
+    /// tvOS SDKs), a run keeps the text this reader's own font decoding gave it.
     public static func read(contentsOf url: URL, maximumPages: Int? = nil) throws -> Document {
         try read(contentsOf: url, maximumPages: maximumPages, crossCheck: true)
     }
 
     /// As ``read(contentsOf:maximumPages:)``, with `crossCheck: false` leaving PDFKit out of the
-    /// text, as on tvOS, so that path is also exercised where PDFKit is present.
+    /// text, as where the SDK has none, so that path is also exercised where PDFKit is present.
     static func read(contentsOf url: URL, maximumPages: Int?, crossCheck: Bool) throws -> Document {
         guard let document = CGPDFDocument(url as CFURL) else { throw Error.cannotOpen }
         if document.isEncrypted && !document.isUnlocked && !document.unlockWithPassword("") {

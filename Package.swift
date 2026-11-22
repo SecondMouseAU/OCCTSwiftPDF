@@ -3,10 +3,10 @@ import PackageDescription
 
 let package = Package(
     name: "OCCTSwiftPDF",
-    // The platforms OCCTSwiftIO builds for. CoreGraphics' PDF scanner is on all of them; PDFKit is
-    // not on tvOS, so the cross-check against it is behind `#if canImport(PDFKit)` and a run keeps
-    // the package's own text there. The comparison's reference reader runs `/usr/bin/unzip` and
-    // `pdfprobe` is a command-line tool, so both are macOS only.
+    // The platforms OCCTSwiftIO builds for. CoreGraphics' PDF scanner is on all of them; older tvOS
+    // SDKs have no PDFKit, so the cross-check against it is behind `#if canImport(PDFKit)` and a
+    // run keeps the package's own text where it is absent. The comparison's reference reader runs
+    // `/usr/bin/unzip` and `pdfprobe` is a command-line tool, so both are macOS only.
     platforms: [.iOS(.v18), .macOS(.v15), .visionOS(.v1), .tvOS(.v18)],
     products: [
         .library(name: "OCCTSwiftPDF", targets: ["OCCTSwiftPDF"]),

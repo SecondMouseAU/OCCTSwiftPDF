@@ -28,9 +28,10 @@ timestamp: 2026-11-22
     painted path became (`p1:op120:0`, via `Fm0#1`). Filled-only paths, images and text with no
     characters are counted in `skipped` by layer.
   - `PDF.Source` is where something came from: page, operator index, Form XObjects.
-  - The library builds for macOS 15, iOS 18, visionOS 1 and tvOS 18, as OCCTSwiftIO does. On tvOS
-    there is no PDFKit, so a text run keeps the text this package's own decoding gave it (it may
-    have none).
+  - The library builds for macOS 15, iOS 18, visionOS 1 and tvOS 18, as OCCTSwiftIO does. Where the
+    SDK has no PDFKit (older tvOS SDKs), a text run keeps the text this package's own decoding
+    gave it (it may have none). `Scripts/build-without-pdfkit.sh` builds for tvOS as if it had
+    none, which CI runs.
   - `PDF.readReference(at:)` (spike tooling, macOS only) reads the drawing to compare with from a
     DXF, or from a zip holding exactly one entry, a DXF, through `/usr/bin/unzip`.
   - `PDF.compare(_:with:tolerance:)` (spike tooling) places a reference drawing of the same sheet
@@ -50,8 +51,9 @@ timestamp: 2026-11-22
   (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, `Differences` with standard glyph
   names). In a symbolic, TrueType, Type 3 or embedded font with no base encoding, codes the
   `Differences` array does not name are read as ASCII and marked `asciiGuess`.
-- **Text pairing** (`TextPairing.swift`, `TextPairing+PDFKit.swift`): where PDFKit exists (all but
-  tvOS; the asking is behind `#if canImport(PDFKit)`), asks it for each run's characters (inside its box
+- **Text pairing** (`TextPairing.swift`, `TextPairing+PDFKit.swift`): where the SDK has PDFKit
+  (older tvOS SDKs do not; the asking is behind `#if canImport(PDFKit)`), asks it for each run's
+  characters (inside its box
   for a run along or across the page, from its first character to its end for an inclined one),
   as a check on this reader's decoding and as its fallback where this reader has no characters. For a
   run along or across the page, PDFKit's characters also replace guessed ASCII they contradict and

@@ -14,12 +14,14 @@ on:
       - 'Sources/**'
       - 'Tests/**'
       - 'Package.*'
+      - 'Scripts/build-without-pdfkit.sh'
       - '.github/workflows/tests.yml'
   pull_request:
     paths:
       - 'Sources/**'
       - 'Tests/**'
       - 'Package.*'
+      - 'Scripts/build-without-pdfkit.sh'
       - '.github/workflows/tests.yml'
   workflow_dispatch:
 
@@ -43,8 +45,9 @@ jobs:
       - name: swift test
         run: swift test
 
-  # OCCTSwiftIO builds for iOS, tvOS and visionOS as well, so this package must. tvOS has no PDFKit,
-  # which is the platform this catches; the -Package scheme also builds pdfprobe's stub.
+  # OCCTSwiftIO builds for iOS, tvOS and visionOS as well, so this package must. Older tvOS SDKs have
+  # no PDFKit and newer ones do, so on tvOS a second build simulates the SDK without it. The
+  # -Package scheme also builds pdfprobe's stub.
   platforms:
     runs-on: macos-15
     timeout-minutes: 30
@@ -61,3 +64,7 @@ jobs:
             -scheme OCCTSwiftPDF-Package \
             -destination "generic/platform=${{ matrix.platform }}" \
             -skipPackagePluginValidation
+
+      - name: Build for tvOS as if the SDK had no PDFKit
+        if: matrix.platform == 'tvOS'
+        run: Scripts/build-without-pdfkit.sh tvOS
