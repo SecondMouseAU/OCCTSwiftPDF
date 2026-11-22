@@ -142,19 +142,9 @@ enum ArcRecovery {
         var found: [RecoveredArc] = []
         var first = 0
         while first < elements.count {
-            var best: RecoveredArc?
-            var last = first + 1
-            while last <= elements.count, last - first <= maximumRun {
-                let evaluation = evaluate(elements, samples, first..<last, options)
-                if case .infeasible = evaluation { break }
-                if case .feasible(let arc) = evaluation,
-                    accepts(arc, options, curveSweepDeg: curveSweepDeg), !carriesOn(elements, arc)
-                {
-                    best = arc
-                }
-                last += 1
-            }
-            if let best {
+            if let best = longest(
+                from: first, elements, samples, options, curveSweepDeg: curveSweepDeg)
+            {
                 found.append(best)
                 first = best.range.upperBound
             } else {
@@ -162,6 +152,74 @@ enum ArcRecovery {
             }
         }
         return found
+    }
+
+    /// The longest run from `first` that one circle fits and that is taken as an arc, or `nil`.
+    ///
+    /// A run that fits has every shorter run from the same start fitting too, so the longest is
+    /// found by doubling the length until a run does not fit and then halving the gap, which
+    /// takes a handful of fits where trying every length would take one for each element: a
+    /// finely flattened ellipse of a few hundred chords fits over most of its length from every
+    /// start. The longest run is taken if it is an arc, and otherwise a few shorter ones are tried.
+    private static func longest(
+        from first: Int, _ elements: [ArcElement], _ samples: [[SIMD2<Double>]],
+        _ options: PDF.ArcFitting, curveSweepDeg: Double?
+    ) -> RecoveredArc? {
+        let limit = min(elements.count, first + maximumRun)
+        // A run of straight segments is tested from the fewest an arc may have: a few points of a
+        // finely flattened arc are too close to straight for their circle to mean anything.
+        var length = 1
+        let wanted = options.minimumLineSegments
+        if first + wanted <= limit, !elements[first..<(first + wanted)].contains(where: \.isCurve) {
+            length = wanted
+        }
+        var good = 0
+        var arcs: [Int: RecoveredArc] = [:]
+        var bad: Int?
+        func probe(_ length: Int) -> Bool {
+            switch evaluate(elements, samples, first..<(first + length), options) {
+            case .infeasible:
+                return false
+            case .provisional:
+                return true
+            case .feasible(let arc):
+                arcs[length] = arc
+                return true
+            }
+        }
+        while first + length <= limit {
+            if probe(length) {
+                good = length
+                if first + length == limit { break }
+                length = min(length * 2, limit - first)
+            } else {
+                bad = length
+                break
+            }
+        }
+        if let failed = bad {
+            var low = good
+            var high = failed
+            while high - low > 1 {
+                let middle = (low + high) / 2
+                if probe(middle) { low = middle } else { high = middle }
+            }
+            good = low
+        }
+        // The longest run that fits, or one of the few just under it.
+        var tried = 0
+        var candidate = good
+        while candidate >= 1, tried < 4 {
+            if arcs[candidate] == nil, candidate < good { _ = probe(candidate) }
+            if let arc = arcs[candidate], accepts(arc, options, curveSweepDeg: curveSweepDeg),
+                !carriesOn(elements, arc)
+            {
+                return arc
+            }
+            candidate -= 1
+            tried += 1
+        }
+        return nil
     }
 
     /// The most elements one run is tried over, which bounds the work on a long polyline.
@@ -260,9 +318,8 @@ enum ArcRecovery {
             cursor += count
         }
 
-        let closes =
-            distance(points[0], points[points.count - 1]) <= 2 * tolerance
-            && abs(total) >= 2 * .pi - (1 * .pi / 180)
+        let closes = closed(
+            first: points[0], last: points[points.count - 1], sweep: total, tolerance)
         return .feasible(
             RecoveredArc(
                 range: range, circle: circle, startAngle: startAngle, sweep: total,
@@ -291,6 +348,16 @@ enum ArcRecovery {
             previous = next
         }
         return (total, steps)
+    }
+
+    /// Whether a run goes all the way round: it ends where it starts, or it is drawn past its start
+    /// by a little (a circle overdrawn by a degree is still a circle, not an arc of 361 degrees).
+    static func closed(
+        first: SIMD2<Double>, last: SIMD2<Double>, sweep: Double, _ tolerance: Double
+    ) -> Bool {
+        let turn = abs(sweep)
+        if turn > 2 * .pi + 1e-4 { return true }
+        return distance(first, last) <= 2 * tolerance && turn >= 2 * .pi - (1 * .pi / 180)
     }
 
     static func distance(_ a: SIMD2<Double>, _ b: SIMD2<Double>) -> Double {

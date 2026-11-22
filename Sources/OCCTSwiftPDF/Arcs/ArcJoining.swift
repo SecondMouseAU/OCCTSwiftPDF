@@ -136,9 +136,8 @@ enum ArcJoining {
         guard total > 0, !steps.contains(where: { $0 < -backwards }),
             total <= 2 * .pi + (1 * .pi / 180)
         else { return nil }
-        let closes =
-            ArcRecovery.distance(points[0], points[points.count - 1]) <= 2 * tolerance
-            && total >= 2 * .pi - (1 * .pi / 180)
+        let closes = ArcRecovery.closed(
+            first: points[0], last: points[points.count - 1], sweep: total, tolerance)
         return RecoveredArc(
             range: 0..<0, circle: circle,
             startAngle: atan2(points[0].y - circle.centre.y, points[0].x - circle.centre.x),

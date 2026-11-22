@@ -62,6 +62,11 @@ swift run pdfprobe arc-pairs [--detail] <folder>      # the same against each PD
 swift run pdfprobe digest <file-or-folder>...         # a hash of each page's drawing(), to compare runs
 ```
 
+`arcs` and `arc-pairs` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
+`--line-tolerance`, `--min-sweep`, `--max-step`, `--min-lines` and `--max-ratio`; `arc-pairs` also
+`--bound <mm>` (how near a reference circle must be, on the paper, to match) and `--table <file>`
+(one row per fit), and `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements between runs.
+
 `compare` and `pairs` take `--exclude-layer <name>` (repeatable) to leave a DXF layer out, such as
 Jw_cad's auxiliary lines, which are never printed: the TECS figures in the experiment page come
 from `pdfprobe pairs --exclude-layer ADD_LINE <tecs-pairs folder>`. A zip must hold exactly one

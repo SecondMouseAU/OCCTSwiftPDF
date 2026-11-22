@@ -8,12 +8,15 @@
 //   pdfprobe pairs <folder>                     every <name>.pdf beside <name>_dxf.zip, or beside
 //                                               <name>_jww.zip or .lzh where that is missing
 //   pdfprobe arcs [--detail] <file-or-folder>...  the circles and arcs recovered, by producer
-//                                               (--tolerance, --relative, --min-sweep, --max-step,
-//                                               --min-lines set the options)
-//   pdfprobe arc-pairs [--detail] <folder>       the same against the circles and arcs of each
+//   pdfprobe arc-pairs [--detail] [--bound <mm>] [--table <file>] <folder>
+//                                               the same against the circles and arcs of each
 //                                               PDF's paired DXF or JWW, by coordinates
 //   pdfprobe digest <file-or-folder>...         a hash of each page's `drawing()`, to see that a
 //                                               change to the reader left it alone
+//
+// `arcs` and `arc-pairs` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
+// `--line-tolerance`, `--min-sweep`, `--max-step`, `--min-lines` and `--max-ratio`.
+// `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements of `arc-pairs` between runs.
 //
 // `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
 // auxiliary lines (`ADD_LINE` in the TECS DXFs), which are never printed.
@@ -461,9 +464,10 @@ import Foundation
         guard !paths.isEmpty else {
             print(
                 "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | "
-                    + "pairs <folder> | digest <file-or-folder>... | arcs [--detail] <file-or-folder>... | "
-                    + "debug-text <pdf> <text>; "
-                    + "--exclude-layer <name> for compare and pairs"
+                    + "pairs <folder> | digest <file-or-folder>... | "
+                    + "arcs [--detail] <file-or-folder>... | arc-pairs [--detail] <folder> | "
+                    + "debug-text <pdf> <text>; --exclude-layer <name> for compare, pairs and "
+                    + "arc-pairs"
             )
             exit(2)
         }

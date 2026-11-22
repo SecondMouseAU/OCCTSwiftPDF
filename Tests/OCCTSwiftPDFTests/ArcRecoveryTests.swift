@@ -323,4 +323,51 @@ struct ArcRecoveryTests {
         let arcs = Self.arcs([first, second, second])
         #expect(ArcJoining.join(arcs, keys: ["", "", ""], Self.options).isEmpty)
     }
+
+    @Test("a circle drawn a little past its start is a circle, and one short of it is an arc")
+    func overlapAndGap() throws {
+        // Four curves sweeping 360.6 degrees: the end passes the start by 0.2 mm.
+        let past = Self.recover(
+            ArcShapes.bezierArc(centre: Self.centre, radius: 20, from: 10, sweep: 360.6, curves: 4))
+        #expect(past.count == 1 && past[0].isCircle)
+        // The same, 356 degrees: 1.4 mm short of closing.
+        let short = Self.recover(
+            ArcShapes.bezierArc(centre: Self.centre, radius: 20, from: 10, sweep: 356, curves: 4))
+        #expect(short.count == 1 && !short[0].isCircle)
+        #expect(abs(abs(short[0].sweep) * 180 / .pi - 356) < 0.1)
+    }
+
+    @Test("a smooth polyline of many chords is searched in a moment, not a quarter of a minute")
+    func fineChordsAreQuick() {
+        // An ellipse of 800 chords is round to 0.003 mm over most of its length from any start.
+        let chords = ArcShapes.ellipse(centre: Self.centre, a: 150, b: 120, segments: 800)
+        let start = ContinuousClock.now
+        #expect(Self.recover(chords).isEmpty)
+        let seconds = ContinuousClock.now - start
+        // 18 seconds before the longest run was found by doubling, and under 2 after, in a debug
+        // build.
+        #expect(seconds < .seconds(10), "\(seconds)")
+    }
+
+    @Test("arcs drawn clockwise join as the circle they make")
+    func clockwiseJoin() throws {
+        var runs: [[ArcElement]] = []
+        for index in 0..<4 {
+            runs.append(
+                ArcShapes.bezierArc(
+                    centre: Self.centre, radius: 20, from: 90 - Double(index) * 90, sweep: -90,
+                    curves: 1))
+        }
+        let arcs = Self.arcs(runs)
+        #expect(arcs.count == 4 && arcs.allSatisfy { $0.sweep < 0 })
+        let joined = ArcJoining.join(arcs, keys: Array(repeating: "", count: 4), Self.options)
+        let one = try #require(joined.first)
+        #expect(joined.count == 1 && one.members.count == 4 && one.arc.isCircle)
+        // Three of them, drawn from 90 down to -180, make the 270 degrees counterclockwise from 180.
+        let three = ArcJoining.join(Array(arcs.prefix(3)), keys: ["", "", ""], Self.options)
+        let arc = try #require(three.first)
+        #expect(three.count == 1 && !arc.arc.isCircle)
+        #expect(abs(arc.arc.sweep * 180 / .pi - 270) < 0.1)
+        #expect(abs(arc.arc.firstDeg - 180) < 0.1)
+    }
 }

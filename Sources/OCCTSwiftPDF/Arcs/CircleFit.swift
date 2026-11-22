@@ -19,7 +19,7 @@ struct Circle: Equatable, Sendable {
     }
 
     /// The circle that minimises the summed squared distance of `points` from it, or `nil` when
-    /// there are fewer than three points, they are (nearly) collinear, or the fit does not settle.
+    /// there are fewer than three points, they are (nearly) collinear, or the fit is not a finite circle.
     static func fitting(_ points: [SIMD2<Double>]) -> Circle? {
         guard points.count >= 3 else { return nil }
         let n = Double(points.count)

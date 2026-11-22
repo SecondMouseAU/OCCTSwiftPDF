@@ -129,14 +129,14 @@
                 return "\(by[.curves] ?? 0)/\(by[.lines] ?? 0)/\(by[.mixed] ?? 0)"
             }
             let residuals = fits.map(\.maxResidual).sorted()
-            let median = residuals.isEmpty ? 0 : residuals[residuals.count / 2]
+            let middle = residuals.isEmpty ? 0 : median(residuals)
             print(
                 "  \(producer): files \(files.count), with fits \(files.filter { !$0.fits.isEmpty }.count),"
                     + " circles \(circles.count) (\(split(circles))), arcs \(arcs.count) (\(split(arcs))),"
                     + " curves replaced \(files.reduce(0) { $0 + $1.curvesReplaced }),"
                     + " lines replaced \(files.reduce(0) { $0 + $1.linesReplaced }),"
                     + String(
-                        format: " residual median %.4f max %.4f mm", median, residuals.last ?? 0)
+                        format: " residual median %.4f max %.4f mm", middle, residuals.last ?? 0)
                     + ", joinable pairs \(files.reduce(0) { $0 + $1.joinable })")
         }
         let all = results.flatMap(\.fits)
@@ -155,11 +155,6 @@
         var fits: [PDF.ArcFit]
         var comparison: PDF.ArcComparison
         var matches: [PDF.ArcMatch] { comparison.matches }
-    }
-
-    func median(of values: [Double]) -> Double {
-        let sorted = values.sorted()
-        return sorted.isEmpty ? .nan : sorted[sorted.count / 2]
     }
 
     func percentile(_ values: [Double], _ p: Double) -> Double {
@@ -223,14 +218,21 @@
                 reference.entities.removeAll { excluded.contains(PDF.describe(layerOf: $0)) }
             }
             let fitted = page.fittedDrawing(options)
+            // The placement depends on the two files and on the layers left out, not on the
+            // options, so it is kept under all of them.
+            let sizes = [folder.appendingPathComponent(file), paired].map {
+                ((try? FileManager.default.attributesOfItem(atPath: $0.path))?[.size] as? Int) ?? 0
+            }
+            let key =
+                "\(folder.path)/\(file)|\(sizes[0])|\(sizes[1])|\(excluded.sorted().joined(separator: ","))"
             // Placed by the default drawing, as `pairs` does, so the placement does not depend on
             // the options being tried.
             let placement: PDF.Placement
-            if let kept = placements[file] {
+            if let kept = placements[key] {
                 placement = kept
             } else if let made = PDF.compare(page.drawing(), with: reference) {
                 placement = made.placement
-                placements[file] = placement
+                placements[key] = placement
             } else {
                 continue
             }
@@ -243,7 +245,7 @@
             let errors = result.matches.map { abs($0.radiusError) / placement.scale }
             let scale = String(format: "%.5f", placement.scale)
             let worst = String(
-                format: "median %.4f max %.4f", median(of: errors), errors.max() ?? 0)
+                format: "median %.4f max %.4f", median(errors), errors.max() ?? 0)
             print(
                 "\(file)\t\(result.producer)\tscale \(scale)"
                     + "\treference circles+arcs \(comparison.referenceCount)\tfits \(fitted.fits.count)"
@@ -308,10 +310,10 @@
     func printArcPairSummary(_ results: [ArcPairResult]) {
         func spread(_ label: String, _ paper: [Double], _ full: [Double]) {
             let first = String(
-                format: "median %.4f p90 %.4f max %.4f", median(of: paper), percentile(paper, 0.9),
+                format: "median %.4f p90 %.4f max %.4f", median(paper), percentile(paper, 0.9),
                 paper.max() ?? 0)
             let second = String(
-                format: "median %.4f p90 %.4f max %.4f", median(of: full), percentile(full, 0.9),
+                format: "median %.4f p90 %.4f max %.4f", median(full), percentile(full, 0.9),
                 full.max() ?? 0)
             print("  \(label) on the paper (mm): \(first); at full size: \(second)")
         }
@@ -336,7 +338,7 @@
                 abs($0.1.radiusError) / max($0.0.fits[$0.1.fit].radius, 1e-9)
             }
             let share = String(
-                format: "median %.5f p90 %.5f max %.5f", median(of: relative),
+                format: "median %.5f p90 %.5f max %.5f", median(relative),
                 percentile(relative, 0.9), relative.max() ?? 0)
             print("  radius error as a fraction of the radius: \(share)")
         }

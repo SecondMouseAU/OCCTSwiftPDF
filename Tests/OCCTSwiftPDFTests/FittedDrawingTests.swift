@@ -185,7 +185,7 @@ struct FittedDrawingTests {
         #expect(abs(fit.radius - 40 * 25.4 / 72) < 0.01)
     }
 
-    @Test("a filled circle and a circle on another layer are not mixed up")
+    @Test("a filled circle is left out, and a stroked one keeps its colour")
     func paintAndColour() throws {
         let elements = ArcShapes.bezierArc(centre: Self.centre, radius: 30, curves: 4)
         let path = Self.operators(elements)
@@ -218,6 +218,8 @@ struct FittedDrawingTests {
         #expect(fit.shape == .circle && fit.segments == 4 && fit.sources.count == 2)
         #expect(abs(fit.radius - 50 * 25.4 / 72) < 0.01)
         #expect(fit.entityIndex == 0)
+        // The width is that of the stroke drawn first: 0.72 points.
+        #expect(abs(fit.lineWidth - 0.72 * 25.4 / 72) < 1e-6)
         #expect(fitted.drawing.identity(ofEntityAt: 0).id.hasSuffix(":FITTED"))
     }
 
@@ -273,5 +275,24 @@ struct FittedDrawingTests {
         ).fittedDrawing()
         // Two pieces make 60 degrees: one arc.
         #expect(two.fits.count == 1 && abs(two.fits[0].sweepDeg - 60) < 0.1)
+    }
+
+    @Test("a fit says where its entity is among the others, and the others keep their places")
+    func entityIndex() throws {
+        let circle = ArcShapes.bezierArc(centre: Self.centre, radius: 40, curves: 4)
+        let content =
+            "10 10 m 90 90 l S 5 5 20 20 re S " + Self.operators(circle) + " S 0 0 m 9 9 l S"
+        let fitted = try Self.page(content).fittedDrawing()
+        let fit = try #require(fitted.fits.first)
+        #expect(fitted.fits.count == 1 && fit.entityIndex == 2)
+        #expect(fitted.fit(atEntity: 2)?.radius == fit.radius)
+        #expect(fitted.fit(atEntity: 0) == nil && fitted.fit(atEntity: 3) == nil)
+        guard case .circle = fitted.drawing.entities[2] else {
+            Issue.record("entity 2 is not the circle")
+            return
+        }
+        // A line, a rectangle, the circle, a line.
+        #expect(fitted.drawing.entities.count == 4 && fitted.drawing.counts.circle == 1)
+        #expect(fitted.drawing.identities.count == 4)
     }
 }
