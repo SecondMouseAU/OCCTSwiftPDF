@@ -47,11 +47,13 @@ timestamp: 2026-11-22
   (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, `Differences` with standard glyph
   names). In a symbolic, TrueType, Type 3 or embedded font with no base encoding, codes the
   `Differences` array does not name are read as ASCII and marked `asciiGuess`.
-  An `Identity` CID font with no usable `ToUnicode` map that embeds a TrueType program is read from
-  the program (`FontCharacters.swift`): the code is a CID, the `CIDToGIDMap` gives its glyph, and
-  the font's own Unicode `cmap` (formats 4 and 12) gives the character, marked `embeddedFont`. A
-  code with no character is U+FFFD, except a space the subset left out, which is read as a space
-  where the font has shown its CIDs are Unicode (every CID it resolves resolves to itself).
+  An `Identity` CID font that has no `ToUnicode` map and embeds a TrueType program (`FontFile2`) is
+  read from the program (`FontCharacters.swift`): the code is a CID, the `CIDToGIDMap` gives its
+  glyph, and the font's own Unicode `cmap` (formats 4 and 12) gives the character, marked
+  `embeddedFont`. A code with no character is U+FFFD, except a space the subset left out, which is
+  read as a space where the font has shown its CIDs are Unicode (at least two resolve, and every one
+  resolves to itself). A font that has a map keeps it, gaps included; CFF programs (`FontFile3`) and
+  other encodings are not read this way.
 - **Text pairing** (`TextPairing.swift`): asks PDFKit for each run's characters (inside its box
   for a run along or across the page, from its first character to its end for an inclined one),
   as a check on this reader's decoding and as its fallback where this reader has no characters. For a

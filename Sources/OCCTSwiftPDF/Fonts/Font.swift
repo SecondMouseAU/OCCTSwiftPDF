@@ -194,12 +194,15 @@ final class Font {
     /// that code when that character is known, and U+FFFD otherwise (also where it would only be
     /// guessed), so a value is never shortened silently
     /// (an unmapped `⌀` before `25.4` must not leave `25.4`). A composite font with gaps in its map
-    /// is decoded through its CMap instead when that covers every code, or through its embedded
-    /// font when that leaves fewer codes unread than the map did.
+    /// is decoded through its CMap instead when that covers every code.
+    ///
+    /// Only a font with no map at all is read through its embedded font program, last: a map is
+    /// the writer's own statement, and a font's `cmap` is not trusted to overrule or fill it.
     func decode(_ bytes: [UInt8]) -> (text: String?, decoding: PDF.TextDecoding) {
         let codes = codes(bytes)
         guard let toUnicode else {
-            return decodeWithoutToUnicode(bytes, codes) ?? (nil, .none)
+            return decodeWithoutToUnicode(bytes, codes)
+                ?? embeddedText(codes).map { ($0, .embeddedFont) } ?? (nil, .none)
         }
         var text = ""
         var missing = 0
@@ -213,10 +216,7 @@ final class Font {
                 missing += 1
             }
         }
-        if missing > 0, isComposite, let other = decodeWithoutToUnicode(bytes, codes),
-            other.decoding != .embeddedFont
-                || (other.text?.filter { $0 == "\u{FFFD}" }.count ?? 0) < missing
-        {
+        if missing > 0, isComposite, let other = decodeWithoutToUnicode(bytes, codes) {
             return other
         }
         return (text, .toUnicode)
@@ -228,7 +228,7 @@ final class Font {
         if isComposite {
             if isShiftJIS { return (DXF.decodeCP932(bytes), .shiftJIS) }
             if isUnicodeCMap { return (CMap.utf16(bytes), .unicodeCMap) }
-            return embeddedText(codes).map { ($0, .embeddedFont) }
+            return nil
         }
         var text = ""
         var anyGuessed = false

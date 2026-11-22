@@ -9,7 +9,8 @@ import Foundation
 ///
 /// A subset a writer embeds without a `ToUnicode` map still carries this table, and with a CID
 /// font's `CIDToGIDMap` it says what character each code stands for. The font is untrusted input:
-/// every read is bounds-checked and the work is capped.
+/// every read is bounds-checked and the walk over the `cmap` is capped. (The stream is inflated by
+/// CoreGraphics, whose size this cannot limit; `ToUnicode` streams share that.)
 ///
 /// CoreText was tried first. It loads the ODA subset and maps characters to glyphs, but only that
 /// way round and only for a font it accepts whole: it refuses one that has just a `cmap`, which is

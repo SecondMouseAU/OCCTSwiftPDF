@@ -99,7 +99,7 @@ struct EmbeddedFontTests {
         // Macintosh, and Windows symbol, are not Unicode.
         #expect(Self.characters([(1, 0, subtable)]) == nil)
         #expect(Self.characters([(3, 0, subtable)]) == nil)
-        #expect(Self.characters([(0, 3, subtable)]) != nil)
+        #expect(Self.characters([(0, 3, subtable)])?.scalar(forGlyph: 1) == "A")
     }
 
     @Test("a damaged font gives nothing, or what is really there, and does not crash or run on")
@@ -203,8 +203,10 @@ struct EmbeddedFontTests {
 
     /// A PDF showing `codes` (hex, two bytes each) in an `Identity-H` CID font that embeds `font`,
     /// with `glyphs` as its `CIDToGIDMap` stream, or `/Identity`, and an optional `ToUnicode` map.
-    static func pdf(codes: String, font: Data, glyphs: [Int]?, toUnicode: String? = nil) -> MiniPDF
-    {
+    static func pdf(
+        codes: String, font: Data, glyphs: [Int]?, toUnicode: String? = nil,
+        encoding: String = "Identity-H"
+    ) -> MiniPDF {
         // Objects 1 to 3 are the font, its descendant and the descriptor; streams follow.
         var objects = ["", "", ""]
         func add(_ body: String) -> String {
@@ -221,7 +223,7 @@ struct EmbeddedFontTests {
         var unicode = ""
         if let toUnicode { unicode = "/ToUnicode " + add(MiniPDF.stream("", toUnicode)) }
         objects[0] = """
-            << /Type /Font /Subtype /Type0 /BaseFont /AAAAAA+Test /Encoding /Identity-H \
+            << /Type /Font /Subtype /Type0 /BaseFont /AAAAAA+Test /Encoding /\(encoding) \
             /DescendantFonts [{2}] \(unicode) >>
             """
         objects[1] = """
@@ -307,8 +309,8 @@ struct EmbeddedFontTests {
         #expect(run.decoding == .toUnicode)
     }
 
-    @Test("a ToUnicode map with gaps is kept unless the font leaves fewer codes unread")
-    func toUnicodeWithGaps() throws {
+    @Test("a ToUnicode map is the writer's word: its gaps are not filled from the font")
+    func toUnicodeKept() throws {
         func map(_ entries: String) -> String {
             """
             /CIDInit /ProcSet findresource begin 12 dict begin begincmap
@@ -317,25 +319,35 @@ struct EmbeddedFontTests {
             endcmap end end
             """
         }
-        let font = Self.font(Self.letters)
-        let codes = "0041004200430044"
-
-        // The map reads three of the four codes as "XYZ"; the font reads only the first, so it
-        // would leave three unread and the map's reading stands, with its one gap. (`ownText`: with
-        // a U+FFFD in it, a run's `text` may be replaced by PDFKit's.)
-        let narrow = try Self.run(
+        // The font reads all four codes ("ABCD"), and it is the map that is used: where it
+        // disagrees ("XYZ" for 0x41 to 0x43), and where it has no entry (0x44, a gap). (`ownText`:
+        // with a U+FFFD in it, a run's `text` may be replaced by PDFKit's.)
+        let font = Self.font([(3, 10, Self.format12([(0x41, 0x44, 1)]))])
+        let glyphs = Self.glyphs([0x41: 1, 0x42: 2, 0x43: 3, 0x44: 4], last: 0x44)
+        let gap = try Self.run(
             Self.pdf(
-                codes: codes, font: font, glyphs: Self.glyphs([0x41: 1], last: 0x44),
+                codes: "0041004200430044", font: font, glyphs: glyphs,
                 toUnicode: map("1 beginbfrange <0041> <0043> <0058> endbfrange")))
-        #expect(narrow.ownText == "XYZ\u{FFFD}")
+        #expect(gap.ownText == "XYZ\u{FFFD}")
 
-        // The map reads only the first code, leaving three; the font reads three of the four, so
-        // it leaves fewer unread and replaces the map's reading.
-        let wide = try Self.run(
+        let mostly = try Self.run(
             Self.pdf(
-                codes: codes, font: font,
-                glyphs: Self.glyphs([0x41: 1, 0x42: 2, 0x43: 3], last: 0x44),
+                codes: "0041004200430044", font: font, glyphs: glyphs,
                 toUnicode: map("1 beginbfchar <0041> <0058> endbfchar")))
-        #expect(wide.ownText == "ABC\u{FFFD}")
+        #expect(mostly.ownText == "X\u{FFFD}\u{FFFD}\u{FFFD}")
+    }
+
+    @Test("only an Identity encoding makes the codes CIDs, so others are not read from the font")
+    func otherEncodings() throws {
+        let font = Self.font(Self.letters)
+        let glyphs = Self.glyphs([0x41: 1, 0x42: 2, 0x43: 3], last: 0x43)
+        // The same font and codes read in an Identity font give "ABC".
+        #expect(
+            try Self.run(Self.pdf(codes: "004100420043", font: font, glyphs: glyphs)).ownText
+                == "ABC")
+        // A predefined CMap that is neither Identity, Shift-JIS nor Unicode: its codes are not
+        // CIDs, and nothing else reads them.
+        let gbk = Self.pdf(codes: "004100420043", font: font, glyphs: glyphs, encoding: "GBK-EUC-H")
+        #expect(try Self.run(gbk).ownText == nil)
     }
 }
