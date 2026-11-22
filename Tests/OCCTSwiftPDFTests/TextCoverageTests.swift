@@ -66,6 +66,15 @@ struct TextCoverageTests {
         #expect(Self.text(over: [first, shifted]) != nil)
     }
 
+    @Test("a run much bigger or smaller than the shapes is not their text")
+    func differentSize() {
+        // A watermark (100 high) over a 5-high region, and a 1-high label inside it.
+        #expect(Self.text(over: [Self.run("WATERMARK", x0: -50, x1: 90, y0: -40, y1: 60)]) == nil)
+        #expect(Self.text(over: [Self.run("tiny", x0: -1, x1: 21, y0: 2, y1: 3)]) == nil)
+        // A font size a little over the ink's height is the shapes' own text.
+        #expect(Self.text(over: [Self.run("10,439", x0: -1, x1: 21, y0: -1, y1: 6.5)]) != nil)
+    }
+
     @Test("a run with no characters covers nothing")
     func noCharacters() {
         var empty = Self.run("X", x0: -1, x1: 21)

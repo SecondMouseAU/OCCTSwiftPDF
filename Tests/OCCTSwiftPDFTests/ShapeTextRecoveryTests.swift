@@ -359,12 +359,13 @@ struct ShapeTextRecoveryTests {
 
     @Test("a text run across the page covers the shapes on it, not those in its bounding box")
     func diagonalRun() throws {
-        // A watermark at 45 degrees: its bounding rectangle takes in the corner where the
-        // outlines are, which it does not cross.
+        // A long line of text at 45 degrees, of about the size of the outlines: its bounding
+        // rectangle takes in the corner where they are, which it does not cross.
         let outlines = OutlineText.drawn("10,439", at: CGPoint(x: 300, y: 130))
+        let words = String(repeating: "DIAGONAL ", count: 9)
         let content =
             outlines.content
-            + "BT /F1 40 Tf 3 Tr 0.7071 0.7071 -0.7071 0.7071 100 100 Tm (DIAGONAL WATERMARK) Tj ET\n"
+            + "BT /F1 9 Tf 3 Tr 0.7071 0.7071 -0.7071 0.7071 100 100 Tm (\(words)) Tj ET\n"
         let recogniser = Self.visionLike("10,439")
         let (document, recovery) = try Self.recover(
             content, recogniser: recogniser, resources: ShapeTextFixtures.helveticaResources)

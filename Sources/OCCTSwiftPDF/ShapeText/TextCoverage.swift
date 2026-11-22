@@ -13,6 +13,8 @@ struct TextCoverage {
         /// The run's box, counterclockwise.
         var quad: [CGPoint]
         var bounds: CGRect
+        /// The run's size across its direction.
+        var height: Double
         var text: String
     }
 
@@ -27,22 +29,34 @@ struct TextCoverage {
             guard let x0 = xs.min(), let x1 = xs.max(), let y0 = ys.min(), let y1 = ys.max()
             else { return nil }
             let bounds = CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0)
-            return Entry(quad: quad, bounds: bounds, text: text)
+            let height = hypot(quad[3].x - quad[0].x, quad[3].y - quad[0].y)
+            return Entry(quad: quad, bounds: bounds, height: Double(height), text: text)
         }
     }
+
+    /// How big a run may be, as a multiple of the shapes' height, to be their text.
+    ///
+    /// A font size runs about 1.0 to 1.6 times the ink above the baseline.
+    static let heights = 0.4...3.0
 
     /// The points of a region's box sampled for coverage, along it and across it.
     static let samples = (along: 12, across: 5)
 
-    /// The text of the runs that cover at least half of the region's box, in reading order, or
-    /// `nil` where they do not.
+    /// The text of the runs of about the region's size that cover at least half of its box, in
+    /// reading order, or `nil` where they do not.
     ///
     /// The boxes are compared as they lie, turned or not, so a long line of text across the page
     /// does not cover the shapes that happen to be inside its bounding rectangle. The fraction
     /// covered is that of a grid of points in the region that lie inside some run's box, so runs
     /// that overlap one another are not counted twice.
     func text(over region: ShapeTextRegion) -> String? {
-        let near = entries.filter { $0.bounds.intersects(region.bounds) }
+        // A run of about the size of the shapes: a big watermark over small shapes is not their
+        // text, and nor is a small label inside a big one.
+        let lowest = Self.heights.lowerBound * region.height
+        let highest = Self.heights.upperBound * region.height
+        let near = entries.filter {
+            $0.bounds.intersects(region.bounds) && $0.height >= lowest && $0.height <= highest
+        }
         guard !near.isEmpty else { return nil }
         var inside = 0
         var over = Set<Int>()
