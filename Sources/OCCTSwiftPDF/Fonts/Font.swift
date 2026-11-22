@@ -33,6 +33,17 @@ final class Font {
     let cidWidths: [UInt32: Double]
     /// Glyph space to text space: 0.001, or a Type 3 font's own matrix.
     let glyphScale: Double
+    /// A composite font's embedded TrueType program and its `CIDToGIDMap` stream, read only if a
+    /// run needs them, since a font program can be large.
+    private let embeddedFile: CGPDFStreamRef?
+    private let cidToGIDMap: CGPDFStreamRef?
+    private lazy var embeddedCharacters: EmbeddedCharacters? = {
+        guard let embeddedFile, let data = PDFObjects.data(embeddedFile),
+            let characters = FontCharacters(data)
+        else { return nil }
+        let glyphs = cidToGIDMap.flatMap { PDFObjects.data($0) }.map(EmbeddedCharacters.glyphs)
+        return EmbeddedCharacters(characters: characters, glyphs: glyphs)
+    }()
 
     init(_ dict: CGPDFDictionaryRef) {
         name = PDFObjects.name(dict, "BaseFont") ?? PDFObjects.name(dict, "Name") ?? "?"
@@ -83,15 +94,23 @@ final class Font {
 
         var defaultWidth = 1000.0
         var cidWidths: [UInt32: Double] = [:]
+        var embeddedFile: CGPDFStreamRef?
+        var cidToGIDMap: CGPDFStreamRef?
         if isComposite, let descendants = PDFObjects.array(dict, "DescendantFonts") {
             var descendant: CGPDFDictionaryRef?
             if CGPDFArrayGetDictionary(descendants, 0, &descendant), let descendant {
                 defaultWidth = PDFObjects.number(descendant, "DW") ?? 1000
                 if let list = PDFObjects.array(descendant, "W") { cidWidths = Self.cidWidths(list) }
+                if let descriptor = PDFObjects.dictionary(descendant, "FontDescriptor") {
+                    embeddedFile = PDFObjects.stream(descriptor, "FontFile2")
+                }
+                cidToGIDMap = PDFObjects.stream(descendant, "CIDToGIDMap")
             }
         }
         self.defaultWidth = defaultWidth
         self.cidWidths = cidWidths
+        self.embeddedFile = embeddedFile
+        self.cidToGIDMap = cidToGIDMap
 
         if subtype == "Type3", let matrix = PDFObjects.array(dict, "FontMatrix"),
             let first = PDFObjects.numbers(matrix).first
@@ -205,7 +224,7 @@ final class Font {
         if isComposite {
             if isShiftJIS { return (DXF.decodeCP932(bytes), .shiftJIS) }
             if isUnicodeCMap { return (CMap.utf16(bytes), .unicodeCMap) }
-            return nil
+            return embeddedText(codes).map { ($0, .embeddedFont) }
         }
         var text = ""
         var anyGuessed = false
@@ -215,6 +234,26 @@ final class Font {
             anyGuessed = anyGuessed || guessed
         }
         return (text, anyGuessed ? .asciiGuess : .simpleEncoding)
+    }
+
+    /// An `Identity` composite font's codes as characters, through its embedded TrueType program.
+    ///
+    /// Each code is a CID, the `CIDToGIDMap` gives its glyph, and the program's own `cmap` gives
+    /// that glyph's character. A code with no character is U+FFFD; the result is `nil` when none
+    /// has one.
+    private func embeddedText(_ codes: [(code: UInt32, length: Int)]) -> String? {
+        guard codesAreCIDs, let embeddedCharacters else { return nil }
+        var text = ""
+        var found = 0
+        for (code, _) in codes {
+            if let character = embeddedCharacters.character(forCID: code) {
+                text.append(character)
+                found += 1
+            } else {
+                text += "\u{FFFD}"
+            }
+        }
+        return found > 0 ? text : nil
     }
 
     /// A simple font's character for `code`, and whether it is only guessed: a code its

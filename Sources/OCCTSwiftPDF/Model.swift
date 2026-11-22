@@ -106,6 +106,10 @@ extension PDF {
         case shiftJIS
         /// The font's encoding is a Unicode one (`UniJIS-UCS2-H` and the like).
         case unicodeCMap
+        /// The embedded TrueType program's own `cmap` table: an `Identity` font whose writer gave no
+        /// usable `ToUnicode` map (ODA's does not). A code is a CID, the `CIDToGIDMap` gives its
+        /// glyph, and the font says what character that glyph is. A code with no character is U+FFFD.
+        case embeddedFont
         /// A simple font's encoding (`WinAnsiEncoding`, `MacRomanEncoding`, `StandardEncoding`, or a
         /// `Differences` array of standard glyph names).
         case simpleEncoding
