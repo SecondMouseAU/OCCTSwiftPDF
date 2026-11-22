@@ -105,8 +105,9 @@ the corpus tests are its callers.
 - `Tests/.../MiniPDF.swift` writes a PDF by hand from a content stream, resources and extra objects,
   so a test controls every operator. Use it for new interpreter and text tests rather than a corpus
   file.
-- The test target builds for macOS only: `TextTests` imports PDFKit and the corpus tests call
-  `PDF.readReference`. CI builds the library for the other platforms; it does not run tests there.
+- The test target builds for macOS only: the corpus tests call the macOS-only
+  `PDF.readReference`, and `TextTests` uses PDFKit directly. CI builds the library for the
+  other platforms; it does not run tests there.
 - `CorpusTests` read real drawings from `PDF_CORPUS` and gate each test with
   `.enabled(if: CorpusTests.exists(...))`. One test also reads a DXF kept outside the corpus
   (`~/Documents/Modelling/2DFiles/2120_from_2120j.dxf`).

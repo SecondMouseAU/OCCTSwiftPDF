@@ -27,11 +27,11 @@ struct WithoutPDFKitTests {
         #expect(alone.origin == checked.origin)
     }
 
-    @Test("text only PDFKit can read is read with it and left without text when it is absent")
-    func pdfKitOnlyText() throws {
-        // A font not embedded, in the Adobe-Japan1 collection: CIDs 34 to 36 are "ABC". This reader
-        // has no table from CIDs to characters, but PDFKit does, as for the Hiragino fonts in the
-        // corpus.
+    /// A non-embedded Adobe-Japan1 font showing CIDs 34 to 36, which are "ABC".
+    ///
+    /// This reader has no table from CIDs to characters, but PDFKit does, as for the Hiragino fonts
+    /// in the corpus.
+    static func japan1File() throws -> URL {
         let font = """
             << /Type /Font /Subtype /Type0 /BaseFont /HiraginoSans-W3 /Encoding /Identity-H \
             /DescendantFonts [{2}] >>
@@ -46,10 +46,23 @@ struct WithoutPDFKitTests {
             /FontBBox [-100 -200 1100 900] /ItalicAngle 0 /Ascent 880 /Descent -120 \
             /CapHeight 700 /StemV 80 >>
             """
-        let url = try TextTests.pdf(
+        return try TextTests.pdf(
             "BT /F1 12 Tf 100 100 Td <002200230024> Tj ET", font: font,
             extra: [descendant, descriptor]
         ).file()
+    }
+
+    /// Whether PDFKit on this machine reads ``japan1File()``, which depends on its system fonts.
+    static let pdfKitReadsJapan1: Bool = {
+        guard let url = try? japan1File() else { return false }
+        return (try? page(url, crossCheck: true).texts.first?.pdfKitText) == "ABC"
+    }()
+
+    @Test(
+        "text only PDFKit can read is read with it and left without text when it is absent",
+        .enabled(if: WithoutPDFKitTests.pdfKitReadsJapan1))
+    func pdfKitOnlyText() throws {
+        let url = try Self.japan1File()
         let checked = try #require(try Self.page(url, crossCheck: true).texts.first)
         #expect(checked.ownText == nil)
         #expect(checked.text == "ABC")

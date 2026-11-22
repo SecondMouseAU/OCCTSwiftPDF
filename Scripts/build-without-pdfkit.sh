@@ -25,6 +25,13 @@ grep -rl 'PDFKit' Sources | xargs sed -i '' -E \
     -e 's/canImport\(PDFKit\)/canImport(PDFKitAbsent)/g' \
     -e 's/^([[:space:]]*(@[[:alnum:]_]+[[:space:]]+)*import[[:space:]]+([a-z]+[[:space:]]+)?)PDFKit/\1PDFKitAbsent/'
 
+# The rewrite must have caught every import: one it missed (`import CoreGraphics; import PDFKit`)
+# would build on an SDK that has PDFKit and defeat the point.
+if grep -rnE 'import[^/]*PDFKit([^A]|$)' Sources; then
+    echo "build-without-pdfkit: an import of PDFKit was not rewritten (lines above)" >&2
+    exit 1
+fi
+
 xcodebuild build \
     -scheme OCCTSwiftPDF-Package \
     -destination "generic/platform=$platform" \
