@@ -130,6 +130,15 @@ struct EmbeddedFontTests {
         #expect(mixed.scalar(forGlyph: 3) == "A")
         #expect(Self.characters([(3, 10, Self.format12([(0xE000, 0xE001, 1)]))]) == nil)
         #expect(Self.characters([(3, 10, Self.format12([(0xF_0000, 0xF_0000, 1)]))]) == nil)
+
+        // DEL and the C1 controls are not text either; the code points beside them are.
+        let controls = try #require(
+            Self.characters([
+                (3, 10, Self.format12([(0x7F, 0x9F, 1), (0xA0, 0xA0, 2), (0x7E, 0x7E, 3)]))
+            ]))
+        #expect(controls.scalar(forGlyph: 1) == nil)
+        #expect(controls.scalar(forGlyph: 2) == "\u{A0}")
+        #expect(controls.scalar(forGlyph: 3) == "~")
     }
 
     @Test("format 4 maps by delta, and through the glyph index array")
@@ -368,6 +377,14 @@ struct EmbeddedFontTests {
             Self.pdf(codes: "000100020003", font: Self.font(Self.letters), glyphs: nil))
         #expect(run.ownText == "ABC")
         #expect(run.decoding == .embeddedFont)
+    }
+
+    @Test("with no CIDToGIDMap a code the font cannot resolve is U+FFFD, never a space")
+    func identityMapGap() throws {
+        // The codes are glyph numbers, so 0x20 is glyph 32, not a space; the font has no glyph there.
+        let run = try Self.run(
+            Self.pdf(codes: "000100200002", font: Self.font(Self.letters), glyphs: nil))
+        #expect(run.ownText == "A\u{FFFD}B")
     }
 
     @Test("an embedded font with no Unicode cmap gives no text of its own")

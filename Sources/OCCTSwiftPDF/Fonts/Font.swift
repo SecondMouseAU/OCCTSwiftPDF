@@ -35,6 +35,9 @@ final class Font {
     let glyphScale: Double
     /// A composite font's embedded TrueType program and its `CIDToGIDMap` stream, read only if a
     /// run needs them, since a font program can be large.
+    ///
+    /// The references belong to the document, so a `Font` lives no longer than the page read that
+    /// made it, on one thread (the class is not `Sendable`).
     private let embeddedFile: CGPDFStreamRef?
     private let cidToGIDMap: CGPDFStreamRef?
     private lazy var embeddedCharacters: EmbeddedCharacters? = {

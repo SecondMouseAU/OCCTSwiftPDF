@@ -119,9 +119,10 @@ struct FontCharacters {
     }
 
     private mutating func add(_ code: Int, glyph: Int) {
-        // Glyph 0 is `.notdef`; control characters, surrogates and private-use code points (a
-        // writer's own numbering of glyphs, not characters) are not text.
-        guard glyph > 0, glyph <= 0xFFFF, code >= 0x20, !(0xD800...0xDFFF).contains(code),
+        // Glyph 0 is `.notdef`; control characters (C0, DEL and C1), surrogates and private-use
+        // code points (a writer's own numbering of glyphs, not characters) are not text.
+        guard glyph > 0, glyph <= 0xFFFF, code >= 0x20, !(0x7F...0x9F).contains(code),
+            !(0xD800...0xDFFF).contains(code),
             !Self.privateUse.contains(where: { $0.contains(code) }), code <= 0x10FFFF
         else { return }
         let key = UInt16(glyph)
@@ -191,7 +192,9 @@ struct EmbeddedCharacters {
     /// The character for `cid`, or `nil` when the font gives none.
     ///
     /// A space has no outline, so a subset leaves it out of its `cmap`. Where the font has shown
-    /// its CIDs are Unicode, a space CID the font cannot resolve is that space.
+    /// its CIDs are Unicode, a space CID the font cannot resolve is that space. With no
+    /// `CIDToGIDMap` the CIDs are glyph numbers, not code points, so nothing says which one is a
+    /// space and an unresolved CID stays unresolved.
     func character(forCID cid: UInt32) -> Character? {
         let scalar: Unicode.Scalar?
         if let glyphs {
