@@ -191,40 +191,40 @@ subpaths and strokes and fitted again. The numbers came from the corpus, not fro
   smooth polyline is round to a hundredth of a millimetre over a few chords. Chords from the
   writers that flatten exactly (iText: 0.0002 mm median residual, a second cluster at
   0.005 to 0.009 for the rest) are why chords now need 0.003 mm, 8 segments and the rest.
-- For arcs from curves, the share a reference arc confirms rises with the sweep: 44 percent under
-  25 degrees, 62 at 25 to 30, 72 to 89 at 30 to 45, 93 at 45 to 60, 97 at 60 to 90 and 98 from 90.
-  That is why an arc must sweep 45 degrees. A shorter one stays a spline, and SwiftDXF's `fitted`
+- For arcs from curves, in that first run, the share a reference arc confirms rises with the
+  sweep: 44 percent under 25 degrees, 62 at 25 to 30, 72 to 89 at 30 to 45, 93 at 45 to 60, 97
+  at 60 to 90 and 98 from 90. That is why an arc must sweep 45 degrees. A shorter one stays a spline, and SwiftDXF's `fitted`
   can still turn it into arcs.
 - Unit tests on hand-built runs: polygons of 3 to 14 sides, ellipses (five axis ratios, three
   chord counts), a spiral, a parabola, an S-curve and an eccentric Bezier arc are not taken; a
   rounded rectangle is four lines and four arcs of the corner radius, never one circle.
 
 **Recovered, over the corpus** (`pdfprobe arcs`; 589 of the 590 PDFs open, 429 have at least one
-circle or arc; 69,211 circles and 206,075 arcs):
+circle or arc; 69,257 circles and 206,295 arcs):
 
 | Producer | files (with fits) | circles | arcs | from curves / lines / mixed | median residual (mm) |
 |---|---|---|---|---|---|
 | Acrobat Distiller | 314 (177) | 49892 | 142818 | 149477 / 0 / 43233 | 0.0022 |
 | Acrobat PDFWriter | 175 (168) | 5367 | 22896 | 22896 / 0 / 5367 | 0.0028 |
-| Adobe PDF Library | 7 (4) | 2043 | 9456 | 11081 / 0 / 418 | 0.0044 |
+| Adobe PDF Library | 7 (4) | 2046 | 9418 | 11046 / 0 / 418 | 0.0044 |
 | Aspose.PDF for .NET | 1 (1) | 1 | 0 | 0 / 1 / 0 | 0.0002 |
 | GPL Ghostscript | 2 (2) | 0 | 447 | 387 / 0 / 60 | 0.0033 |
-| JUST PDF | 2 (2) | 1905 | 3394 | 4904 / 0 / 395 | 0.0029 |
+| JUST PDF | 2 (2) | 1910 | 3380 | 4898 / 1 / 391 | 0.0029 |
 | MicroArts PDF Exchange Project | 35 (35) | 6844 | 19407 | 26251 / 0 / 0 | 0.0001 |
 | Microsoft: Print To PDF | 1 (1) | 12 | 119 | 131 / 0 / 0 | 0.0045 |
 | Microsoft PowerPoint | 7 (3) | 146 | 490 | 608 / 0 / 28 | 0.0028 |
-| Nitro Pro | 1 (1) | 0 | 6 | 6 / 0 / 0 | 0.0056 |
+| Nitro Pro | 1 (1) | 0 | 6 | 6 / 0 / 0 | 0.0049 |
 | ODA PDF Export | 1 (1) | 3 | 0 | 3 / 0 / 0 | 0.0003 |
 | Online2PDF.com | 1 (1) | 0 | 4 | 4 / 0 / 0 | 0.0012 |
 | PDF-XChange Viewer [Version: | 1 (1) | 0 | 236 | 198 / 0 / 38 | 0.0028 |
-| iText | 3 (3) | 1656 | 5217 | 0 / 6873 / 0 | 0.0002 |
+| iText | 3 (3) | 1694 | 5489 | 0 / 7183 / 0 | 0.0002 |
 | macOS Version | 1 (1) | 27 | 58 | 0 / 85 / 0 | 0.0002 |
 | Quartz PDFContext (macOS) | 27 (27) | 1311 | 1377 | 2600 / 0 / 88 | 0.0002 |
 | pdfplot12.hdi | 1 (1) | 4 | 150 | 154 / 0 / 0 | 0.0001 |
 
 No circle or arc in the five SOLIDWORKS sheets (the McMaster sheets draw threads as spirals of
-chords), nor in Acrobat Pro, Corel, doPDF and Conv2pdf output. Mixed is curves with a closing
-line.
+chords), nor in Acrobat Pro, Corel, doPDF and Conv2pdf output. Mixed is curves and straight
+segments together, usually a circle's curves and its closing line.
 
 **Against the paired DXF or JWW, by coordinates** (`pdfprobe arc-pairs`, 326 pairs, a reference
 circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles overlapping):
@@ -236,10 +236,12 @@ circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles
   hold 90 percent of the 2,380; seven are in the pairs listed above as holding other versions or
   extents of the sheet (`ec33`, `ec34`, `dd20-1` and the wagon family), and `dt71` and `dmh17` have
   not been looked into.
-- Radius error, fit less reference, in millimetres at full size: MicroArts JWtoPDF median 0.003, 90th
-  percentile 0.02, and 0.0001 mm on the paper; centre error median 0.0002 mm on the paper.
-  Acrobat Distiller median 0.96, 90th percentile 2.5 (at 1:50 to 1:100): the file's coordinates
-  are in steps of about 0.01 mm on the paper, and the fit's residual is within them. Acrobat
+- Radius error, fit less reference, in millimetres at full size: MicroArts JWtoPDF median 0.003,
+  90th percentile 0.02, and 0.0001 mm on the paper; centre error median 0.0002 mm on the paper.
+  Acrobat Distiller median 0.96, 90th percentile 2.5 (at 1:50 to 1:100): its coordinates are on a
+  grid of 0.06 points (1/1200 inch, 0.021 mm on the paper, as in the `ec01` content stream), the
+  median error on the paper is 0.012 mm, about half a step, and the fit's own residual is
+  smaller. Acrobat
   PDFWriter median 3.5: its circles are 0.03 to 0.05 mm smaller on the paper than the CAD's,
   whatever the fit, so what the file draws is not what the CAD drew. Fitting does not beat the
   writer; it stops adding error to it.
@@ -247,15 +249,16 @@ circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles
   looked at about four in five sweep under 45 degrees and the rest have a radius of 0.2 to 0.5
   mm on the paper. The 2120 (Jw_cad through Acrobat PDFWriter 3.0J) has none of its 1,909
   reference circles and arcs recovered: its arcs are runs of a few chords (4 to 6 in the ones
-  looked at), too few to take. No flattened circle was found in any TECS
-  pair, so how well chords are recovered is measured only by unit tests and by the corpus's
-  exact flatteners (iText: 1,656 circles, 5,217 arcs), which have no reference.
+  looked at), too few to take. No flattened circle was found in any TECS pair, so how well chords
+  are recovered is measured only by unit tests and by the corpus's exact flatteners (iText: 1,694
+  circles, 5,489 arcs), which have no reference.
 - Joining matters for DraftingCAD through Quartz (the Fowler sheets), which draws each circle as
-  two half circles in two strokes with different pens. On the 47 files of `PDFs/` it took the
-  circles from 3,203 to 3,246 (18 more in the Quartz files, 25 in the iText ones) and the arcs from
-  11,629 to 11,381. Arcs that still meet on one circle but were not joined (740 pairs over the
-  corpus, mostly the strokes of text drawn as shapes) have more than one neighbour, another layer
-  or colour, or no circle that fits them all.
+  two half circles in two strokes with different pens. Over the 47 files of `PDFs/` the circles
+  went from 3,203 (runs inside one subpath only) to 3,287 with joining and the rule that a circle
+  drawn a little past its start is still a circle (Quartz 1,293 to 1,311, iText 1,631 to 1,694).
+  Arcs that still meet on one circle but were not joined (742 pairs over the corpus, mostly the
+  strokes of text drawn as shapes) have more than one neighbour, another layer or colour, or no
+  circle that fits them all.
 
 Not done: elliptical arcs and ellipses are not recovered (they stay splines); a circle drawn as
 two strokes of different layers or colours is not joined; a flattened arc whose last chord is a
