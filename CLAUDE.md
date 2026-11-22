@@ -76,9 +76,10 @@ The read path is a pipeline, and the stages only make sense together:
    one instance per page.
 3. **Fonts** (`Fonts/`) are this package's own decoding, called from the interpreter as text is
    shown: how a font's bytes split into codes, each code's advance, and code to Unicode (ToUnicode,
-   Shift-JIS `*-RKSJ-*`, Unicode CMaps, simple encodings with `Differences`). Each run records how
-   it was decoded (`TextDecoding`), including `asciiGuess` where a symbolic or embedded font gave
-   nothing better.
+   Shift-JIS `*-RKSJ-*`, Unicode CMaps, simple encodings with `Differences`). An `Identity` CID font
+   with no `ToUnicode` map is read last through its embedded TrueType `cmap` (`FontCharacters.swift`,
+   `embeddedFont`); a font that has a map keeps it. Each run records how it was decoded
+   (`TextDecoding`), including `asciiGuess` where a symbolic or embedded font gave nothing better.
 4. **`TextPairing`** asks PDFKit (where it exists) for the characters inside each run's box, as a
    cross-check on the package's own decoding and as a fallback where it has none. PDFKit's
    characters replace only guesses and U+FFFD, and for an inclined run they never replace a reading,

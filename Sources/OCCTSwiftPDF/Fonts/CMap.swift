@@ -32,6 +32,9 @@ struct CMap {
     /// Ranges kept unexpanded because they are large: `low...high` maps to `start` plus the offset.
     var ranges: [(low: UInt32, high: UInt32, start: [UInt16])] = []
 
+    /// The map gives no character for any code.
+    var isEmpty: Bool { characters.isEmpty && ranges.isEmpty }
+
     func string(for code: UInt32) -> String? {
         if let found = characters[code] { return found }
         for range in ranges where code >= range.low && code <= range.high {

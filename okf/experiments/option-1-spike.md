@@ -40,8 +40,9 @@ longer file).
 
 ### 2. Text
 
-This reader's own decoding covered every text run in the corpus except those in two embedded
-fonts without a `ToUnicode` map (ODA's, and a Japanese font on the Fowler sheets):
+This reader's own decoding covered every text run in the corpus except those in a Japanese font
+on the Fowler sheets (a Type 0 font with no `ToUnicode` map), which PDFKit reads, except three runs
+on one sheet that nothing decodes:
 
 | Writer | Font encoding | Decoded by |
 |---|---|---|
@@ -49,7 +50,7 @@ fonts without a `ToUnicode` map (ODA's, and a Japanese font on the Fowler sheets
 | SOLIDWORKS (McMaster) | Identity-H with `ToUnicode` | `ToUnicode` |
 | DraftingCAD through Quartz (Fowler) | TrueType, `WinAnsiEncoding`; Identity-H with `ToUnicode`; one to four runs per sheet in HiraginoSans (Type 0, no `ToUnicode`) | simple encoding, `ToUnicode`; the HiraginoSans runs by PDFKit, except three on one sheet that nothing decodes |
 | iText, PDFWriter (UK, model engineering) | TrueType and Type 0 with `ToUnicode` | simple encoding, `ToUnicode` |
-| ODA (Shapr3D) | Identity-H, no `ToUnicode` | nothing: neither this reader nor PDFKit |
+| ODA (Shapr3D) | Identity-H; `ToUnicode` is the name `Identity-H`, not a map; embedded TrueType subset with a `CIDToGIDMap` and a `cmap` | the embedded font's own `cmap`, all 55 runs; PDFKit finds nothing |
 
 - **PDFKit agrees.** Where both decode a run, they give the same characters (McMaster 13 of 13,
   the 2120 28 of 30, the two that differ being two `1,956` values PDFKit runs together). PDFKit's
@@ -67,10 +68,21 @@ fonts without a `ToUnicode` map (ODA's, and a Japanese font on the Fowler sheets
   text as shapes and lay the same text invisibly (render mode 3) over it: 3,982 and 2,249 runs,
   every one decoded, including the dimension values. The drawing keeps invisible text, since it is
   then the only text there is.
-- **Undecodable: ODA.** `Wing Triple.pdf` uses an embedded TrueType subset with Identity-H and no
-  `ToUnicode`, and PDFKit gives no characters either. The embedded font has a `cmap` table and a
-  `CIDToGIDMap` stream, so its text can be recovered from the font itself (code to glyph, glyph to
-  character) without OCR. Not done in the spike; the test pins the current behaviour.
+- **ODA, read from the font.** `Wing Triple.pdf` uses an embedded TrueType subset with Identity-H
+  whose `ToUnicode` entry is the name `Identity-H`, which is not a map, so neither this reader's
+  maps nor PDFKit give characters. The font has a `cmap` table (platform 3, encoding 1, format 4)
+  and a `CIDToGIDMap` stream, so each code is read as CID to glyph to the font's own character
+  (`TextDecoding.embeddedFont`), without OCR. All 55 runs decode, dimension values (`5,1`, `0,48`)
+  and title block alike. The font shows its CIDs are Unicode: all 57 CIDs it can resolve resolve to
+  themselves. A space has no outline, so the subset leaves it out of its `cmap`; where the font has
+  shown its CIDs are Unicode, a space CID it cannot resolve is read as that space, and any other
+  code it cannot resolve is U+FFFD. Checked against `pdftotext -raw` (a development check only;
+  nothing depends on it): every run has the same characters.
+  CoreText was tried first: it loads this subset and maps characters to glyphs, but only that way
+  round, and only for a font it accepts whole (it refuses a font that has just a `cmap`). The table
+  is read directly instead, so it does not depend on the system accepting the font and can be tested
+  with small hand-built ones. Only TrueType programs (`FontFile2`) are read; CFF fonts (`FontFile3`)
+  are not.
 - **Text drawn as shapes, with no text layer.** AutoCAD (`Pandrol`, SHX text as strokes), Acrobat
   PDFWriter (`Repw604s`, filled outlines) and Microsoft Print to PDF draw text as geometry and give
   no text at all. These need glyph recognition: OCR on the rendered area or matching stroke fonts.
@@ -178,6 +190,13 @@ radius fitted over the whole run.
 - Colours in Indexed, Pattern, DeviceN and Lab spaces are drawn black; device, calibrated,
   ICC-based and Separation colours are read.
 - The comparison's reference reader runs `/usr/bin/unzip`, so it is macOS only.
+- A font read from its embedded program (`embeddedFont`) is taken at its word: a writer whose
+  Unicode `cmap` is not the real character mapping would give wrong text, which only the decoding
+  says apart from `toUnicode`; private-use code points are not read as characters. Only TrueType
+  programs (`FontFile2`) are read, from `cmap` formats 4 and 12, and only where the font has no
+  `ToUnicode` map (or, if composite, an empty one); one that has a map keeps it, gaps included.
+  Where a `CIDToGIDMap` stream does not show the CIDs to be Unicode, a space the subset left out is
+  U+FFFD. One corpus file reaches this path, so how far it generalises is not measured.
 - On tvOS PDFKit is not used. A run only PDFKit can read (the HiraginoSans runs on the Fowler
   sheets) has no text there, and `drawing()` counts it in `skipped["TEXT"]`; a run this reader only
   guessed (`asciiGuess`) or read with U+FFFD keeps that reading, which can be wrong text, not
@@ -191,14 +210,15 @@ radius fitted over the whole run.
 ## Decision
 
 Option 1 holds. CoreGraphics' scanner gives exact geometry, and this package's own font decoding
-covers every font in the corpus except embedded fonts without a `ToUnicode` map, whose fix is in
-the font file itself (its `cmap` table). PDFKit is worth
-keeping as a cross-check and a fallback, through selection boxes only. PDFium would add a large
+covers every font in the corpus except one Japanese font on the Fowler sheets, which PDFKit reads
+(three runs on one sheet are read by nothing); an embedded font without a `ToUnicode` map is read
+from the font file itself (its `cmap` table).
+PDFKit is worth keeping as a cross-check and a fallback, through selection boxes only. PDFium would add a large
 binary for nothing the corpus needs.
 
 ## Next
 
-1. Recover the ODA text from the embedded font's `cmap`.
+1. Done: the ODA text is recovered from the embedded font's `cmap` (`TextDecoding.embeddedFont`).
 2. Arc and circle recovery from curves and from runs of short lines, tagged `FITTED` with the
    residual, radius fitted over the whole run.
 3. Dimension rebuilding without Jw_cad's flags (shared with OCCTSwiftIO#72): value text first, then

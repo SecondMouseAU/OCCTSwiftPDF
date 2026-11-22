@@ -4,7 +4,7 @@ title: References index
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [index]
 description: The PDF format, the research behind the design, and what results are checked against.
-timestamp: 2026-11-18
+timestamp: 2026-11-23
 ---
 
 # References
@@ -48,7 +48,7 @@ What eight real drawing PDFs contained (probed with `CGPDFScanner`):
 |---|---|---|---|
 | Jw_cad via Acrobat PDFWriter (TECS 2120) | runs of short lines | real text, Shift-JIS (`90ms-RKSJ-H`) | none |
 | AutoCAD (Pandrol) | some curves | none as text; drawn as geometry | yes |
-| ODA (Shapr3D) | curves | text with no Unicode mapping | yes |
+| ODA (Shapr3D) | curves | real text, no `ToUnicode` map; read from the embedded font's `cmap` | yes |
 | MicroStation | curves | real text plus filled shapes | none |
 | iText (two files) | runs of short lines | real text | none |
 | Acrobat PDFWriter (UK railway) | runs of short lines | filled outlines, no text | none |

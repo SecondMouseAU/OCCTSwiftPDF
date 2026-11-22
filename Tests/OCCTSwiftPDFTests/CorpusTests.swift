@@ -103,14 +103,21 @@ struct CorpusTests {
     }
 
     @Test(
-        "text in a font with no way back to characters is kept, undecoded, and counted",
+        "ODA's text, in a font with no ToUnicode map, is read from the embedded font",
         .enabled(if: CorpusTests.exists("PDFs/Wing Triple.pdf")))
-    func undecodableText() throws {
+    func odaText() throws {
         let page = try #require(
             try PDF.read(contentsOf: Self.file("PDFs/Wing Triple.pdf")).pages.first)
         #expect(!page.texts.isEmpty)
-        #expect(page.texts.allSatisfy { $0.text == nil && $0.decoding == .none })
-        #expect(page.drawing().skipped["TEXT"] == page.texts.count)
+        #expect(page.texts.allSatisfy { $0.decoding == .embeddedFont && $0.text == $0.ownText })
+        let texts = page.texts.compactMap(\.text)
+        #expect(texts.count == page.texts.count)
+        // Dimension values, and the title block with its spaces.
+        #expect(texts.contains("0,48"))
+        #expect(texts.contains("Wing Triple"))
+        #expect(texts.contains("LAST UPDATED"))
+        #expect(!texts.contains { $0.contains("\u{FFFD}") })
+        #expect(page.drawing().skipped["TEXT"] == nil)
     }
 
     @Test(
