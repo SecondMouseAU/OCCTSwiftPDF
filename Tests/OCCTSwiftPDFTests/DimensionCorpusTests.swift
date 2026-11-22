@@ -15,8 +15,8 @@ struct DimensionCorpusTests {
         return try #require(document.pages.first)
     }
 
-    /// The dimension value texts SwiftJWW recovers from the JWW of the 2120, which has 28 distinct
-    /// values (the 133 and the 559 occur twice).
+    /// The 29 dimension value texts SwiftJWW recovers from the JWW of the 2120 (the 133 and the 559
+    /// occur twice).
     static let the2120Values = [
         "1,067", "1,219", "1,245", "1,257", "1,582", "1,829", "1,956", "1,981", "10,439", "133",
         "133", "2,057", "2,105", "2,210", "2,388", "2,438", "2,794", "200", "3,810", "394", "559",
@@ -56,13 +56,14 @@ struct DimensionCorpusTests {
     }
 
     @Test(
-        "the scales of Jw_cad sheets drawn at 1:100, 1:80 and 1:10 are found",
+        "the scales of Jw_cad sheets drawn at 1:100, 1:80 and 1:5 are found",
         .enabled(if: CorpusTests.exists("tecs-pairs/ec01.pdf")))
     func scales() throws {
         let expected: [(String, Double)] = [
             ("ec01", 100), ("dd11a", 80), ("tr30000s", 80), ("jis_mbolt", 5),
         ]
-        for (stem, scale) in expected where CorpusTests.exists("tecs-pairs/\(stem).pdf") {
+        for (stem, scale) in expected {
+            try #require(CorpusTests.exists("tecs-pairs/\(stem).pdf"), "\(stem) is in the corpus")
             let recovery = try Self.page("tecs-pairs/\(stem).pdf").recoveringDimensions()
             let found = try #require(recovery.scale, "\(stem)")
             #expect(abs(found / scale - 1) < 0.005, "\(stem): \(found)")

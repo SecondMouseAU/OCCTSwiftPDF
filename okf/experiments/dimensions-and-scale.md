@@ -95,7 +95,7 @@ The texts are the 29 that SwiftJWW recovers from the JWW with Jw_cad's flags
   is the pairing's ambiguity, and is where a wrong dimension can hide that this check does not find.
 - **The reference only (1,175)** is mostly sheets where the DXF holds more than the PDF printed (`es05`
   has 165 dimensions in its DXF and 56 on the page), as in the geometry comparison.
-- **Against Jw_cad's flags** (the 16 JWW pairs, where SwiftJWW's `recoveringDimensions()` needs no
+- **Against Jw_cad's flags** (the 15 JWW pairs, where SwiftJWW's `recoveringDimensions()` needs no
   inference): 236 dimensions, and the PDF finds the text of **232** of them.
 - 68 of the 321 sheets agree with the reference exactly (no moved, PDF only or reference only).
 
@@ -117,6 +117,12 @@ the tolerance (a few percent of the text height, times the scale) is a few perce
 values agree by chance. A scale outside 10:1 to 1:300 (`DimensionOptions.scaleRange`) is not used and
 its values are listed as not explained. On the TECS pairs this removes 40 dimensions, on six sheets (the
 five, and `tr-pc2` at 20:1), all at a scale that is not the sheet's, and changes nothing else.
+
+The true scale may be behind the wrong one. Told 1:30 (`--scale 30 --numbers thousands`), `dt18`, `dt22c`, `dt44` and
+`dt44a` give 8, 5, 5 and 6 dimensions. But the data do not say it: on `dt18` 1:30 explains 8 of the 9
+values and 1:300, inside the range, explains 7 by chance. Trying the usual scales within the range and
+taking one only if it explains twice as many as any other was built and gave none of these four, so it
+was left out: a scale is given, not guessed.
 
 ### Views
 
@@ -212,6 +218,9 @@ a release build).
 - Diameter and radius dimensions from a PDF (they need circles and arcs).
 - The pages after the first of a multi-page PDF; `pdfprobe` reads the first.
 - iOS, tvOS and visionOS were built, not run.
+- Whether a better scale hides behind a wrong one. The range is applied after SwiftDXF has picked the
+  scale that explains most values, and its rebuild has no option to search only within a range, so a
+  wrong winner above 1:300 leaves a sheet with none (the four `dt` sheets, above).
 
 ## For the maintainer
 

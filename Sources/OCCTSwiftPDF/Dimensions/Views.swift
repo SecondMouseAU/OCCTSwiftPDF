@@ -23,8 +23,8 @@ extension PDF {
         ///
         /// A line is covered by points at most half a cell apart, so it marks a connected run of
         /// cells; a text is its baseline. The cost is the number of such points, whatever the
-        /// drawing's size.
-        init(_ drawing: DXF.Drawing, cell: Double) {
+        /// drawing's size. With `merged` the whole drawing is one view.
+        init(_ drawing: DXF.Drawing, cell: Double, merged: Bool = false) {
             let size = cell > 0 && cell.isFinite ? cell : 1
             var parent = Array(0..<drawing.entities.count)
             func find(_ i: Int) -> Int {
@@ -36,7 +36,7 @@ extension PDF {
                 return i
             }
             var owner: [Int64: Int] = [:]
-            func key(_ x: Int, _ y: Int) -> Int64 { Int64(x) &* 4_194_304 &+ Int64(y) }
+            func key(_ x: Int, _ y: Int) -> Int64 { SegmentIndex.key(Int64(x), Int64(y)) }
             func cellIndex(_ v: Double) -> Int {
                 Int(max(-2e9, min(2e9, (v / size).rounded(.down))))
             }
@@ -58,6 +58,9 @@ extension PDF {
                         }
                     }
                 }
+            }
+            if merged {
+                for index in drawing.entities.indices.dropFirst() { parent[find(index)] = find(0) }
             }
             var number: [Int: Int] = [:]
             var of: [Int] = []
@@ -90,7 +93,8 @@ extension PDF {
             func along(_ a: DXF.Point2, _ b: DXF.Point2) -> [DXF.Point2] {
                 let length = a.distance(to: b)
                 guard length.isFinite else { return [] }
-                let n = min(4_096, max(1, Int((length / step).rounded(.up))))
+                // The count is capped before it is an `Int`, which a huge length would trap on.
+                let n = Int(min(4_096, max(1, (length / step).rounded(.up))))
                 return (0...n).map {
                     let t = Double($0) / Double(n)
                     return DXF.Point2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)

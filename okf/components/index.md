@@ -111,7 +111,7 @@ timestamp: 2026-11-23
   page reports; `pdfprobe debug-text <pdf> <text>` shows where
   this reader and PDFKit each put a text. `pdfprobe dimensions [--detail] [--numbers
   thousands|decimal|plain] [--scale N] [--scale-range LOW HIGH] [--tolerance MM] [--no-views]
-  [--no-arrowheads] <file-or-folder>...` reports the dimensions, the scale and the evidence of each
+  [--view-gap MM] [--no-arrowheads] <file-or-folder>...` reports the dimensions, the scale and the evidence of each
   PDF's first page; `pdfprobe dimension-pairs <folder>` rebuilds the dimensions of each PDF and of
   the DXF (or JWW) beside it and compares them by text and by the place of both ends, and the scale
   with the one the geometry fit found

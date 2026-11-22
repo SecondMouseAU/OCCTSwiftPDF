@@ -32,6 +32,10 @@ struct ComparisonTests {
         #expect(result.anchors == 3)
         #expect(abs(result.scale - 1.0 / 80) < 1e-9)
         #expect(abs(result.rotationDeg) < 1e-6)
+        // The reference's origin on the paper: a reference point p is at p / 80 + (82.5, 15), since
+        // the reference's (-5000, 1200) is the paper's (20, 30).
+        #expect(abs(result.translation.x - 82.5) < 1e-6)
+        #expect(abs(result.translation.y - 15) < 1e-6)
         #expect(result.referenceCovered > 0.999)
         #expect(result.pdfCovered > 0.999)
         #expect(result.textsMatched == 3)

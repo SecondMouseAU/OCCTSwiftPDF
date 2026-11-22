@@ -90,7 +90,7 @@ import Foundation
         result.referenceOnly = free.count
         if detail {
             for index in free {
-                let length = reference[index].measurement.map { String(format: "%.2f", $0 * known) }
+                let length = reference[index].measurement.map { String(format: "%.2f", $0 / known) }
                 print(
                     "    reference only \(key(reference[index])) (paper length \(length ?? "-") mm)"
                 )

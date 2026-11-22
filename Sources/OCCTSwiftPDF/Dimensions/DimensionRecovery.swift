@@ -31,22 +31,23 @@ extension PDF {
         ///
         /// Real value per millimetre on the paper: `0.1` is 10:1 and `300` is 1:300. A scale outside
         /// it is not used even where values agree on it, and the values are listed as not
-        /// explained.
-        ///
-        /// Few values on a sheet whose lengths are short agree with a very large scale by chance:
-        /// on the TECS sheets every such scale found (1:336, 1:340, 1:490, 1:573, 1:673) was wrong.
-        /// Default `0.1...300`.
+        /// explained. Few values agree with a very large scale by chance, and on the TECS sheets
+        /// every scale above 1:300 was wrong (`okf/experiments/dimensions-and-scale.md`). Default
+        /// `0.1...300`.
         public var scaleRange: ClosedRange<Double>
         /// Whether a filled triangle with no stroke, which is how most CAD writers draw an
         /// arrowhead, ends a dimension line that nothing else ends (default `true`).
         public var arrowheads: Bool
-        /// Whether each view is also asked for a scale of its own (default `true`).
+        /// Whether the page is split into views, each asked for a scale of its own (default
+        /// `true`).
         ///
-        /// It is asked to report where it disagrees with the sheet's. Off, the whole sheet is one
-        /// view.
+        /// A view is asked to report where it disagrees with the sheet's. Off, the whole sheet is
+        /// one view.
         public var separateViews: Bool
-        /// The width of the gap that parts two views, in millimetres on the paper: about half to
-        /// the whole of this. `nil` is twice the median text height.
+        /// The size of the cells views are made of, in millimetres on the paper.
+        ///
+        /// Two pieces are one view when a run of touching cells joins them, so views are parted by
+        /// a clear gap of between this and twice this. `nil` is twice the median text height.
         public var viewGap: Double?
 
         public init(

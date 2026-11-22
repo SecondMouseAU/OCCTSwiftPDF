@@ -56,14 +56,12 @@ extension PDF.Page {
             }
         }
         guard !found.isEmpty else { return out }
-        let crossing = StrokeIndex(out)
+        let crossing = Self.straightPieces(out)
         // Setting `entities` clears the parallel arrays, so both are set together at the end.
         var entities = out.entities
         var identities = out.identities
         for (arrowhead, path, piece) in found
-        where !crossing.crosses(
-            arrowhead.tip, not: arrowhead.direction, within: Self.arrowheadSupport)
-        {
+        where !Self.isMarked(arrowhead, by: crossing) {
             entities.append(
                 .point(
                     at: DXF.Point(arrowhead.tip.x, arrowhead.tip.y), layer: path.layer ?? "0",
@@ -157,81 +155,42 @@ extension PDF.Page {
             tip: DXF.Point2(tip.x, tip.y),
             direction: DXF.Point2((tip.x - middle.x) / length, (tip.y - middle.y) / length))
     }
-}
 
-/// The straight pieces of a drawing, indexed by place, to ask whether one passes near a point.
-struct StrokeIndex {
-    private struct Segment {
-        var a: DXF.Point2
-        var b: DXF.Point2
-    }
-
-    private static let cell = 5.0
-    private var segments: [Segment] = []
-    private var cells: [Int64: [Int]] = [:]
-
-    private static func key(_ x: Int, _ y: Int) -> Int64 { Int64(x) &* 4_194_304 &+ Int64(y) }
-    private static func index(_ v: Double) -> Int {
-        Int(max(-2e9, min(2e9, (v / cell).rounded(.down))))
-    }
-
-    init(_ drawing: DXF.Drawing) {
+    /// The straight pieces of a drawing (lines and the straight edges of polylines), indexed by
+    /// place.
+    ///
+    /// Curves are left out: SwiftDXF takes an end from a straight piece that crosses the dimension
+    /// line, and an arrowhead beside a curve is still the only mark of its end.
+    static func straightPieces(_ drawing: DXF.Drawing) -> PDF.SegmentIndex {
+        var pieces: [(DXF.Point2, DXF.Point2)] = []
         for entity in drawing.entities {
             switch entity {
             case .line(let a, let b, _, _):
-                add(DXF.Point2(a.x, a.y), DXF.Point2(b.x, b.y))
+                pieces.append((DXF.Point2(a.x, a.y), DXF.Point2(b.x, b.y)))
             case .polyline(let vertices, let closed, _, _):
                 let points = vertices.map { DXF.Point2($0.point.x, $0.point.y) }
                 for i in 0..<max(0, points.count - 1) where vertices[i].bulge == 0 {
-                    add(points[i], points[i + 1])
+                    pieces.append((points[i], points[i + 1]))
                 }
                 if closed, points.count > 2, vertices[points.count - 1].bulge == 0 {
-                    add(points[points.count - 1], points[0])
+                    pieces.append((points[points.count - 1], points[0]))
                 }
             default:
                 break
             }
         }
+        return PDF.SegmentIndex(pieces, cell: 5)
     }
 
-    private mutating func add(_ a: DXF.Point2, _ b: DXF.Point2) {
-        let length = a.distance(to: b)
-        guard length.isFinite, length > 1e-9 else { return }
-        let id = segments.count
-        segments.append(Segment(a: a, b: b))
-        // Every cell a point of the segment, at most half a cell apart, falls in.
-        let n = min(8_192, max(1, Int((length / (Self.cell / 2)).rounded(.up))))
-        var last: Int64?
-        for k in 0...n {
-            let t = Double(k) / Double(n)
-            let key = Self.key(
-                Self.index(a.x + (b.x - a.x) * t), Self.index(a.y + (b.y - a.y) * t))
-            if key != last {
-                cells[key, default: []].append(id)
-                last = key
-            }
+    /// Whether a piece that crosses the arrowhead's line (its angle to the way the arrowhead points
+    /// at least about 17 degrees: the dimension line itself runs that way) passes near the tip.
+    static func isMarked(_ arrowhead: Arrowhead, by pieces: PDF.SegmentIndex) -> Bool {
+        pieces.passes(near: arrowhead.tip, within: arrowheadSupport) { a, b in
+            let length = a.distance(to: b)
+            guard length > 1e-9 else { return false }
+            let ux = (b.x - a.x) / length
+            let uy = (b.y - a.y) / length
+            return abs(ux * arrowhead.direction.y - uy * arrowhead.direction.x) >= 0.3
         }
-    }
-
-    /// Whether a piece that does not run the way `direction` does (its angle to it at least about
-    /// 17 degrees) passes within `distance` of `point`.
-    func crosses(_ point: DXF.Point2, not direction: DXF.Point2, within distance: Double) -> Bool {
-        let (cx, cy) = (Self.index(point.x), Self.index(point.y))
-        var seen = Set<Int>()
-        for dx in -1...1 {
-            for dy in -1...1 {
-                for id in cells[Self.key(cx + dx, cy + dy)] ?? [] where seen.insert(id).inserted {
-                    let s = segments[id]
-                    let length = s.a.distance(to: s.b)
-                    let ux = (s.b.x - s.a.x) / length
-                    let uy = (s.b.y - s.a.y) / length
-                    guard abs(ux * direction.y - uy * direction.x) >= 0.3 else { continue }
-                    let along = max(0, min(length, (point.x - s.a.x) * ux + (point.y - s.a.y) * uy))
-                    let nearest = DXF.Point2(s.a.x + ux * along, s.a.y + uy * along)
-                    if nearest.distance(to: point) <= distance { return true }
-                }
-            }
-        }
-        return false
     }
 }

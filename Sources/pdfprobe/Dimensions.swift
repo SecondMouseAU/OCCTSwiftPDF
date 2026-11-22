@@ -116,7 +116,8 @@ import Foundation
             "\(files) pages read; with dimensions \(withDimensions); dimensions \(total); "
                 + "with a scale for the sheet \(scaled); some view favours another scale \(disagree); "
                 + "values unexplained \(unexplained)")
-        let listed = scales.sorted { $0.value > $1.value }.map { "\($0.key) \($0.value)" }
+        let byCount = scales.sorted { $0.value == $1.value ? $0.key < $1.key : $0.value > $1.value }
+        let listed = byCount.map { "\($0.key) \($0.value)" }
         print("scales: \(listed.joined(separator: ", "))")
     }
 

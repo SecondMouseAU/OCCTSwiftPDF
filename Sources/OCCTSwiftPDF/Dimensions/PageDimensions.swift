@@ -27,9 +27,9 @@ extension PDF.Page {
     /// is asked for a scale of its own. The dimensions are at the sheet's scale, and a view whose
     /// own values favour another (at least six values, four fifths of those that vote, and a scale
     /// more than 10 percent from the sheet's) has it as an `alternative` and a `scalesDisagree`
-    /// warning. It is not applied: on the TECS sheets, where nearly every sheet has one scale,
-    /// applying such a view's scale was wrong on five sheets and right on two, since few values
-    /// agree on a scale by chance. Views that disagree are each kept, never averaged.
+    /// warning. It is not applied: on the TECS sheets applying such a scale was wrong more often
+    /// than right (`okf/experiments/dimensions-and-scale.md`). Views that disagree are each kept,
+    /// never averaged.
     ///
     /// It is an inference and conservative: a value no dimension explains is a warning, never
     /// guessed; a scale outside `DimensionOptions.scaleRange` is not used; and nothing is scaled.
@@ -71,8 +71,10 @@ extension PDF {
 
         func run() -> DimensionRecovery {
             let working = page.workingDrawing(arrowheads: options.arrowheads)
+            // Anything but a positive number is no scale, as SwiftDXF takes it.
+            let given = options.scale.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
             let rebuildOptions = DXF.DimensionRebuild.Options(
-                scale: options.scale, tolerance: options.tolerance, pieceLayers: .sameAsText,
+                scale: given, tolerance: options.tolerance, pieceLayers: .sameAsText,
                 numbers: options.numbers)
 
             // The value texts by identity, and the views.
@@ -87,7 +89,7 @@ extension PDF {
             heights.sort()
             let median = heights.isEmpty ? 1 : heights[heights.count / 2]
             let cell = options.viewGap.flatMap { $0 > 0 && $0.isFinite ? $0 : nil } ?? 2 * median
-            let views = Views(working, cell: cell)
+            let views = Views(working, cell: cell, merged: !options.separateViews)
             func view(of identity: DXF.Identity) -> Int? {
                 textAt[identity].map { views.of[$0] }
             }
@@ -99,8 +101,7 @@ extension PDF {
             var sheet = Self.relayered(working, to: { _ in "sheet" })
                 .rebuildingDimensions(rebuildOptions)
             var estimate = sheet.scales.first
-            if let found = estimate, options.scale == nil, !options.scaleRange.contains(found.scale)
-            {
+            if let found = estimate, given == nil, !options.scaleRange.contains(found.scale) {
                 // A scale no sheet of paper is credibly at: what it explained is not a dimension.
                 estimate = nil
                 sheet = Self.withoutScale(sheet)
@@ -108,7 +109,7 @@ extension PDF {
 
             // Each view asked for a scale of its own, to say where it disagrees.
             var own: DXF.DimensionRebuild?
-            if options.separateViews, options.scale == nil, views.count > 1 {
+            if options.separateViews, given == nil, views.count > 1 {
                 own = Self.relayered(working, to: { "view \(views.of[$0] + 1)" })
                     .rebuildingDimensions(rebuildOptions)
             }
@@ -155,9 +156,9 @@ extension PDF {
                         alternative: alternative))
             }
             var all = out.flatMap(\.warnings)
-            if !disagreeing.isEmpty {
-                all.append(.scalesDisagree((estimate.map { [$0] } ?? []) + disagreeing))
-            }
+            // A disagreement is between two scales at least: a view's alone is only its alternative.
+            let scales = (estimate.map { [$0] } ?? []) + disagreeing
+            if scales.count >= 2 { all.append(.scalesDisagree(scales)) }
             return DimensionRecovery(sheet: estimate, views: out, warnings: all)
         }
 

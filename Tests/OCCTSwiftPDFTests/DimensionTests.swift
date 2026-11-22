@@ -84,9 +84,12 @@ struct DimensionTests {
         var only = DimensionSheet()
         only.column(x: 30, y: 60, count: 6, scale: 2, extensionLines: false, arrowheads: true)
         #expect(try only.page().workingDrawing(arrowheads: true).counts.point == 12)
-        // Both give the same dimensions.
+        // Both give the same dimensions, at the same scale.
         let withBoth = try both.page().recoveringDimensions()
+        let withTips = try only.page().recoveringDimensions()
         #expect(withBoth.dimensions.count == 6)
+        #expect(Self.texts(withBoth) == Self.texts(withTips))
+        #expect(withBoth.scale == withTips.scale)
     }
 
     @Test("lines and text on different layers still make a dimension, which keeps its text's layer")
@@ -217,6 +220,96 @@ struct DimensionTests {
             return false
         }
         #expect(flagged)
+    }
+
+    @Test("what the convention says of a comma is what is read")
+    func numberConventions() throws {
+        var sheet = DimensionSheet()
+        let drawn = [22.8625, 15.0, 30.0, 25.0, 18.75]
+        let values = ["1,829", "1,200", "2,400", "2,000", "1,500"]
+        for (index, length) in drawn.enumerated() {
+            sheet.horizontal(30, 30 + length, y: 60 + Double(index) * 8, value: values[index])
+        }
+        let page = try sheet.page()
+        // A comma that is not part of a number leaves two numbers in each text.
+        let plain = page.recoveringDimensions(PDF.DimensionOptions(numbers: .plain))
+        #expect(plain.dimensions.isEmpty)
+        // A comma that is the decimal mark reads 1.829, a scale of 0.08, which no sheet of paper is
+        // credibly at unless it is said to be.
+        let decimal = PDF.DimensionOptions(numbers: .commaIsDecimalMark)
+        #expect(page.recoveringDimensions(decimal).dimensions.isEmpty)
+        let wide = PDF.DimensionOptions(numbers: .commaIsDecimalMark, scaleRange: 0.01...300)
+        let read = page.recoveringDimensions(wide)
+        #expect(read.dimensions.count == 5)
+        #expect(abs((read.scale ?? 0) - 0.08) < 1e-6)
+    }
+
+    @Test("a scale that is not a positive number is none, whatever else is said")
+    func invalidScale() throws {
+        // At 1:400, outside the range of credible scales: an invalid scale is none, not a scale.
+        var sheet = DimensionSheet()
+        sheet.column(x: 20, y: 50, count: 6, scale: 400)
+        let page = try sheet.page()
+        for scale in [0, -2, Double.nan, Double.infinity] {
+            let recovery = page.recoveringDimensions(PDF.DimensionOptions(scale: scale))
+            #expect(recovery.dimensions.isEmpty, "\(scale)")
+            #expect(recovery.scale == nil, "\(scale)")
+        }
+        let given = page.recoveringDimensions(PDF.DimensionOptions(scale: 400))
+        #expect(given.dimensions.count == 6)
+    }
+
+    @Test("the gap that parts views is the one asked for, and one view is the whole sheet")
+    func viewGap() throws {
+        var sheet = DimensionSheet()
+        sheet.column(x: 20, y: 50, count: 6, scale: 2)
+        sheet.column(x: 130, y: 50, count: 6, scale: 2)
+        let page = try sheet.page()
+        // About 40 mm apart, by default cells of 5 mm: two views.
+        #expect(page.recoveringDimensions().views.count == 2)
+        // Cells of 60 mm join pieces up to 60 mm apart at least; cells of 10 mm keep these apart.
+        #expect(page.recoveringDimensions(PDF.DimensionOptions(viewGap: 60)).views.count == 1)
+        #expect(page.recoveringDimensions(PDF.DimensionOptions(viewGap: 10)).views.count == 2)
+        let one = page.recoveringDimensions(PDF.DimensionOptions(separateViews: false))
+        #expect(one.views.count == 1)
+        #expect(one.dimensions.count == 12)
+    }
+
+    @Test(
+        "a view's own scale where the sheet has none is an alternative, and not yet a disagreement")
+    func alternativeWithoutSheetScale() throws {
+        var sheet = DimensionSheet()
+        sheet.column(x: 20, y: 50, count: 8, scale: 2)
+        // Eight values in a view that nothing explains: half the sheet's values are not explained
+        // by the scale of the other half, so the sheet has no scale.
+        for index in 0..<8 {
+            let length = 20.0 + Double(index) * 3.7
+            sheet.horizontal(
+                130, 130 + length, y: 50 + Double(index) * 8, value: String(1_000 + index * 77))
+        }
+        let recovery = try sheet.page().recoveringDimensions()
+        #expect(recovery.scale == nil)
+        #expect(recovery.dimensions.isEmpty)
+        let view = try #require(recovery.views.first { $0.alternative != nil })
+        let alternative = try #require(view.alternative)
+        #expect(abs(alternative.scale.scale - 2) < 1e-9)
+        #expect(alternative.dimensions.count == 8)
+        // One scale on its own is not two that disagree.
+        #expect(
+            !recovery.warnings.contains { if case .scalesDisagree = $0 { true } else { false } })
+    }
+
+    @Test("a segment too long for the grid does not stop the rebuild")
+    func hugeCoordinates() throws {
+        var sheet = DimensionSheet()
+        sheet.column(x: 30, y: 60, count: 6, scale: 2)
+        // A line to 1e22 points, which `drawing()` reads, as lines, polylines and fills.
+        sheet.content += "0 0 m 10000000000000000000000 0 l S\n"
+        sheet.content += "0 0 m 10000000000000000000000 10000000000000000000000 l S\n"
+        let page = try sheet.page()
+        let recovery = page.recoveringDimensions()
+        #expect(recovery.dimensions.count == 6)
+        _ = page.workingDrawing(arrowheads: true)
     }
 
     @Test("a comma is read as the drawing writes it when told, and by the geometry when not")

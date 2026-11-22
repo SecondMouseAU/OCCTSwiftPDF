@@ -7,6 +7,8 @@
 //   pdfprobe compare <pdf> <dxf-or-zip>         the PDF's first page against the DXF
 //   pdfprobe pairs <folder>                     every <name>.pdf beside <name>_dxf.zip, or beside
 //                                               <name>_jww.zip or .lzh where that is missing
+//   pdfprobe dimensions <file-or-folder>...     the dimensions, scale and evidence of each PDF
+//   pdfprobe dimension-pairs <folder>           the same, against the DXF or JWW beside each PDF
 //
 // `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
 // auxiliary lines (`ADD_LINE` in the TECS DXFs), which are never printed.
