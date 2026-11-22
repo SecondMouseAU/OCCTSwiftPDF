@@ -50,7 +50,7 @@ swiftlint lint --strict
 `--filter` matches the Swift function name (`invisible()`), not the `@Test("...")` display string.
 Where the corpus is present (it is on the maintainer's machine) the `CorpusTests` run as ordinary
 tests and fail like any other; they skip only where their files are absent. `pdfprobe` has more
-subcommands (`compare`, `pairs`, `debug-text`); see the README.
+subcommands (`compare`, `pairs`, `debug-text`, `dimensions`, `dimension-pairs`); see the README.
 
 ## Architecture
 
@@ -96,6 +96,15 @@ on the page edge are not drawn but counted in `skipped` by layer. Every entity g
 `DXF.Identity` whose locator is `p<page>:op<operatorIndex>[:<piece>]` and whose `via` lists the
 Form XObjects it came through.
 
+`PDF.Page.recoveringDimensions(_:)` (`Dimensions/`) is the one inference built on `drawing()`, and it
+is opt-in: `drawing()` stays as it is, at the paper's size. The rebuild itself is SwiftDXF's
+(`DXF.Drawing.rebuildingDimensions`, shared with Jw_cad exports, so a rebuilt dimension is marked by
+`Dimension.rebuilt` and not by a convention of this package); this package adds a working drawing
+(arrowhead tips as points, every entity on one layer for the sheet or one per view), a range of
+credible scales, and the view evidence. Do not widen what it applies without the corpus
+numbers (`pdfprobe dimension-pairs`): on the TECS sheets a scale taken from a view's own few values
+was wrong more often than right, and so was every scale above 1:300.
+
 The comparison code (`Comparison*.swift`, `Similarity.swift`, `SegmentIndex.swift`,
 `Reference.swift`) is spike tooling, not part of the reader. It reads the DXF (or a zip holding one,
 through `/usr/bin/unzip`) of the same drawing, fits a similarity transform from the texts that occur
@@ -107,7 +116,9 @@ the corpus tests are its callers.
 
 - `Tests/.../MiniPDF.swift` writes a PDF by hand from a content stream, resources and extra objects,
   so a test controls every operator. Use it for new interpreter and text tests rather than a corpus
-  file.
+  file. `DimensionSheet` (`DimensionFixtures.swift`) draws dimensions on it in millimetres on the
+  paper (a dimension line, extension lines or arrowheads, the value), built by appending a statement
+  at a time since one long literal can fail to type-check on the CI's older Swift.
 - The test target builds for macOS only: the corpus tests call the macOS-only
   `PDF.readReference`, and `TextTests` uses PDFKit directly. CI builds the library for the
   other platforms; it does not run tests there.
