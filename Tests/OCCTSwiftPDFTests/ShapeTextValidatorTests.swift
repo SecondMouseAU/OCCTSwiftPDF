@@ -61,6 +61,7 @@ struct ShapeTextValidatorTests {
         "characters that are not text are rejected",
         arguments: [
             "---", "|||", "\u{FFFD}12", "1\u{0007}2", "  ", "\u{0410}PPLICABLE", "\u{0406}V*",
+            "1\u{0E3F}/9/73", "12\u{4E2D}",
         ])
     func characters(text: String) {
         #expect(Self.rejection(Self.verdict([Self.line(text)])) == .characters)
@@ -73,6 +74,9 @@ struct ShapeTextValidatorTests {
             Self.rejection(Self.verdict([Self.line("\u{0414}\u{0412}\u{0415}\u{0420}\u{042C}")]))
                 == nil)
         #expect(Self.rejection(Self.verdict([Self.line("\u{0394}T 129")])) == nil)
+        // The symbols of a drawing are not refused: diameter, plus or minus, degree, a fraction.
+        #expect(Self.rejection(Self.verdict([Self.line("\u{00D8}1 \u{00B1}0\u{00B0}")])) == nil)
+        #expect(Self.rejection(Self.verdict([Self.line("\u{2300}20 5\u{00BD}")])) == nil)
     }
 
     @Test("text where the shapes are not is rejected as a position")

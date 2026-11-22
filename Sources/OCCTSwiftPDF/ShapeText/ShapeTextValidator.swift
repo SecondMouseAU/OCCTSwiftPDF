@@ -104,14 +104,27 @@ enum ShapeTextValidator {
         return .accepted(text: text, confidence: line.confidence)
     }
 
-    /// At least one letter or digit, no replacement or control character, and no word that mixes
-    /// Latin and Cyrillic letters (a recogniser's look-alike for a Latin one: `А`, `І`).
+    /// The Unicode blocks a drawing's text is in: Latin (with its accents), Greek and Cyrillic,
+    /// punctuation, scripts, currency (the euro only), letterlike symbols, number forms, arrows,
+    /// mathematical operators and the technical symbols (the diameter sign).
+    static let plausibleBlocks: [ClosedRange<UInt32>] = [
+        0x0020...0x024F, 0x0370...0x03FF, 0x0400...0x04FF, 0x2000...0x209F, 0x20AC...0x20AC,
+        0x2100...0x218F, 0x2190...0x21FF, 0x2200...0x22FF, 0x2300...0x23FF,
+    ]
+
+    /// At least one letter or digit, and nothing a drawing's text would not hold.
+    ///
+    /// That is: no replacement or control character, no character outside the blocks in
+    /// ``plausibleBlocks`` (a recogniser that cannot tell a glyph reads it as a Thai or an Arabic
+    /// one, say), and no word that mixes Latin and Cyrillic letters (a look-alike for a Latin one:
+    /// `А`, `І`).
     static func plausibleCharacters(_ text: String) -> Bool {
         guard !text.isEmpty, text.contains(where: { $0.isLetter || $0.isNumber }) else {
             return false
         }
-        let clean = !text.unicodeScalars.contains {
-            $0 == "\u{FFFD}" || CharacterSet.controlCharacters.contains($0)
+        let clean = text.unicodeScalars.allSatisfy { scalar in
+            scalar != "\u{FFFD}" && !CharacterSet.controlCharacters.contains(scalar)
+                && plausibleBlocks.contains { $0.contains(scalar.value) }
         }
         return clean && !text.split(whereSeparator: \.isWhitespace).contains(where: mixesScripts)
     }
