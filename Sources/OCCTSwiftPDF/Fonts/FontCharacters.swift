@@ -20,6 +20,9 @@ struct FontCharacters {
     /// The most code points one font may walk; a real subset has a few thousand.
     private static let budget = 1 << 20
 
+    /// The private-use areas of the Basic Multilingual Plane and the last two planes.
+    private static let privateUse = [0xE000...0xF8FF, 0xF_0000...0x10_FFFF]
+
     /// The lowest code point mapped to each glyph, so a glyph that is both a space and a no-break
     /// space reads as the space.
     private var byGlyph: [UInt16: UInt32] = [:]
@@ -116,9 +119,10 @@ struct FontCharacters {
     }
 
     private mutating func add(_ code: Int, glyph: Int) {
-        // Glyph 0 is `.notdef`; control characters and surrogates are not text.
+        // Glyph 0 is `.notdef`; control characters, surrogates and private-use code points (a
+        // writer's own numbering of glyphs, not characters) are not text.
         guard glyph > 0, glyph <= 0xFFFF, code >= 0x20, !(0xD800...0xDFFF).contains(code),
-            code <= 0x10FFFF
+            !Self.privateUse.contains(where: { $0.contains(code) }), code <= 0x10FFFF
         else { return }
         let key = UInt16(glyph)
         if byCode[UInt32(code)] == nil { byCode[UInt32(code)] = key }

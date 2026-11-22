@@ -75,6 +75,26 @@ struct EmbeddedFontTests {
         #expect(spaces.scalar(forGlyph: 6) == nil)
     }
 
+    @Test("a lower code point read later still wins, and private-use code points are not text")
+    func lowestAcrossSubtables() throws {
+        // The Greek mu first, then the micro sign from another subtable: the lowest wins.
+        let characters = try #require(
+            Self.characters([
+                (3, 10, Self.format12([(0x3BC, 0x3BC, 7)])),
+                (0, 3, Self.format12([(0xB5, 0xB5, 7)])),
+            ]))
+        #expect(characters.scalar(forGlyph: 7) == "\u{B5}")
+
+        // A glyph at a private-use code point is the writer's numbering, not a character; one
+        // beside it at a real code point is.
+        let mixed = try #require(
+            Self.characters([(3, 10, Self.format12([(0xE000, 0xE001, 1), (0x41, 0x41, 3)]))]))
+        #expect(mixed.scalar(forGlyph: 1) == nil)
+        #expect(mixed.scalar(forGlyph: 3) == "A")
+        #expect(Self.characters([(3, 10, Self.format12([(0xE000, 0xE001, 1)]))]) == nil)
+        #expect(Self.characters([(3, 10, Self.format12([(0xF_0000, 0xF_0000, 1)]))]) == nil)
+    }
+
     @Test("format 4 maps by delta, and through the glyph index array")
     func format4Segments() throws {
         // 'A' to 'C' on glyphs 1 to 3 by delta; 'X' to 'Z' through the array, where 0 means none
@@ -386,5 +406,19 @@ struct EmbeddedFontTests {
                 == "A\u{FFFD}")
         #expect(
             try Self.run(Self.pdf(codes: "004F0050", font: font, glyphs: glyphs)).ownText == nil)
+    }
+
+    @Test("a composite font's empty ToUnicode map is no map, so the font is read")
+    func emptyToUnicode() throws {
+        let empty = """
+            /CIDInit /ProcSet findresource begin 12 dict begin begincmap
+            1 begincodespacerange <0000> <FFFF> endcodespacerange
+            endcmap end end
+            """
+        let glyphs = Self.glyphs([0x41: 1, 0x42: 2], last: 0x42)
+        let run = try Self.run(
+            Self.pdf(
+                codes: "00410042", font: Self.font(Self.letters), glyphs: glyphs, toUnicode: empty))
+        #expect(run.ownText == "AB")
     }
 }

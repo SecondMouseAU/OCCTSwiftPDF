@@ -196,11 +196,13 @@ final class Font {
     /// (an unmapped `⌀` before `25.4` must not leave `25.4`). A composite font with gaps in its map
     /// is decoded through its CMap instead when that covers every code.
     ///
-    /// Only a font with no map at all is read through its embedded font program, last: a map is
-    /// the writer's own statement, and a font's `cmap` is not trusted to overrule or fill it.
+    /// Only a font with no map (or, if composite, an empty one) is read through its embedded font
+    /// program, last: a map is the writer's own statement, and a font's `cmap` is not trusted to
+    /// overrule or fill it.
     func decode(_ bytes: [UInt8]) -> (text: String?, decoding: PDF.TextDecoding) {
         let codes = codes(bytes)
-        guard let toUnicode else {
+        // A composite font's empty map says nothing, so it is as if it had none.
+        guard let toUnicode, !(isComposite && toUnicode.isEmpty) else {
             return decodeWithoutToUnicode(bytes, codes)
                 ?? embeddedText(codes).map { ($0, .embeddedFont) } ?? (nil, .none)
         }

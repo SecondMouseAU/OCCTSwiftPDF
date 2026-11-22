@@ -190,6 +190,13 @@ radius fitted over the whole run.
 - Colours in Indexed, Pattern, DeviceN and Lab spaces are drawn black; device, calibrated,
   ICC-based and Separation colours are read.
 - The comparison's reference reader runs `/usr/bin/unzip`, so it is macOS only.
+- A font read from its embedded program (`embeddedFont`) is taken at its word: a writer whose
+  Unicode `cmap` is not the real character mapping would give wrong text, which only the decoding
+  says apart from `toUnicode`; private-use code points are not read as characters. Only TrueType
+  programs (`FontFile2`) are read, from `cmap` formats 4 and 12, and only where the font has no
+  `ToUnicode` map (or, if composite, an empty one); one that has a map keeps it, gaps included.
+  Where a `CIDToGIDMap` stream does not show the CIDs to be Unicode, a space the subset left out is
+  U+FFFD. One corpus file reaches this path, so how far it generalises is not measured.
 - A code a `ToUnicode` map does not cover takes the font's own character when its encoding is
   known, and U+FFFD otherwise, rather than being dropped. Codes from a symbolic, TrueType, Type 3
   or embedded font with no encoding are only guessed to be ASCII (`TextDecoding.asciiGuess`).
