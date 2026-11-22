@@ -202,9 +202,9 @@ binary for nothing the corpus needs.
    lines.
 4. Scale inference from values against drawn lengths, per view.
 5. Wire into OCCTSwiftIO's `DrawingLoader` as `.pdf`. This package is public and LGPL-2.1 like
-   OCCTSwiftIO, which builds for iOS, visionOS and tvOS. The PDFKit use is now guarded (older
-   tvOS SDKs have no PDFKit, [#3](https://github.com/SecondMouseAU/OCCTSwiftPDF/issues/3)) and the comparison's
-   `unzip` reader is macOS only, so the package builds on all four; what is left is the wiring and
-   a first tag to pin.
+   OCCTSwiftIO, which builds for iOS, visionOS and tvOS. The PDFKit use is now guarded (older tvOS
+   SDKs have no PDFKit, [#3](https://github.com/SecondMouseAU/OCCTSwiftPDF/issues/3)) and the
+   comparison's `unzip` reader is macOS only, so the package builds on all four; what is left is the
+   wiring and a first tag to pin.
 6. Text drawn as shapes: OCR on the rendered area (Apple Vision), accepted only where it agrees
    with the measured geometry. The first piece of the raster path.

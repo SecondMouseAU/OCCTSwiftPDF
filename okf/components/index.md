@@ -53,12 +53,12 @@ timestamp: 2026-11-22
   `Differences` array does not name are read as ASCII and marked `asciiGuess`.
 - **Text pairing** (`TextPairing.swift`, `TextPairing+PDFKit.swift`): where the SDK has PDFKit
   (older tvOS SDKs do not; the asking is behind `#if canImport(PDFKit)`), asks it for each run's
-  characters (inside its box
-  for a run along or across the page, from its first character to its end for an inclined one),
-  as a check on this reader's decoding and as its fallback where this reader has no characters. For a
-  run along or across the page, PDFKit's characters also replace guessed ASCII they contradict and
-  a reading with U+FFFD; an inclined run's axis-aligned box can take in its neighbours, so there
-  they never replace this reader's own reading and fill in only when they number its codes.
+  characters (inside its box for a run along or across the page, from its first character to its end
+  for an inclined one), as a check on this reader's decoding and as its fallback where this reader
+  has no characters. For a run along or across the page, PDFKit's characters also replace guessed
+  ASCII they contradict and a reading with U+FFFD; an inclined run's axis-aligned box can take in
+  its neighbours, so there they never replace this reader's own reading and fill in only when they
+  number its codes.
 - **Text assembly** (`TextAssembly.swift`): joins runs that continue one another along a baseline,
   since some writers show one character per operation.
 - **Comparison support** (`Comparison+Sampling.swift`, `Similarity.swift`, `SegmentIndex.swift`):

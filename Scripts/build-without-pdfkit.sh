@@ -19,9 +19,11 @@ trap 'rm -rf "$work"' EXIT
 rsync -a --exclude .build --exclude .git --exclude .claude "$root/" "$work/pkg/"
 cd "$work/pkg"
 
+# An import is any line that starts, after attributes, with `import` and an optional kind
+# (`import struct PDFKit.X`, `@preconcurrency import PDFKit`, `import PDFKit // note`).
 grep -rl 'PDFKit' Sources | xargs sed -i '' -E \
-    -e 's/canImport\(PDFKit\)/canImport(PDFKitAbsent)/' \
-    -e 's/^( *)import PDFKit$/\1import PDFKitAbsent/'
+    -e 's/canImport\(PDFKit\)/canImport(PDFKitAbsent)/g' \
+    -e 's/^([[:space:]]*(@[[:alnum:]_]+[[:space:]]+)*import[[:space:]]+([a-z]+[[:space:]]+)?)PDFKit/\1PDFKitAbsent/'
 
 xcodebuild build \
     -scheme OCCTSwiftPDF-Package \

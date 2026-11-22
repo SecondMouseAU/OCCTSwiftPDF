@@ -9,13 +9,20 @@ import Testing
 /// Text placement, decoding and joining.
 @Suite("Text")
 struct TextTests {
-    static func page(_ content: String, font: String = MiniPDF.helvetica, extra: [String] = [])
-        throws -> PDF.Page
+    /// A PDF showing `content` with `font` as `/F1`; `extra` objects follow it as `{2}`, `{3}`.
+    static func pdf(_ content: String, font: String = MiniPDF.helvetica, extra: [String] = [])
+        -> MiniPDF
     {
         var pdf = MiniPDF(content: content)
         pdf.objects = [font] + extra
         pdf.resources = "<< /Font << /F1 {1} >> >>"
-        return try InterpreterTests.page(pdf)
+        return pdf
+    }
+
+    static func page(_ content: String, font: String = MiniPDF.helvetica, extra: [String] = [])
+        throws -> PDF.Page
+    {
+        try InterpreterTests.page(pdf(content, font: font, extra: extra))
     }
 
     @Test("a run's origin, size, direction and width come from the text and graphics state")

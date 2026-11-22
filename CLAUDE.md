@@ -53,14 +53,14 @@ subcommands (`compare`, `pairs`, `debug-text`); see the README.
 
 ## Architecture
 
-One library target, `OCCTSwiftPDF`, which `@_exported import`s SwiftDXF so callers get
-`DXF.Drawing` without a second import. `pdfprobe` is a separate executable and the only target that
-links SwiftJWW. The package builds for the platforms OCCTSwiftIO does (macOS, iOS, visionOS, tvOS).
-Older tvOS SDKs have no PDFKit and newer ones do, so every use of it is behind
-`#if canImport(PDFKit)`, and where it is absent the text is the package's own decoding alone. `PDF.readReference` (`Process`, `unzip`) and `pdfprobe` are macOS
-only. A new `import PDFKit` or `Process` outside such a guard breaks the build on an SDK without
-it; `Scripts/build-without-pdfkit.sh` builds for tvOS as if the SDK had none, which a plain tvOS
-build on a recent Xcode does not.
+One library target, `OCCTSwiftPDF`, which `@_exported import`s SwiftDXF so callers get `DXF.Drawing`
+without a second import. `pdfprobe` is a separate executable and the only target that links
+SwiftJWW. The package builds for the platforms OCCTSwiftIO does (macOS, iOS, visionOS, tvOS). Older
+tvOS SDKs have no PDFKit and newer ones do, so every use of it is behind `#if canImport(PDFKit)`,
+and where it is absent the text is the package's own decoding alone. `PDF.readReference` (`Process`,
+`unzip`) and `pdfprobe` are macOS only. A new `import PDFKit` or `Process` outside such a guard
+breaks the build on an SDK without it; `Scripts/build-without-pdfkit.sh` builds for tvOS as if the
+SDK had none, which a plain tvOS build on a recent Xcode does not.
 
 The read path is a pipeline, and the stages only make sense together:
 
@@ -104,6 +104,8 @@ corpus tests are its callers.
 - `Tests/.../MiniPDF.swift` writes a PDF by hand from a content stream, resources and extra objects,
   so a test controls every operator. Use it for new interpreter and text tests rather than a corpus
   file.
+- The test target builds for macOS only: `TextTests` imports PDFKit and the corpus tests call `PDF.readReference`.
+  CI builds the library for the other platforms; it does not run tests there.
 - `CorpusTests` read real drawings from `PDF_CORPUS` and gate each test with
   `.enabled(if: CorpusTests.exists(...))`. One test also reads a DXF kept outside the corpus
   (`~/Documents/Modelling/2DFiles/2120_from_2120j.dxf`).
