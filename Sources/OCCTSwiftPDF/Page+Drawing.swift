@@ -38,6 +38,12 @@ extension PDF.Page {
     /// searched, and that is then the only text there is. Filled-only paths, images, text with no
     /// characters and a frame drawn on the page's own edge (`PAGE BORDER`) are counted in
     /// `skipped` by layer, not drawn.
+    ///
+    /// Text recovered from shapes by OCR (``PDF/TextDecoding/ocr``, only on a page from
+    /// ``PDF/Document/recoveringShapeText(options:)``) is drawn like any other, and its entity's
+    /// identity ends in `:ocr` and its place among the OCR text (`p1:op5:ocr0`), so a consumer can
+    /// tell it from text read from the file. The filled shapes it came from are still counted in
+    /// `skipped["FILL"]`.
     public func drawing() -> DXF.Drawing {
         let transform = toPaper
         var entities: [DXF.Entity] = []
@@ -61,11 +67,15 @@ extension PDF.Page {
             return DXF.Point(q.x, q.y)
         }
         // One painted path can become several entities, so each gets the path's source and its
-        // place among them: `p1:op5:0`, `p1:op5:1`. A text is `p1:op7`.
-        func add(_ entity: DXF.Entity, _ source: PDF.Source, piece: Int? = nil) {
+        // place among them: `p1:op5:0`, `p1:op5:1`. A text is `p1:op7`. Text recovered by OCR is
+        // `p1:op5:ocr0`: the first shape it was drawn with, and its place among the OCR text.
+        func add(
+            _ entity: DXF.Entity, _ source: PDF.Source, piece: Int? = nil, recovered: Int? = nil
+        ) {
             entities.append(entity)
             let locator =
                 "p\(source.page):op\(source.operatorIndex)" + (piece.map { ":\($0)" } ?? "")
+                + (recovered.map { ":ocr\($0)" } ?? "")
             identities.append(
                 DXF.Identity(
                     locator: locator, via: source.forms,
@@ -128,6 +138,7 @@ extension PDF.Page {
         }
 
         let paperRotation = Double(rotation)
+        var recoveredCount = 0
         for text in texts {
             let layer = layerName(text.layer)
             guard let string = text.text, !string.isEmpty else {
@@ -139,7 +150,8 @@ extension PDF.Page {
                     at: point(text.origin), height: text.height * 25.4 / 72,
                     rotationDeg: Self.normalised(text.rotationDeg - paperRotation), string: string,
                     layer: layer, color: 7),
-                text.source)
+                text.source, recovered: text.decoding == .ocr ? recoveredCount : nil)
+            if text.decoding == .ocr { recoveredCount += 1 }
             counts.text += 1
         }
         for _ in images { skip("IMAGE", layerName(nil)) }

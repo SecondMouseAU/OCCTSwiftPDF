@@ -128,6 +128,14 @@ extension PDF {
         case pdfKit
         /// Nothing could decode it: the font has no way back from codes to characters.
         case none
+        /// Recovered by OCR from shapes the page draws as text (filled outlines or strokes), where
+        /// there was no text to read.
+        ///
+        /// Only from ``PDF/Document/recoveringShapeText(options:)`` and
+        /// ``PDF/Page/recoveringShapeText(from:options:)``, and only where the recognised text
+        /// agreed with the measured geometry. Never read from the file: a consumer that wants
+        /// only text the file holds leaves these out. See ``PDF/TextRun/confidence``.
+        case ocr
     }
 
     /// One text-showing operation (`Tj`, `TJ`, `'` or `"`), in page coordinates.
@@ -171,6 +179,13 @@ extension PDF {
         /// The sources of the runs joined to this one after the first, when the writer showed the
         /// line in pieces (one character per operation, say).
         public var parts: [Source] = []
+        /// The recogniser's confidence, from 0 to 1, for a run recovered by OCR
+        /// (``TextDecoding/ocr``); `nil` for text read from the file.
+        ///
+        /// For such a run ``source`` is the first shape the text was drawn with and ``parts`` the
+        /// sources of the others, ``codes`` is empty, ``height`` is the measured height of the
+        /// shapes (not a font size), and ``quad`` is their box along the line.
+        public var confidence: Double?
     }
 
     /// An image placed on the page.

@@ -7,7 +7,9 @@ let package = Package(
     // not used on tvOS (older SDKs lack it, and an app built with a newer one might not launch on a
     // tvOS without it), so the cross-check against it is behind `#if canImport(PDFKit) &&
     // !os(tvOS)` and a run keeps the package's own text there. The comparison's reference reader
-    // runs `/usr/bin/unzip` and `pdfprobe` is a command-line tool, so both are macOS only.
+    // runs `/usr/bin/unzip` and `pdfprobe` is a command-line tool, so both are macOS only. Vision
+    // (text recognised from text drawn as shapes, only when asked) is on all four platforms, and
+    // behind `#if canImport(Vision)` so a toolchain without it still builds.
     platforms: [.iOS(.v18), .macOS(.v15), .visionOS(.v1), .tvOS(.v18)],
     products: [
         .library(name: "OCCTSwiftPDF", targets: ["OCCTSwiftPDF"]),
