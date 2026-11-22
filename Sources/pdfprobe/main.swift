@@ -7,6 +7,13 @@
 //   pdfprobe compare <pdf> <dxf-or-zip>         the PDF's first page against the DXF
 //   pdfprobe pairs <folder>                     every <name>.pdf beside <name>_dxf.zip, or beside
 //                                               <name>_jww.zip or .lzh where that is missing
+//   pdfprobe arcs [--detail] <file-or-folder>...  the circles and arcs recovered, by producer
+//                                               (--tolerance, --relative, --min-sweep, --max-step,
+//                                               --min-lines set the options)
+//   pdfprobe arc-pairs [--detail] <folder>       the same against the circles and arcs of each
+//                                               PDF's paired DXF or JWW, by coordinates
+//   pdfprobe digest <file-or-folder>...         a hash of each page's `drawing()`, to see that a
+//                                               change to the reader left it alone
 //
 // `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
 // auxiliary lines (`ADD_LINE` in the TECS DXFs), which are never printed.
@@ -306,7 +313,104 @@ import Foundation
         print("scales: \(listed.joined(separator: ", "))")
     }
 
+    /// One line per PDF: the entity counts of every page's `drawing()` and a hash of all of them
+    /// (entities and identities), so a change that should leave `drawing()` alone can be checked
+    /// across the corpus by comparing two runs.
+    func digest(_ url: URL) {
+        let name = url.lastPathComponent
+        guard let document = try? PDF.read(contentsOf: url) else {
+            print("\(name)\tcannot open")
+            return
+        }
+        var hash: UInt64 = 0xcbf2_9ce4_8422_2325
+        func mix(_ text: String) {
+            for byte in text.utf8 {
+                hash ^= UInt64(byte)
+                hash = hash &* 0x0000_0100_0000_01b3
+            }
+        }
+        var total = DXF.Drawing.Counts()
+        for page in document.pages {
+            let drawing = page.drawing()
+            for (index, entity) in drawing.entities.enumerated() {
+                mix(String(describing: entity))
+                mix(drawing.identity(ofEntityAt: index).id)
+            }
+            mix(String(describing: drawing.skipped.sorted { $0.key < $1.key }))
+            total.line += drawing.counts.line
+            total.polyline += drawing.counts.polyline
+            total.spline += drawing.counts.spline
+            total.text += drawing.counts.text
+            total.circle += drawing.counts.circle
+            total.arc += drawing.counts.arc
+        }
+        print(
+            "\(name)\tpages \(document.pages.count)\tlines \(total.line)\tpolylines \(total.polyline)"
+                + "\tsplines \(total.spline)\tcircles \(total.circle)\tarcs \(total.arc)"
+                + "\ttext \(total.text)\thash \(String(hash, radix: 16))")
+    }
+
+    /// The arc recovery options from `--tolerance`, `--relative`, `--min-sweep`, `--max-step` and
+    /// `--min-lines`, and what is left of the arguments.
+    func arcOptions(_ raw: [String]) -> (options: PDF.ArcFitting, rest: [String]) {
+        var options = PDF.ArcFitting()
+        var rest = raw
+        func take(_ flag: String) -> Double? {
+            guard let at = rest.firstIndex(of: flag), at + 1 < rest.count,
+                let value = Double(rest[at + 1])
+            else { return nil }
+            rest.removeSubrange(at...(at + 1))
+            return value
+        }
+        if let value = take("--tolerance") { options.tolerance = value }
+        if let value = take("--relative") { options.relativeTolerance = value }
+        if let value = take("--line-tolerance") { options.lineTolerance = value }
+        if let value = take("--min-sweep") { options.minimumSweepDeg = value }
+        if let value = take("--max-step") { options.maximumLineStepDeg = value }
+        if let value = take("--min-lines") { options.minimumLineSegments = Int(value) }
+        if let value = take("--max-ratio") { options.maximumStepRatio = value }
+        return (options, rest)
+    }
+
     switch arguments.first {
+    case "arcs" where arguments.count >= 2:
+        var (options, rest) = arcOptions(Array(arguments.dropFirst()))
+        let detail = rest.contains("--detail")
+        rest.removeAll { $0 == "--detail" }
+        var results: [ArcFileResult] = []
+        for url in pdfs(in: rest) {
+            guard let result = arcResult(url, options) else {
+                print("\(url.lastPathComponent)\tcannot open")
+                continue
+            }
+            results.append(result)
+            print(arcLine(result))
+            if detail { result.fits.forEach(printArcFit) }
+        }
+        printArcSummary(results)
+    case "arc-pairs" where arguments.count >= 2:
+        var (options, rest) = arcOptions(Array(arguments.dropFirst()))
+        let detail = rest.contains("--detail")
+        rest.removeAll { $0 == "--detail" }
+        var bound = 0.5
+        if let at = rest.firstIndex(of: "--bound"), at + 1 < rest.count,
+            let value = Double(rest[at + 1])
+        {
+            bound = value
+            rest.removeSubrange(at...(at + 1))
+        }
+        var table: String?
+        if let at = rest.firstIndex(of: "--table"), at + 1 < rest.count {
+            table = rest[at + 1]
+            rest.removeSubrange(at...(at + 1))
+        }
+        guard let folder = rest.first else { exit(2) }
+        let results = arcPairs(
+            URL(fileURLWithPath: folder), options, excluded: excludedLayers, detail: detail,
+            bound: bound, table: table)
+        printArcPairSummary(results)
+    case "digest" where arguments.count >= 2:
+        for url in pdfs(in: Array(arguments.dropFirst())) { digest(url) }
     case "debug-text" where arguments.count == 3:
         debugText(arguments[1], arguments[2])
     case "compare" where arguments.count == 3:
@@ -357,7 +461,9 @@ import Foundation
         guard !paths.isEmpty else {
             print(
                 "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | "
-                    + "pairs <folder> | debug-text <pdf> <text>; --exclude-layer <name> for compare and pairs"
+                    + "pairs <folder> | digest <file-or-folder>... | arcs [--detail] <file-or-folder>... | "
+                    + "debug-text <pdf> <text>; "
+                    + "--exclude-layer <name> for compare and pairs"
             )
             exit(2)
         }
