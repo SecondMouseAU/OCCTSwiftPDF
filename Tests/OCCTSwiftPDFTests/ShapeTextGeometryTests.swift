@@ -27,6 +27,9 @@ struct ShapeTextGeometryTests {
         #expect(abs(region.angleDegrees) < 0.5)
         #expect(abs(region.origin.x - text.ink.minX) < 0.1)
         #expect(abs(region.origin.y - text.ink.minY) < 0.1)
+        // The baseline is where the digits stand, above the bottom of the comma.
+        #expect(abs(region.origin.y + region.baseline - 100) < 0.1)
+        #expect(region.baseline > 1)
         #expect(abs(region.length - text.ink.width) < 0.1)
         #expect(abs(region.height - text.ink.height) < 0.1)
     }
@@ -39,6 +42,16 @@ struct ShapeTextGeometryTests {
         #expect(page.paths.reduce(0) { $0 + $1.subpaths.count } > 4)
         #expect(found.regions.count == 1)
         #expect(found.regions.first?.glyphs == 4)
+    }
+
+    @Test(
+        "the baseline is where most glyphs stand: descenders and floating dots do not move it",
+        arguments: ["filigree, gypsy", "Jilji 1,5", "ii;ii"])
+    func baseline(string: String) throws {
+        let text = OutlineText.drawn(string, at: CGPoint(x: 100, y: 100))
+        let (_, found) = try Self.found(text.content)
+        let region = try #require(found.regions.first)
+        #expect(abs(region.origin.y + region.baseline - 100) < 0.25, "\(string)")
     }
 
     @Test("hollow outlines (stroked) are found as strokes")

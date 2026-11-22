@@ -156,6 +156,12 @@
         static func list(_ report: PDF.ShapeTextReport) {
             for decision in report.decisions {
                 let corner = decision.quad.first ?? .zero
+                // The box in page coordinates, to find it on the page.
+                let xs = decision.quad.map(\.x)
+                let ys = decision.quad.map(\.y)
+                let box = String(
+                    format: "[%.1f %.1f %.1f %.1f]", xs.min() ?? 0, ys.min() ?? 0, xs.max() ?? 0,
+                    ys.max() ?? 0)
                 let outcome: String
                 switch decision.outcome {
                 case .accepted: outcome = "accepted"
@@ -165,8 +171,9 @@
                 let read = decision.readText.map { " page text \"\($0)\"" } ?? ""
                 print(
                     String(
-                        format: "    (%.0f, %.0f) glyphs %d: \"%@\"%@ %@", corner.x, corner.y,
-                        decision.glyphs, decision.recognised ?? "-", confidence, outcome) + read)
+                        format: "    (%.0f, %.0f) %@ glyphs %d: \"%@\"%@ %@", corner.x, corner.y,
+                        box, decision.glyphs, decision.recognised ?? "-", confidence, outcome)
+                        + read)
             }
         }
     }

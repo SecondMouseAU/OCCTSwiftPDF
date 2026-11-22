@@ -87,6 +87,18 @@ The read path is a pipeline, and the stages only make sense together:
 5. **`TextAssembly`** joins runs that continue one another along a baseline, because some writers
    (Jw_cad) show one character per `Tj`.
 
+6. **Shape text** (`ShapeText/`) is not part of `PDF.read`: it runs only when asked
+   (`PDF.Document.recoveringShapeText(options:)`), and Vision is called nowhere else. For text a
+   writer drew as shapes it finds lines of small filled or stroked subpaths from the geometry
+   already read (`ShapeTextRegions`), renders the page with CoreGraphics and cuts each line out
+   upright (`ShapeTextRenderer`), recognises it (`TextRecogniser`, Vision behind
+   `#if canImport(Vision)`), and accepts the result only where it agrees with the shapes
+   (`ShapeTextValidator`: box, direction, height, glyph count, length per character, and the same
+   characters at every one of three render sizes). Accepted text is a run decoded `.ocr` with a
+   `confidence`; everything else is counted in a `ShapeTextReport` with its reason. Keep the four
+   steps (find, render, recognise, validate) apart: the validator is arithmetic on a recognised
+   line and a region, so its rules are tested without Vision.
+
 `PDF.Page.drawing()` (`Page+Drawing.swift`) is the only place that converts to the output model.
 `toPaper` is the one coordinate transform (crop box to origin, the page's `/Rotate`, points to
 millimetres); text rotation is corrected for the page rotation there as well. Stroked paths become
@@ -114,6 +126,12 @@ the corpus tests are its callers.
 - `CorpusTests` read real drawings from `PDF_CORPUS` and gate each test with
   `.enabled(if: CorpusTests.exists(...))`. One test also reads a DXF kept outside the corpus
   (`~/Documents/Modelling/2DFiles/2120_from_2120j.dxf`).
+- Shape text tests draw text as outlines themselves (`OutlineText`, CoreText glyph paths as path
+  operators), so nothing depends on the corpus. `InkRecogniser` reads the ink in a crop and says
+  what a test tells it, so the geometry round the recogniser is tested on every platform. The
+  Vision tests are gated on `VisionAvailability.reads` (Vision asked alone, on text drawn as text)
+  and assert agreement rules on those fixtures, never strings from the corpus: Vision's output
+  differs by OS version. The first Vision call after a boot can take tens of seconds.
 - Do not pair PDFKit text by `characterBounds(at:)`: it indexes PDFKit's own character list, not
   `PDFPage.string`, so it returns neighbouring characters. `TextPairing` goes through
   `selection(for:)` instead.

@@ -14,6 +14,11 @@
 import CoreGraphics
 import Foundation
 
+/// The first failure of the recogniser on a page, for the report.
+private final class FirstFailure {
+    var message: String?
+}
+
 /// What one reading of a region gave, and was accepted.
 private struct ShapeTextReading {
     var text: String
@@ -91,6 +96,7 @@ extension PDF.Page {
     ) throws -> (page: PDF.Page, report: PDF.ShapeTextReport) {
         let found = ShapeTextRegions.find(in: self, options: options)
         let regions = found.regions
+        let failures = FirstFailure()
         var report = PDF.ShapeTextReport(
             page: number, shapes: found.shapes, shapesInDenseBlobs: found.shapesInDenseBlobs,
             regions: regions.count, tooSmall: found.tooSmall, accepted: 0, rejected: [:],
@@ -144,7 +150,8 @@ extension PDF.Page {
                     let index = active[position]
                     reached.insert(index)
                     let attempt = Self.attempt(
-                        regions[index], in: tile, options: options, recogniser: recogniser)
+                        regions[index], in: tile, options: options, recogniser: recogniser,
+                        failures: failures)
                     switch (attempt.verdict, readings[index]) {
                     case (.accepted(let text, let confidence), nil):
                         readings[index] = ShapeTextReading(
@@ -200,6 +207,7 @@ extension PDF.Page {
                 texts.append(run(for: region, text: text, confidence: confidence))
             }
         }
+        report.recognitionError = failures.message
         var page = self
         page.texts = texts
         return (page, report)
@@ -215,14 +223,14 @@ extension PDF.Page {
     /// other way (upside down).
     private static func attempt(
         _ region: ShapeTextRegion, in tile: ShapeTextTile, options: PDF.ShapeTextOptions,
-        recogniser: some TextRecogniser
+        recogniser: some TextRecogniser, failures: FirstFailure
     ) -> (verdict: ShapeTextValidator.Verdict, region: ShapeTextRegion) {
         var first: ShapeTextValidator.Verdict?
         var candidates = [region]
         while let candidate = candidates.first {
             candidates.removeFirst()
             let padding = ShapeTextRenderer.padding(for: candidate, scale: tile.scale)
-            let verdict = read(candidate, in: tile, padding: padding, options, recogniser)
+            let verdict = read(candidate, in: tile, padding: padding, options, recogniser, failures)
             if case .accepted = verdict { return (verdict, candidate) }
             guard let earlier = first else {
                 first = verdict
@@ -241,7 +249,8 @@ extension PDF.Page {
     /// The verdict on one reading of a region.
     private static func read(
         _ region: ShapeTextRegion, in tile: ShapeTextTile, padding: Double,
-        _ options: PDF.ShapeTextOptions, _ recogniser: some TextRecogniser
+        _ options: PDF.ShapeTextOptions, _ recogniser: some TextRecogniser,
+        _ failures: FirstFailure
     ) -> ShapeTextValidator.Verdict {
         guard let crop = tile.crop(region, padding: padding) else {
             return .rejected(.notRendered, text: nil)
@@ -257,19 +266,28 @@ extension PDF.Page {
             }
             return ShapeTextValidator.validate(lines, in: region, options: options)
         } catch {
+            if failures.message == nil {
+                if case PDF.RecognitionError.failed(let message) = error {
+                    failures.message = message
+                } else {
+                    failures.message = "\(error)"
+                }
+            }
             return .rejected(.recognitionFailed, text: nil)
         }
     }
 
-    /// The OCR run for an accepted region: placed by the shapes, not by the recogniser's box.
+    /// The OCR run for an accepted region: placed by the shapes, not by the recogniser's box, with
+    /// its baseline where most of the glyphs stand and its height measured up from there.
     private func run(for region: ShapeTextRegion, text: String, confidence: Double) -> PDF.TextRun {
         let sources = region.paths.map { paths[$0].source }
         let first = sources.first ?? PDF.Source(page: number, operatorIndex: 0)
+        let quad = region.quadFromBaseline
+        let height = hypot(quad[3].x - quad[0].x, quad[3].y - quad[0].y)
         return PDF.TextRun(
             codes: [], codeCount: text.count, text: text, decoding: .ocr, ownText: nil,
-            pdfKitText: nil, origin: region.origin, rotationDeg: region.angleDegrees,
-            height: region.height, width: region.length, quad: region.quad, fontName: "",
-            fontSubtype: "", isInvisible: false,
+            pdfKitText: nil, origin: quad[0], rotationDeg: region.angleDegrees, height: height,
+            width: region.length, quad: quad, fontName: "", fontSubtype: "", isInvisible: false,
             layer: region.paths.first.flatMap { paths[$0].layer },
             source: first, parts: Array(sources.dropFirst()), confidence: confidence)
     }

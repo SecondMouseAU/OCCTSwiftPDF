@@ -30,6 +30,8 @@ struct ShapeTextRegion {
     /// The indices into `Page.paths` of the paths its pieces belong to, in content order, once
     /// each.
     var paths: [Int]
+    /// Each glyph's extent across the reading direction, in the frame (0 is the box's bottom).
+    var spans: [ClosedRange<Double>] = []
 
     /// The unit vector across the reading direction.
     var across: CGPoint { CGPoint(x: -direction.y, y: direction.x) }
@@ -62,7 +64,38 @@ struct ShapeTextRegion {
         other.direction = CGPoint(x: -direction.x, y: -direction.y)
         other.origin = point(a: length, b: height)
         other.canReverse = false
+        other.spans = spans.map { (height - $0.upperBound)...(height - $0.lowerBound) }
         return other
+    }
+
+    /// Where the baseline is across the box, from its bottom: where most glyphs stand.
+    ///
+    /// Glyphs are grouped by where they start, each within a tenth of the box's height of the one
+    /// before, and the group with the most ink (the sum of its glyphs' heights) is the baseline's,
+    /// so a comma or a `g` that hangs below it, and the dot of an `i` that floats above it, do not
+    /// move it. The baseline is the highest start in that group: a round glyph dips a little below
+    /// the line that a flat one stands on. Zero where the glyphs are not known.
+    var baseline: Double {
+        let tolerance = 0.1 * height
+        var groups: [(top: Double, ink: Double)] = []
+        for span in spans.sorted(by: { $0.lowerBound < $1.lowerBound }) {
+            let ink = span.upperBound - span.lowerBound
+            if let last = groups.last, span.lowerBound - last.top <= tolerance {
+                groups[groups.count - 1] = (span.lowerBound, last.ink + ink)
+            } else {
+                groups.append((span.lowerBound, ink))
+            }
+        }
+        return groups.max { $0.ink < $1.ink }?.top ?? 0
+    }
+
+    /// The box's corners from the baseline up: baseline start, baseline end, top end, top start.
+    var quadFromBaseline: [CGPoint] {
+        let base = min(baseline, 0.5 * height)
+        return [
+            point(a: 0, b: base), point(a: length, b: base), point(a: length, b: height),
+            point(a: 0, b: height),
+        ]
     }
 
     /// The box's bounding rectangle in page coordinates.

@@ -54,11 +54,15 @@ struct ShapeTextRecoveryTests {
         #expect(run.codes.isEmpty && run.ownText == nil && run.pdfKitText == nil)
         #expect(!run.isInvisible)
         #expect(abs(run.rotationDeg) < 0.5)
-        // Placed by the shapes, not the recogniser's looser box.
+        // Placed by the shapes, not the recogniser's looser box, and on the baseline the text was
+        // drawn on, not at the bottom of its comma.
         #expect(abs(run.origin.x - text.ink.minX) < 0.1)
-        #expect(abs(run.origin.y - text.ink.minY) < 0.1)
+        #expect(abs(run.origin.y - Self.origin.y) < 0.1)
+        #expect(text.ink.minY < Self.origin.y - 1)
         #expect(abs(run.width - text.ink.width) < 0.1)
-        #expect(abs(run.height - text.ink.height) < 0.1)
+        // Its height is that of the ink above the baseline.
+        #expect(abs(run.height - (text.ink.maxY - Self.origin.y)) < 0.1)
+        #expect(run.quad.count == 4 && abs(run.quad[0].y - Self.origin.y) < 0.1)
         // Its source is the first glyph's path, and the others are its parts.
         #expect(run.source == before.paths[0].source)
         #expect(run.parts == before.paths.dropFirst().map(\.source))
@@ -111,7 +115,7 @@ struct ShapeTextRecoveryTests {
         #expect(report.accepted == 1)
         let run = try #require(recovery.document.pages.first?.texts.first)
         #expect(abs(run.origin.x - text.ink.minX) < 0.1)
-        #expect(abs(run.origin.y - text.ink.minY) < 0.1)
+        #expect(abs(run.origin.y - 150) < 0.15)
     }
 
     @Test("text turned a quarter turn is read along its own direction")
@@ -125,8 +129,10 @@ struct ShapeTextRecoveryTests {
         let run = try #require(recovery.document.pages.first?.texts.first)
         #expect(abs(run.rotationDeg - 90) < 1)
         #expect(abs(run.width - OutlineText.drawn("SECTION", at: .zero).ink.width) < 0.5)
-        // The baseline starts at the bottom of the vertical line of ink.
+        // The baseline starts at the bottom of the vertical line of ink, on the line x = 300 the
+        // text was drawn along.
         #expect(abs(run.origin.y - text.ink.minY) < 0.5)
+        #expect(abs(run.origin.x - 300) < 0.15)
     }
 
     @Test("a recogniser's characters that cannot be text are counted, with why, and not added")
@@ -309,6 +315,8 @@ struct ShapeTextRecoveryTests {
         let document = try ShapeTextFixtures.document(text.content)
         let recovery = try document.recoveringShapeText(options: .init(), recogniser: Broken())
         #expect(recovery.reports[1]?.rejected == [.recognitionFailed: 1])
+        // The recogniser's own message is kept, since a recogniser that cannot run fails on all.
+        #expect(recovery.reports[1]?.recognitionError == "no model")
     }
 
     @Test("clusters over the budget are counted and not recognised")
@@ -347,6 +355,31 @@ struct ShapeTextRecoveryTests {
         #expect(report.decisions.first?.readText == "10,439")
         #expect(recogniser.calls == 0)
         #expect(recovery.document.pages.first?.texts.count == 1)
+    }
+
+    @Test("a text run across the page covers the shapes on it, not those in its bounding box")
+    func diagonalRun() throws {
+        // A watermark at 45 degrees: its bounding rectangle takes in the corner where the
+        // outlines are, which it does not cross.
+        let outlines = OutlineText.drawn("10,439", at: CGPoint(x: 300, y: 130))
+        let content =
+            outlines.content
+            + "BT /F1 40 Tf 3 Tr 0.7071 0.7071 -0.7071 0.7071 100 100 Tm (DIAGONAL WATERMARK) Tj ET\n"
+        let recogniser = Self.visionLike("10,439")
+        let (document, recovery) = try Self.recover(
+            content, recogniser: recogniser, resources: ShapeTextFixtures.helveticaResources)
+        let run = try #require(document.pages.first?.texts.first)
+        #expect(run.rotationDeg > 44 && run.rotationDeg < 46)
+        // The outlines are inside the run's bounding rectangle.
+        let xs = run.quad.map(\.x)
+        let ys = run.quad.map(\.y)
+        let x0 = try #require(xs.min())
+        let x1 = try #require(xs.max())
+        let y0 = try #require(ys.min())
+        let y1 = try #require(ys.max())
+        #expect(CGRect(x: x0, y: y0, width: x1 - x0, height: y1 - y0).contains(outlines.ink))
+        #expect(recovery.reports[1]?.accepted == 1)
+        #expect(recovery.reports[1]?.rejected[.alreadyRead] == nil)
     }
 
     @Test("compared with the text the page has, the OCR is reported and not added")

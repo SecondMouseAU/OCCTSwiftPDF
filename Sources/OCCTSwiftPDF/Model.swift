@@ -183,8 +183,9 @@ extension PDF {
         /// (``TextDecoding/ocr``); `nil` for text read from the file.
         ///
         /// For such a run ``source`` is the first shape the text was drawn with and ``parts`` the
-        /// sources of the others, ``codes`` is empty, ``height`` is the measured height of the
-        /// shapes (not a font size), and ``quad`` is their box along the line.
+        /// sources of the others, and ``codes`` is empty. ``origin`` is on the baseline where most
+        /// of the glyphs stand (a comma or a `g` hangs below it), ``height`` is the shapes' height
+        /// above it, not a font size, and ``quad`` is that box along the line.
         public var confidence: Double?
     }
 

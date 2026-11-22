@@ -242,9 +242,12 @@ enum ShapeTextRegions {
         var v = (low: Double.infinity, high: -Double.infinity)
         var paths: [Int] = []
         var stroked = 0
+        // Each glyph's extent across the direction, as measured, before the box's start is known.
+        var extents: [(low: Double, high: Double)] = []
         for index in line {
             let glyph = glyphs[index]
             if !glyph.filled { stroked += 1 }
+            var own = (low: Double.infinity, high: -Double.infinity)
             for pieceIndex in glyph.pieces {
                 let piece = pieces[pieceIndex]
                 if !paths.contains(piece.path) { paths.append(piece.path) }
@@ -255,8 +258,10 @@ enum ShapeTextRegions {
                     let pv = point.x * n.x + point.y * n.y
                     u = (min(u.low, pu - widen), max(u.high, pu + widen))
                     v = (min(v.low, pv - widen), max(v.high, pv + widen))
+                    own = (min(own.low, pv - widen), max(own.high, pv + widen))
                 }
             }
+            extents.append(own)
         }
         paths.sort()
         let angle = atan2(d.y, d.x) * 180 / .pi
@@ -265,7 +270,7 @@ enum ShapeTextRegions {
             origin: CGPoint(x: d.x * u.low + n.x * v.low, y: d.y * u.low + n.y * v.low),
             length: u.high - u.low, height: v.high - v.low, glyphs: line.count,
             mostlyStroked: stroked * 2 > line.count, canReverse: abs(abs(angle) - 90) < 45,
-            paths: paths)
+            paths: paths, spans: extents.map { ($0.low - v.low)...($0.high - v.low) })
     }
 
     /// Every point of a subpath, control points included.

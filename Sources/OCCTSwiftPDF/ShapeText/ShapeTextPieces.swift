@@ -29,73 +29,15 @@ struct ShapeGlyph {
     var size: Double { max(box.width, box.height) }
 }
 
-/// A union-find over `0..<count`.
-struct DisjointSets {
-    private var parent: [Int]
-
-    init(count: Int) { parent = Array(0..<count) }
-
-    mutating func find(_ index: Int) -> Int {
-        var root = index
-        while parent[root] != root { root = parent[root] }
-        var walk = index
-        while parent[walk] != root {
-            let next = parent[walk]
-            parent[walk] = root
-            walk = next
-        }
-        return root
-    }
-
-    mutating func union(_ a: Int, _ b: Int) {
-        let (ra, rb) = (find(a), find(b))
-        if ra != rb { parent[max(ra, rb)] = min(ra, rb) }
-    }
-}
-
-/// Boxes bucketed by the cells they touch, for the boxes near a rectangle.
-final class BoxGrid {
-    private let cell: Double
-    private var buckets: [Int64: [Int]] = [:]
-    private var stamp: [UInt32]
-    private var query: UInt32 = 0
-
-    init(boxes: [CGRect], cell: Double) {
-        self.cell = cell
-        stamp = Array(repeating: 0, count: boxes.count)
-        for (index, box) in boxes.enumerated() {
-            for x in range(box.minX, box.maxX) {
-                for y in range(box.minY, box.maxY) {
-                    buckets[Self.key(x, y), default: []].append(index)
-                }
-            }
-        }
-    }
-
-    private static func key(_ x: Int64, _ y: Int64) -> Int64 { x << 32 ^ (y & 0xFFFF_FFFF) }
-
-    private func range(_ low: Double, _ high: Double) -> ClosedRange<Int64> {
-        Int64((low / cell).rounded(.down))...Int64((high / cell).rounded(.down))
-    }
-
-    /// Calls `body` once for each box that touches a cell `rect` touches, which can be a box
-    /// that does not itself reach `rect`.
-    func forEach(near rect: CGRect, _ body: (Int) -> Void) {
-        query &+= 1
-        for x in range(rect.minX, rect.maxX) {
-            for y in range(rect.minY, rect.maxY) {
-                for index in buckets[Self.key(x, y)] ?? [] where stamp[index] != query {
-                    stamp[index] = query
-                    body(index)
-                }
-            }
-        }
-    }
-}
-
 enum ShapeTextPieces {
     /// The smallest side, in page units, of a shape that may be part of a glyph.
     static let minimumSize = 0.2
+
+    /// A box whose corners are finite and within ten million page units of the origin: a file
+    /// with coordinates beyond that is not drawing text there.
+    static func isOnPage(_ box: CGRect) -> Bool {
+        [box.minX, box.minY, box.maxX, box.maxY].allSatisfy { $0.isFinite && abs($0) <= 1e7 }
+    }
 
     /// A subpath's box, with its control points, or `nil` for one with no segments.
     static func bounds(_ subpath: PDF.Subpath) -> CGRect? {
@@ -125,7 +67,7 @@ enum ShapeTextPieces {
                 guard let raw = bounds(subpath) else { continue }
                 let box = raw.insetBy(dx: -widen, dy: -widen)
                 let size = max(box.width, box.height)
-                guard size <= maximumSize, size >= minimumSize else { continue }
+                guard size <= maximumSize, size >= minimumSize, isOnPage(box) else { continue }
                 out.append(
                     ShapePiece(
                         path: index, subpath: subpathIndex, box: box, filled: path.paint != .stroke)

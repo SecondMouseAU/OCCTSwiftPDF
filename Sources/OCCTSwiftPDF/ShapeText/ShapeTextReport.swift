@@ -87,6 +87,11 @@ extension PDF {
         /// The clusters not turned into text, by why.
         public var rejected: [ShapeTextRejection: Int]
         public var decisions: [ShapeTextDecision]
+        /// The first failure of the recogniser on the page, in its own words, where there was one.
+        ///
+        /// ``ShapeTextRejection/recognitionFailed`` counts them; this says why, since a recogniser
+        /// that cannot run (Vision without its models) fails on every cluster.
+        public var recognitionError: String?
 
         /// The number of clusters not turned into text.
         public var rejectedCount: Int { rejected.values.reduce(0, +) }

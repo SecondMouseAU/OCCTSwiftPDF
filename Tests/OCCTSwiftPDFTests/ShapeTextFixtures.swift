@@ -1,4 +1,5 @@
 import CoreGraphics
+import CoreText
 import Foundation
 import Testing
 
@@ -25,6 +26,29 @@ enum ShapeTextFixtures {
     static func cgPage(_ document: PDF.Document) throws -> CGPDFPage {
         let file = try #require(CGPDFDocument(document.url as CFURL))
         return try #require(file.page(at: 1))
+    }
+
+    /// `string` as text (not as shapes) in black on white, 80 points high, as an image.
+    ///
+    /// For asking Vision whether it reads at all, without the package's own pipeline in the way.
+    static func textImage(_ string: String) -> CGImage? {
+        let font = CTFontCreateWithName("Helvetica" as CFString, 80, nil)
+        let attributes = [NSAttributedString.Key(kCTFontAttributeName as String): font]
+        let line = CTLineCreateWithAttributedString(
+            NSAttributedString(string: string, attributes: attributes))
+        let bounds = CTLineGetBoundsWithOptions(line, [])
+        let width = Int(bounds.width.rounded(.up)) + 80
+        guard
+            let context = CGContext(
+                data: nil, width: width, height: 160, bitsPerComponent: 8, bytesPerRow: 0,
+                space: CGColorSpaceCreateDeviceGray(), bitmapInfo: CGImageAlphaInfo.none.rawValue)
+        else { return nil }
+        context.setFillColor(gray: 1, alpha: 1)
+        context.fill(CGRect(x: 0, y: 0, width: width, height: 160))
+        context.setFillColor(gray: 0, alpha: 1)
+        context.textPosition = CGPoint(x: 40, y: 50)
+        CTLineDraw(line, context)
+        return context.makeImage()
     }
 
     /// The darkness (0 white, 1 black) of a pixel `x` from the left and `y` from the bottom.

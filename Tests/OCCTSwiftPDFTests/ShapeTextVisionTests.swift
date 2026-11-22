@@ -14,14 +14,15 @@ import Testing
     /// or virtual runner without its models, say) these tests are skipped, and the probe test says
     /// so in the log.
     enum VisionAvailability {
-        /// Whether Vision reads a clean fixture here: the pipeline's own recogniser on "SCALE 1:50".
+        /// Whether Vision reads text in an image here.
+        ///
+        /// Asked of the recogniser alone, on text drawn as text, so that a fault in the package's
+        /// own path cannot make the tests that exercise it skip.
         static let reads: Bool = {
-            guard
-                let document = try? ShapeTextFixtures.document(
-                    OutlineText.drawn("SCALE 1:50", at: CGPoint(x: 100, y: 100)).content),
-                let recovery = try? document.recoveringShapeText()
+            guard let image = ShapeTextFixtures.textImage("SCALE 1:50"),
+                let lines = try? VisionTextRecogniser().lines(in: image)
             else { return false }
-            return recovery.reports[1]?.accepted == 1
+            return lines.contains { $0.text.contains("SCALE") }
         }()
     }
 
@@ -62,8 +63,9 @@ import Testing
             #expect(Self.characters(found.text) == Self.characters(string))
             #expect(found.decoding == .ocr)
             if let confidence = found.confidence { #expect(confidence >= 0.5) }
+            // On the baseline the text was drawn on (y = 300, where `recover` puts it).
             #expect(abs(found.origin.x - ink.minX) < 0.1)
-            #expect(abs(found.origin.y - ink.minY) < 0.1)
+            #expect(abs(found.origin.y - 300) < 0.2)
         }
 
         @Test(
