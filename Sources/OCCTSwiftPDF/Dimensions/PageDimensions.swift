@@ -25,10 +25,11 @@ extension PDF.Page {
     /// A PDF has no layer groups to say where a scale might change, so the page is also split into
     /// views, pieces that lie together apart from the others (`DimensionOptions.viewGap`), and each
     /// is asked for a scale of its own. The dimensions are at the sheet's scale, and a view whose
-    /// own values favour another, with at least six values and four fifths of those that vote, has
-    /// it as an `alternative` and a `scalesDisagree` warning. It is not applied: on the TECS sheets
-    /// such views were nearly always wrong, since few values agree on a scale by chance. Views
-    /// that disagree are each kept, never averaged.
+    /// own values favour another (at least six values, four fifths of those that vote, and a scale
+    /// more than 10 percent from the sheet's) has it as an `alternative` and a `scalesDisagree`
+    /// warning. It is not applied: on the TECS sheets, where nearly every sheet has one scale,
+    /// applying such a view's scale was wrong on five sheets and right on two, since few values
+    /// agree on a scale by chance. Views that disagree are each kept, never averaged.
     ///
     /// It is an inference and conservative: a value no dimension explains is a warning, never
     /// guessed; a scale outside `DimensionOptions.scaleRange` is not used; and nothing is scaled.
@@ -47,6 +48,10 @@ extension PDF {
         static let minimumSupporting = 6
         /// And by at least this fraction of those of the view that could vote.
         static let minimumShare = 0.8
+        /// And a scale that differs from the sheet's by more than this fraction of it: a view's own
+        /// estimate from a few values is a few percent off, and neighbouring scales (1:50 and
+        /// 1:64, 1:80 and 1:100) differ by a quarter or more.
+        static let minimumDifference = 0.1
 
         static func isStrong(_ scale: DXF.DimensionRebuild.ScaleEstimate) -> Bool {
             let voters = scale.supporting + scale.contradicting
@@ -126,7 +131,9 @@ extension PDF {
                 let name = "view \(v + 1)"
                 if let found = own?.scales.first(where: { $0.group == name }),
                     ViewEvidence.isStrong(found), options.scaleRange.contains(found.scale),
-                    estimate.map({ abs(found.scale / $0.scale - 1) > 0.01 }) ?? true
+                    estimate.map({
+                        abs(found.scale / $0.scale - 1) > ViewEvidence.minimumDifference
+                    }) ?? true
                 {
                     let instead = (own?.dimensions ?? []).filter { view(of: $0) == v }.map {
                         Self.restoringLayer($0, from: working, textAt)

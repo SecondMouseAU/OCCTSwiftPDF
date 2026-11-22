@@ -49,7 +49,7 @@ import Foundation
 
     func matchDimensions(
         _ pdf: [DXF.Dimension], _ reference: [DXF.Dimension], tolerance: Double, known: Double,
-        place: (DXF.Point2) -> DXF.Point2
+        detail: Bool = false, place: (DXF.Point2) -> DXF.Point2
     ) -> DimensionMatch {
         var result = DimensionMatch()
         var free = Array(reference.indices)
@@ -77,14 +77,25 @@ import Foundation
             if let scale = dimension.rebuilt?.scale, abs(scale / known - 1) > 0.01 {
                 result.wrongScale += 1
             }
+            let length = dimension.measurement.map { String(format: "%.2f", $0) } ?? "-"
             if let found = free.firstIndex(where: { key(reference[$0]) == key(dimension) }) {
                 free.remove(at: found)
                 result.moved += 1
+                if detail { print("    moved \(key(dimension)) (paper length \(length) mm)") }
             } else {
                 result.pdfOnly += 1
+                if detail { print("    PDF only \(key(dimension)) (paper length \(length) mm)") }
             }
         }
         result.referenceOnly = free.count
+        if detail {
+            for index in free {
+                let length = reference[index].measurement.map { String(format: "%.2f", $0 * known) }
+                print(
+                    "    reference only \(key(reference[index])) (paper length \(length ?? "-") mm)"
+                )
+            }
+        }
         return result
     }
 
@@ -136,7 +147,7 @@ import Foundation
         }
         let match = matchDimensions(
             recovery.dimensions, truth.dimensions, tolerance: 0.5, known: 1 / fit.scale,
-            place: place)
+            detail: flags.detail, place: place)
         var row = PairRow(
             stem: pdf.deletingPathExtension().lastPathComponent, known: 1 / fit.scale,
             found: recovery.scale,

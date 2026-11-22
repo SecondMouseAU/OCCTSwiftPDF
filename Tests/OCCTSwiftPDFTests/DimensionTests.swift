@@ -303,6 +303,19 @@ struct DimensionTests {
         )
     }
 
+    @Test("a view whose own scale is a few percent from the sheet's is not a disagreement")
+    func nearScale() throws {
+        var sheet = DimensionSheet()
+        sheet.column(x: 20, y: 50, count: 10, scale: 2)
+        // 5 percent off: an estimate from a few values, not another scale.
+        sheet.column(x: 130, y: 50, count: 9, scale: 2.1)
+        let recovery = try sheet.page().recoveringDimensions()
+        #expect(abs((recovery.scale ?? 0) - 2) < 1e-9)
+        #expect(recovery.views.allSatisfy { $0.alternative == nil })
+        #expect(
+            !recovery.warnings.contains { if case .scalesDisagree = $0 { true } else { false } })
+    }
+
     @Test("views agreeing on the scale give one scale for the sheet and nothing to flag")
     func twoViewsAgree() throws {
         var sheet = DimensionSheet()

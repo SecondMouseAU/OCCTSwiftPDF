@@ -95,8 +95,9 @@ extension PDF {
         /// Each value text of the view that no dimension explains, and each diameter or radius
         /// symbol the geometry does not bear out.
         public var warnings: [DXF.DimensionRebuild.Warning]
-        /// A scale the view's own values favour that differs from the sheet's, when they favour it
-        /// with at least six values and four fifths of those that vote; or `nil`.
+        /// A scale the view's own values favour that differs from the sheet's by more than 10
+        /// percent, when they favour it with at least six values and four fifths of those that
+        /// vote; or `nil`.
         public var alternative: DimensionAlternative?
     }
 
