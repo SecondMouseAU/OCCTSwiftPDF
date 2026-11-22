@@ -7,6 +7,9 @@
 //   pdfprobe compare <pdf> <dxf-or-zip>         the PDF's first page against the DXF
 //   pdfprobe pairs <folder>                     every <name>.pdf beside <name>_dxf.zip, or beside
 //                                               <name>_jww.zip or .lzh where that is missing
+//   pdfprobe ocr [--compare] [--detail] [--pages N] <file-or-folder>...
+//                                               text drawn as shapes, recovered by OCR where it
+//                                               agrees with the geometry (ShapeTextProbe.swift)
 //
 // `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
 // auxiliary lines (`ADD_LINE` in the TECS DXFs), which are never printed.
@@ -307,6 +310,8 @@ import Foundation
     }
 
     switch arguments.first {
+    case "ocr":
+        ShapeTextProbe.run(Array(arguments.dropFirst()), files: pdfs(in:))
     case "debug-text" where arguments.count == 3:
         debugText(arguments[1], arguments[2])
     case "compare" where arguments.count == 3:
@@ -357,7 +362,8 @@ import Foundation
         guard !paths.isEmpty else {
             print(
                 "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | "
-                    + "pairs <folder> | debug-text <pdf> <text>; --exclude-layer <name> for compare and pairs"
+                    + "pairs <folder> | debug-text <pdf> <text> | ocr [--compare] [--detail] [--pages N] <pdf>...; "
+                    + "--exclude-layer <name> for compare and pairs"
             )
             exit(2)
         }
