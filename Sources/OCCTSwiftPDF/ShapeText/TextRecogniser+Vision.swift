@@ -9,10 +9,18 @@
     import Foundation
     import Vision
 
+    /// Held while Vision recognises, so that one request is in flight in the process at a time.
+    ///
+    /// Requests from several threads at once can deadlock inside Vision's own task queue: the test
+    /// suite, run in parallel, stopped dead there.
+    private let visionLock = NSLock()
+
     /// Recognises text with `VNRecognizeTextRequest` at its accurate level, without language
     /// correction (a drawing's text is codes and numbers, which correction would turn into words).
     struct VisionTextRecogniser: TextRecogniser {
         func lines(in image: CGImage) throws -> [RecognisedLine] {
+            visionLock.lock()
+            defer { visionLock.unlock() }
             let request = VNRecognizeTextRequest()
             request.recognitionLevel = .accurate
             request.usesLanguageCorrection = false

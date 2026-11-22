@@ -18,15 +18,28 @@ import Testing
         ///
         /// Asked of the recogniser alone, on text drawn as text, so that a fault in the package's
         /// own path cannot make the tests that exercise it skip.
+        ///
+        /// It is asked on its own thread and given two minutes, so a Vision that stalls on a
+        /// machine without its models (a virtual runner, say) skips these tests and does not hold
+        /// the suite.
         static let reads: Bool = {
-            guard let image = ShapeTextFixtures.textImage("SCALE 1:50"),
-                let lines = try? VisionTextRecogniser().lines(in: image)
-            else { return false }
-            return lines.contains { $0.text.contains("SCALE") }
+            final class Answer: @unchecked Sendable { var reads = false }
+            let answer = Answer()
+            let finished = DispatchSemaphore(value: 0)
+            let asking = Thread {
+                if let image = ShapeTextFixtures.textImage("SCALE 1:50"),
+                    let lines = try? VisionTextRecogniser().lines(in: image)
+                {
+                    answer.reads = lines.contains { $0.text.contains("SCALE") }
+                }
+                finished.signal()
+            }
+            asking.start()
+            return finished.wait(timeout: .now() + 120) == .success && answer.reads
         }()
     }
 
-    @Suite("Shape text with Vision")
+    @Suite("Shape text with Vision", .serialized)
     struct ShapeTextVisionTests {
         /// What the recogniser made of one string drawn as shapes, and the fixture's ink.
         static func recover(
