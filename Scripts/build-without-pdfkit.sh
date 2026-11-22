@@ -21,9 +21,12 @@ rsync -a --exclude .build --exclude .git --exclude .claude "$root/" "$work/pkg/"
 cd "$work/pkg"
 
 # Every guard must also exclude tvOS: a bare `canImport(PDFKit)` is true on a tvOS SDK that has the
-# framework, so it would link PDFKit there, and the rewrite below would hide that.
-if grep -rnE 'canImport\([[:space:]]*PDFKit[[:space:]]*\)' Sources | grep -v '!os(tvOS)'; then
-    echo "build-without-pdfkit: a PDFKit guard must also contain !os(tvOS) (lines above)" >&2
+# framework, so it would link PDFKit there, and the rewrite below would hide that. Only the two
+# spellings `canImport(PDFKit) && !os(tvOS)` and `!os(tvOS) && canImport(PDFKit)` are accepted,
+# so a `||` cannot slip through.
+if grep -rnE 'canImport\([[:space:]]*PDFKit[[:space:]]*\)' Sources \
+    | grep -vE 'canImport\(PDFKit\) && !os\(tvOS\)|!os\(tvOS\) && canImport\(PDFKit\)'; then
+    echo "build-without-pdfkit: a PDFKit guard must be 'canImport(PDFKit) && !os(tvOS)' (above)" >&2
     exit 1
 fi
 

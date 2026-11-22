@@ -117,6 +117,8 @@ extension PDF {
         case asciiGuess
         /// The characters are PDFKit's, found by position: this reader had none, or (for a run
         /// along or across the page) only guessed ASCII that PDFKit contradicted, or a U+FFFD.
+        ///
+        /// Never on tvOS, where PDFKit is not used.
         case pdfKit
         /// Nothing could decode it: the font has no way back from codes to characters.
         case none
