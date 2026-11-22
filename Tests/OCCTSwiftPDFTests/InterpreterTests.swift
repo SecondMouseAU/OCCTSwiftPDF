@@ -66,7 +66,7 @@ struct InterpreterTests {
                 let radius = chord / (2 * sin(abs(segment.sweep) / 2))
                 // SwiftDXF's fit holds each piece within the tolerance of the curve, not the
                 // radius: the two arcs per quarter come out about 25.29 mm, 0.44 percent short of
-                // 25.4. Arc recovery for the ledger needs a direct test of the whole circle.
+                // 25.4. `fittedDrawing()` tests the whole circle instead (FittedDrawingTests).
                 #expect(abs(radius - 25.4) < 0.15, "radius \(radius)")
             }
         }
