@@ -178,8 +178,10 @@ radius fitted over the whole run.
 - Colours in Indexed, Pattern, DeviceN and Lab spaces are drawn black; device, calibrated,
   ICC-based and Separation colours are read.
 - The comparison's reference reader runs `/usr/bin/unzip`, so it is macOS only.
-- On tvOS PDFKit is not used, so a run only PDFKit can read (the HiraginoSans runs on the Fowler
-  sheets) has no text there, and `drawing()` counts it in `skipped["TEXT"]`.
+- On tvOS PDFKit is not used. A run only PDFKit can read (the HiraginoSans runs on the Fowler
+  sheets) has no text there, and `drawing()` counts it in `skipped["TEXT"]`; a run this reader only
+  guessed (`asciiGuess`) or read with U+FFFD keeps that reading, which can be wrong text, not
+  missing text.
 - A code a `ToUnicode` map does not cover takes the font's own character when its encoding is
   known, and U+FFFD otherwise, rather than being dropped. Codes from a symbolic, TrueType, Type 3
   or embedded font with no encoding are only guessed to be ASCII (`TextDecoding.asciiGuess`).

@@ -30,7 +30,8 @@ timestamp: 2026-11-22
   - `PDF.Source` is where something came from: page, operator index, Form XObjects.
   - The library builds for macOS 15, iOS 18, visionOS 1 and tvOS 18, as OCCTSwiftIO does. PDFKit is
     not used on tvOS, so there a text run keeps the text this package's own decoding gave it (it
-    may have none, and `drawing()` then counts it in `skipped["TEXT"]`).
+    may have none, and `drawing()` then counts it in `skipped["TEXT"]`, or hold a guess or a U+FFFD
+    that PDFKit would have corrected).
     `Scripts/build-without-pdfkit.sh` builds for tvOS with PDFKit rewritten out, which CI runs.
   - `PDF.readReference(at:)` (spike tooling, macOS only) reads the drawing to compare with from a
     DXF, or from a zip holding exactly one entry, a DXF, through `/usr/bin/unzip`.

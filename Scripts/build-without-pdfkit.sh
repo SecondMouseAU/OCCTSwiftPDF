@@ -20,6 +20,13 @@ trap 'rm -rf "$work"' EXIT
 rsync -a --exclude .build --exclude .git --exclude .claude "$root/" "$work/pkg/"
 cd "$work/pkg"
 
+# Every guard must also exclude tvOS: a bare `canImport(PDFKit)` is true on a tvOS SDK that has the
+# framework, so it would link PDFKit there, and the rewrite below would hide that.
+if grep -rnE 'canImport\([[:space:]]*PDFKit[[:space:]]*\)' Sources | grep -v '!os(tvOS)'; then
+    echo "build-without-pdfkit: a PDFKit guard must also contain !os(tvOS) (lines above)" >&2
+    exit 1
+fi
+
 # An import is any line that starts, after attributes, with `import` and an optional kind
 # (`import struct PDFKit.X`, `@preconcurrency import PDFKit`, `import PDFKit // note`).
 grep -rl 'PDFKit' Sources | xargs sed -i '' -E \

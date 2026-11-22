@@ -54,6 +54,7 @@ struct WithoutPDFKitTests {
     /// Whether PDFKit on this machine reads ``japan1File()``, which depends on its system fonts.
     static let pdfKitReadsJapan1: Bool = {
         guard let url = try? japan1File() else { return false }
+        defer { try? FileManager.default.removeItem(at: url.deletingLastPathComponent()) }
         return (try? page(url, crossCheck: true).texts.first?.pdfKitText) == "ABC"
     }()
 

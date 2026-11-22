@@ -15,8 +15,9 @@ PDF library is linked.
 
 It builds for macOS, iOS, visionOS and tvOS, as OCCTSwiftIO does. PDFKit is not used on tvOS (older
 SDKs lack it, and guarding by platform keeps the result the same whichever Xcode builds it), so
-there the cross-check is left out and each text run keeps what the package's own decoding read. The
-comparison tooling (`PDF.readReference`) and `pdfprobe` are macOS only.
+there the cross-check is left out and each text run keeps what the package's own decoding read,
+which for a font with no usable encoding can be missing or a guess. The comparison tooling
+(`PDF.readReference`) and `pdfprobe` are macOS only.
 
 ## Status
 

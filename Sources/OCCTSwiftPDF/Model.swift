@@ -140,7 +140,8 @@ extension PDF {
         /// The characters PDFKit reports inside the run's box, or `nil` when not paired.
         ///
         /// Always `nil` on tvOS, where PDFKit is not used: ``text`` is then this reader's own
-        /// decoding, and `nil` (with a ``decoding`` of ``TextDecoding/none``) for a run it cannot read.
+        /// decoding alone. That is `nil` (with a ``decoding`` of ``TextDecoding/none``) for a run it
+        /// cannot read, and a guess (``TextDecoding/asciiGuess``) or a U+FFFD stays as it is.
         public var pdfKitText: String?
         /// The start of the baseline.
         public var origin: CGPoint
