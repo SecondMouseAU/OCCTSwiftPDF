@@ -307,6 +307,10 @@ import Foundation
     }
 
     switch arguments.first {
+    case "dimensions" where arguments.count >= 2:
+        dimensionsCommand(Array(arguments.dropFirst()))
+    case "dimension-pairs" where arguments.count >= 2:
+        dimensionPairsCommand(Array(arguments.dropFirst()), excluded: excludedLayers)
     case "debug-text" where arguments.count == 3:
         debugText(arguments[1], arguments[2])
     case "compare" where arguments.count == 3:
