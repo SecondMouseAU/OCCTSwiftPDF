@@ -5,11 +5,16 @@
 
 import Foundation
 
-/// The Unicode value of each glyph of a TrueType or OpenType font, found by inverting its `cmap`.
+/// The Unicode value of each glyph of a TrueType font, found by inverting its `cmap`.
 ///
 /// A subset a writer embeds without a `ToUnicode` map still carries this table, and with a CID
 /// font's `CIDToGIDMap` it says what character each code stands for. The font is untrusted input:
 /// every read is bounds-checked and the work is capped.
+///
+/// CoreText was tried first. It loads the ODA subset and maps characters to glyphs, but only that
+/// way round and only for a font it accepts whole: it refuses one that has just a `cmap`, which is
+/// all a small hand-built test font can have. Reading the one table needed does not depend on the
+/// system accepting the font, and the tests can run on a hand-built one.
 struct FontCharacters {
     /// The most code points one font may walk; a real subset has a few thousand.
     private static let budget = 1 << 20
@@ -27,9 +32,8 @@ struct FontCharacters {
     /// can read (formats 4 and 12, under the Unicode platform or Windows encodings 1 and 10).
     init?(_ data: Data) {
         let font = Reader(bytes: [UInt8](data))
-        // A TrueType (`0x00010000`, `true`) or OpenType (`OTTO`) font.
-        guard let version = font.u32(0),
-            [0x0001_0000, 0x7472_7565, 0x4F54_544F].contains(version),
+        // A TrueType font: `0x00010000` or `true`.
+        guard let version = font.u32(0), [0x0001_0000, 0x7472_7565].contains(version),
             let tables = font.u16(4), tables <= 256
         else { return nil }
         var cmap: Int?
@@ -142,8 +146,8 @@ struct EmbeddedCharacters {
     let glyphs: [UInt16]?
     /// The font itself shows its CIDs are Unicode values.
     ///
-    /// It resolves at least one CID, and every one it resolves is the CID. ODA's writer works this
-    /// way.
+    /// It resolves at least two CIDs, and every one it resolves is the CID: one agreeing CID could
+    /// be a coincidence in a font that numbers its CIDs in order. ODA's writer works this way.
     let cidsAreUnicode: Bool
 
     init(characters: FontCharacters, glyphs: [UInt16]?) {
@@ -160,7 +164,7 @@ struct EmbeddedCharacters {
                 break
             }
         }
-        cidsAreUnicode = agreed > 0 && !contradicted
+        cidsAreUnicode = agreed >= 2 && !contradicted
     }
 
     /// A `CIDToGIDMap` stream's two-byte, big-endian entries.

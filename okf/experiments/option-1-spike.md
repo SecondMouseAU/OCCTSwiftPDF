@@ -41,7 +41,8 @@ longer file).
 ### 2. Text
 
 This reader's own decoding covered every text run in the corpus except those in a Japanese font
-on the Fowler sheets (a Type 0 font with no `ToUnicode` map), which PDFKit reads:
+on the Fowler sheets (a Type 0 font with no `ToUnicode` map), which PDFKit reads, except three runs
+on one sheet that nothing decodes:
 
 | Writer | Font encoding | Decoded by |
 |---|---|---|
@@ -77,6 +78,11 @@ on the Fowler sheets (a Type 0 font with no `ToUnicode` map), which PDFKit reads
   shown its CIDs are Unicode, a space CID it cannot resolve is read as that space, and any other
   code it cannot resolve is U+FFFD. Checked against `pdftotext -raw` (a development check only;
   nothing depends on it): every run has the same characters.
+  CoreText was tried first: it loads this subset and maps characters to glyphs, but only that way
+  round, and only for a font it accepts whole (it refuses a font that has just a `cmap`). The table
+  is read directly instead, so it does not depend on the system accepting the font and can be tested
+  with small hand-built ones. Only TrueType programs (`FontFile2`) are read; CFF fonts (`FontFile3`)
+  are not.
 - **Text drawn as shapes, with no text layer.** AutoCAD (`Pandrol`, SHX text as strokes), Acrobat
   PDFWriter (`Repw604s`, filled outlines) and Microsoft Print to PDF draw text as geometry and give
   no text at all. These need glyph recognition: OCR on the rendered area or matching stroke fonts.
@@ -193,8 +199,9 @@ radius fitted over the whole run.
 ## Decision
 
 Option 1 holds. CoreGraphics' scanner gives exact geometry, and this package's own font decoding
-covers every font in the corpus except one Japanese font on the Fowler sheets, which PDFKit reads;
-an embedded font without a `ToUnicode` map is read from the font file itself (its `cmap` table).
+covers every font in the corpus except one Japanese font on the Fowler sheets, which PDFKit reads
+(three runs on one sheet are read by nothing); an embedded font without a `ToUnicode` map is read
+from the font file itself (its `cmap` table).
 PDFKit is worth keeping as a cross-check and a fallback, through selection boxes only. PDFium would add a large
 binary for nothing the corpus needs.
 

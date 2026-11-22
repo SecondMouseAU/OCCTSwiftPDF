@@ -194,7 +194,8 @@ final class Font {
     /// that code when that character is known, and U+FFFD otherwise (also where it would only be
     /// guessed), so a value is never shortened silently
     /// (an unmapped `⌀` before `25.4` must not leave `25.4`). A composite font with gaps in its map
-    /// is decoded through its CMap instead when that covers every code.
+    /// is decoded through its CMap instead when that covers every code, or through its embedded
+    /// font when that leaves fewer codes unread than the map did.
     func decode(_ bytes: [UInt8]) -> (text: String?, decoding: PDF.TextDecoding) {
         let codes = codes(bytes)
         guard let toUnicode else {
@@ -212,7 +213,10 @@ final class Font {
                 missing += 1
             }
         }
-        if missing > 0, isComposite, let other = decodeWithoutToUnicode(bytes, codes) {
+        if missing > 0, isComposite, let other = decodeWithoutToUnicode(bytes, codes),
+            other.decoding != .embeddedFont
+                || (other.text?.filter { $0 == "\u{FFFD}" }.count ?? 0) < missing
+        {
             return other
         }
         return (text, .toUnicode)

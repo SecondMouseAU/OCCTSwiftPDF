@@ -87,6 +87,8 @@ struct EmbeddedFontTests {
         #expect(characters.scalar(forGlyph: 1) == "A")
         #expect(characters.scalar(forGlyph: 2) == "B")
         #expect(characters.scalar(forGlyph: 30) == "X")
+        // The array's 0 is "no glyph", not glyph 0 plus the delta.
+        #expect(characters.scalar(forGlyph: 10) == nil)
         #expect(characters.scalar(forGlyph: 32) == "Z")
         #expect(characters.scalar(forGlyph: 31) == nil)
     }
@@ -118,9 +120,15 @@ struct EmbeddedFontTests {
         counted.replaceSubrange(12..<16, with: Self.be32(0xFFFF_FFFF))
         #expect(FontCharacters(Self.font([(3, 10, counted)]))?.scalar(forGlyph: 1) == "A")
 
-        // Two groups of the whole code space stop at the cap, with what they had mapped.
-        let wide = Self.font([(3, 10, Self.format12([(0, 0x10FFFF, 1), (0, 0x10FFFF, 1)]))])
-        #expect(FontCharacters(wide)?.scalar(forGlyph: 33) == " ")
+        // The first group spends the whole work cap on glyphs too high to keep, so the second, which
+        // a font without the cap would read as "A" on glyph 7, is never reached. With a small first
+        // group the second is read, so only the cap makes the difference.
+        let spent = Self.font(
+            [(3, 10, Self.format12([(0x20, 0x10FFFF, 0x1_0000), (0x41, 0x41, 7)]))])
+        #expect(FontCharacters(spent) == nil)
+        let unspent = Self.font(
+            [(3, 10, Self.format12([(0x20, 0x20, 0x1_0000), (0x41, 0x41, 7)]))])
+        #expect(FontCharacters(unspent)?.scalar(forGlyph: 7) == "A")
 
         // A format 4 with a segment count the data cannot hold.
         var many = Self.format4([(0x41, 0x41, 0, 0)])
@@ -179,6 +187,13 @@ struct EmbeddedFontTests {
         // One CID that agrees and one that does not: not Unicode.
         glyphs[0x50] = 2
         #expect(!EmbeddedCharacters(characters: characters, glyphs: glyphs).cidsAreUnicode)
+
+        // A single agreeing CID could be a coincidence.
+        var single = [UInt16](repeating: 0, count: 0x42)
+        single[0x41] = 1
+        let one = EmbeddedCharacters(characters: characters, glyphs: single)
+        #expect(!one.cidsAreUnicode)
+        #expect(one.character(forCID: 0x20) == nil)
 
         // No CIDToGIDMap: nothing to show it by.
         #expect(!EmbeddedCharacters(characters: characters, glyphs: nil).cidsAreUnicode)
@@ -290,5 +305,37 @@ struct EmbeddedFontTests {
             Self.pdf(codes: "0041", font: Self.font(Self.letters), glyphs: glyphs, toUnicode: map))
         #expect(run.ownText == "Z")
         #expect(run.decoding == .toUnicode)
+    }
+
+    @Test("a ToUnicode map with gaps is kept unless the font leaves fewer codes unread")
+    func toUnicodeWithGaps() throws {
+        func map(_ entries: String) -> String {
+            """
+            /CIDInit /ProcSet findresource begin 12 dict begin begincmap
+            1 begincodespacerange <0000> <FFFF> endcodespacerange
+            \(entries)
+            endcmap end end
+            """
+        }
+        let font = Self.font(Self.letters)
+        let codes = "0041004200430044"
+
+        // The map reads three of the four codes as "XYZ"; the font reads only the first, so it
+        // would leave three unread and the map's reading stands, with its one gap. (`ownText`: with
+        // a U+FFFD in it, a run's `text` may be replaced by PDFKit's.)
+        let narrow = try Self.run(
+            Self.pdf(
+                codes: codes, font: font, glyphs: Self.glyphs([0x41: 1], last: 0x44),
+                toUnicode: map("1 beginbfrange <0041> <0043> <0058> endbfrange")))
+        #expect(narrow.ownText == "XYZ\u{FFFD}")
+
+        // The map reads only the first code, leaving three; the font reads three of the four, so
+        // it leaves fewer unread and replaces the map's reading.
+        let wide = try Self.run(
+            Self.pdf(
+                codes: codes, font: font,
+                glyphs: Self.glyphs([0x41: 1, 0x42: 2, 0x43: 3], last: 0x44),
+                toUnicode: map("1 beginbfchar <0041> <0058> endbfchar")))
+        #expect(wide.ownText == "ABC\u{FFFD}")
     }
 }
