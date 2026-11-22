@@ -2,11 +2,15 @@
 // OCCTSwiftPDF
 //
 // Reading a PDF document: each page through the interpreter, then each text run paired with the
-// characters PDFKit finds in its box (TextPairing.swift), then runs joined into lines.
+// characters PDFKit finds in its box (TextPairing.swift, where PDFKit exists), then runs joined
+// into lines.
 
 import CoreGraphics
 import Foundation
-import PDFKit
+
+#if canImport(PDFKit)
+    import PDFKit
+#endif
 
 extension PDF {
     public enum Error: Swift.Error, Equatable {
@@ -17,21 +21,33 @@ extension PDF {
     /// Read every page of the PDF at `url`, or the first `maximumPages`.
     ///
     /// A file encrypted with an empty user password (only its permissions restricted) is opened.
+    /// Where PDFKit exists each text run is also checked against it; on tvOS, which has none, a run
+    /// keeps the text this reader's own font decoding gave it.
     public static func read(contentsOf url: URL, maximumPages: Int? = nil) throws -> Document {
+        try read(contentsOf: url, maximumPages: maximumPages, crossCheck: true)
+    }
+
+    /// As ``read(contentsOf:maximumPages:)``, with `crossCheck: false` leaving PDFKit out of the
+    /// text, as on tvOS, so that path is also exercised where PDFKit is present.
+    static func read(contentsOf url: URL, maximumPages: Int?, crossCheck: Bool) throws -> Document {
         guard let document = CGPDFDocument(url as CFURL) else { throw Error.cannotOpen }
         if document.isEncrypted && !document.isUnlocked && !document.unlockWithPassword("") {
             throw Error.cannotOpen
         }
-        let kit = PDFDocument(url: url)
-        if let kit, kit.isLocked { _ = kit.unlock(withPassword: "") }
+        #if canImport(PDFKit)
+            let kit = crossCheck ? PDFDocument(url: url) : nil
+            if let kit, kit.isLocked { _ = kit.unlock(withPassword: "") }
+        #endif
         let count = min(document.numberOfPages, maximumPages ?? .max)
         var pages: [Page] = []
         for number in 1...max(count, 1) where number <= count {
             guard let page = document.page(at: number) else { continue }
             var read = Self.read(page, number: number)
-            if let kitPage = kit?.page(at: number - 1) {
-                TextPairing.pair(&read.texts, with: kitPage)
-            }
+            #if canImport(PDFKit)
+                if let kitPage = kit?.page(at: number - 1) {
+                    TextPairing.pair(&read.texts, with: kitPage)
+                }
+            #endif
             read.texts = TextAssembly.lines(read.texts)
             pages.append(read)
         }

@@ -41,6 +41,7 @@ swift test --filter InterpreterTests          # one suite
 swift test --filter TextTests/invisible       # one test: <Suite>/<function name>
 swift test list                               # identifiers, to build a --filter from
 swift run pdfprobe <file-or-folder>...
+xcodebuild build -scheme OCCTSwiftPDF-Package -destination 'generic/platform=tvOS'   # also iOS, visionOS
 swift-format lint --strict --recursive Sources Tests
 swiftlint lint --strict
 ```
@@ -54,8 +55,10 @@ subcommands (`compare`, `pairs`, `debug-text`); see the README.
 
 One library target, `OCCTSwiftPDF`, which `@_exported import`s SwiftDXF so callers get
 `DXF.Drawing` without a second import. `pdfprobe` is a separate executable and the only target that
-links SwiftJWW. The package is macOS only (`platforms: [.macOS(.v15)]`): PDFKit is missing on tvOS,
-which OCCTSwiftIO also builds for, so PDFKit use must be guarded before OCCTSwiftIO links this.
+links SwiftJWW. The package builds for the platforms OCCTSwiftIO does (macOS, iOS, visionOS, tvOS).
+PDFKit is missing on tvOS, so every use of it is behind `#if canImport(PDFKit)` and the text there is
+the package's own decoding alone. `PDF.readReference` (`Process`, `unzip`) and `pdfprobe` are macOS
+only. A new `import PDFKit` or `Process` outside such a guard breaks the tvOS build.
 
 The read path is a pipeline, and the stages only make sense together:
 
@@ -72,8 +75,8 @@ The read path is a pipeline, and the stages only make sense together:
    Shift-JIS `*-RKSJ-*`, Unicode CMaps, simple encodings with `Differences`). Each run records how
    it was decoded (`TextDecoding`), including `asciiGuess` where a symbolic or embedded font gave
    nothing better.
-4. **`TextPairing`** asks PDFKit for the characters inside each run's box, as a cross-check on the
-   package's own decoding and as a fallback where it has none. PDFKit's characters replace only
+4. **`TextPairing`** asks PDFKit (where it exists) for the characters inside each run's box, as a
+   cross-check on the package's own decoding and as a fallback where it has none. PDFKit's characters replace only
    guesses and U+FFFD, and for an inclined run they never replace a reading, only fill a gap.
 5. **`TextAssembly`** joins runs that continue one another along a baseline, because some writers
    (Jw_cad) show one character per `Tj`.
@@ -120,4 +123,5 @@ corpus tests are its callers.
   updates the experiment page.
 - Analytic, not pixels: correctness is shown against the paired DXF or JWW of the same drawing,
   by coordinates, never by comparing pictures.
-- CI runs on GitHub's hosted `macos-15` runners, which are free for this public repo.
+- CI runs on GitHub's hosted `macos-15` runners, which are free for this public repo. `tests.yml`
+  also builds the package for iOS, tvOS and visionOS.

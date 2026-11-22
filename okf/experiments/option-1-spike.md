@@ -4,7 +4,7 @@ title: Option 1 spike, Apple's frameworks only
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [spike, pdf, cgpdfscanner, pdfkit, vector]
 description: CoreGraphics' PDF scanner with this package's own font decoding reads CAD-exported vector PDFs into DXF.Drawing, matching 289 of 321 TECS pairs to hundredths of a millimetre; PDFium is not needed. Text drawn as shapes is the gap, and the bridge to scans.
-timestamp: 2026-11-18
+timestamp: 2026-11-22
 ---
 
 # Option 1 spike: Apple's frameworks only
@@ -202,8 +202,9 @@ binary for nothing the corpus needs.
    lines.
 4. Scale inference from values against drawn lengths, per view.
 5. Wire into OCCTSwiftIO's `DrawingLoader` as `.pdf`. This package is public and LGPL-2.1 like
-   OCCTSwiftIO, which builds for iOS, visionOS and tvOS: guard the PDFKit use (no PDFKit on tvOS)
-   and keep the comparison's `unzip` reader out of what OCCTSwiftIO links (no `Process` outside
-   macOS).
+   OCCTSwiftIO, which builds for iOS, visionOS and tvOS. The PDFKit use is now guarded (no PDFKit
+   on tvOS, [#3](https://github.com/SecondMouseAU/OCCTSwiftPDF/issues/3)) and the comparison's
+   `unzip` reader is macOS only, so the package builds on all four; what is left is the wiring and
+   a first tag to pin.
 6. Text drawn as shapes: OCR on the rendered area (Apple Vision), accepted only where it agrees
    with the measured geometry. The first piece of the raster path.

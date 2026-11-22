@@ -13,6 +13,10 @@ transforms, text placement, marked content), the package's own font decoding for
 PDFKit as a cross-check on that decoding and a fallback where it has no characters. No third-party
 PDF library is linked.
 
+It builds for macOS, iOS, visionOS and tvOS, as OCCTSwiftIO does. tvOS has no PDFKit, so there the
+cross-check is left out and each text run keeps what the package's own decoding read. The
+comparison tooling (`PDF.readReference`) and `pdfprobe` are macOS only.
+
 ## Status
 
 **Spike.** The question it answers is whether Apple's frameworks are enough to read the vector

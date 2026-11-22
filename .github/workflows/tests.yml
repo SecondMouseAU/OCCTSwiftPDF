@@ -42,3 +42,22 @@ jobs:
 
       - name: swift test
         run: swift test
+
+  # OCCTSwiftIO builds for iOS, tvOS and visionOS as well, so this package must. tvOS has no PDFKit,
+  # which is the platform this catches; the -Package scheme also builds pdfprobe's stub.
+  platforms:
+    runs-on: macos-15
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [iOS, tvOS, visionOS]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build for ${{ matrix.platform }}
+        run: |
+          xcodebuild build \
+            -scheme OCCTSwiftPDF-Package \
+            -destination "generic/platform=${{ matrix.platform }}" \
+            -skipPackagePluginValidation
