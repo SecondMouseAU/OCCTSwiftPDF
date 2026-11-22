@@ -18,6 +18,9 @@ extension PDF {
         /// Reference units to paper millimetres.
         public var scale: Double
         public var rotationDeg: Double
+        /// Where the reference's origin lies on the paper, in millimetres, after the scale and the
+        /// rotation: a reference point `p` is at `scale * R(rotationDeg) * p + translation`.
+        public var translation: DXF.Point2
         /// Root mean square distance of the kept anchors after the text fit, in paper millimetres.
         public var anchorResidual: Double
         /// Root mean square distance of the matched geometry after the fit is refined on it.
@@ -122,7 +125,8 @@ extension PDF {
         }
         return Comparison(
             anchors: pairs.count, anchorsUsed: used.count, scale: fit.scale,
-            rotationDeg: fit.rotation * 180 / .pi, anchorResidual: residual,
+            rotationDeg: fit.rotation * 180 / .pi, translation: DXF.Point2(fit.tx, fit.ty),
+            anchorResidual: residual,
             geometryResidual: refinedResidual,
             referenceCovered: fraction(refDistances, tolerance),
             pdfCovered: fraction(pdfDistances, tolerance),
