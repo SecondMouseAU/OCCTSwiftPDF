@@ -3,8 +3,7 @@ import Testing
 
 @testable import OCCTSwiftPDF
 
-/// The text path where the SDK has no PDFKit (older tvOS SDKs), run here by leaving PDFKit out of
-/// the read.
+/// The text path on tvOS, where PDFKit is not used, run here by leaving PDFKit out of the read.
 @Suite("Without PDFKit")
 struct WithoutPDFKitTests {
     /// The first page of the PDF at `url`, read with or without the PDFKit cross-check.
@@ -60,7 +59,9 @@ struct WithoutPDFKitTests {
 
     @Test(
         "text only PDFKit can read is read with it and left without text when it is absent",
-        .enabled(if: WithoutPDFKitTests.pdfKitReadsJapan1))
+        .enabled(
+            if: WithoutPDFKitTests.pdfKitReadsJapan1,
+            "PDFKit does not read the Adobe-Japan1 fixture on this machine"))
     func pdfKitOnlyText() throws {
         let url = try Self.japan1File()
         let checked = try #require(try Self.page(url, crossCheck: true).texts.first)

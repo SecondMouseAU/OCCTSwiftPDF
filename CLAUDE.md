@@ -55,12 +55,13 @@ subcommands (`compare`, `pairs`, `debug-text`); see the README.
 
 One library target, `OCCTSwiftPDF`, which `@_exported import`s SwiftDXF so callers get `DXF.Drawing`
 without a second import. `pdfprobe` is a separate executable and the only target that links
-SwiftJWW. The package builds for the platforms OCCTSwiftIO does (macOS, iOS, visionOS, tvOS). Older
-tvOS SDKs have no PDFKit and newer ones do, so every use of it is behind `#if canImport(PDFKit)`,
-and where it is absent the text is the package's own decoding alone. `PDF.readReference` (`Process`,
-`unzip`) and `pdfprobe` are macOS only. A new `import PDFKit` or `Process` outside such a guard
-breaks the build on an SDK without it; `Scripts/build-without-pdfkit.sh` builds for tvOS as if the
-SDK had none, which a plain tvOS build on a recent Xcode does not.
+SwiftJWW. The package builds for the platforms OCCTSwiftIO does (macOS, iOS, visionOS, tvOS). PDFKit
+is not used on tvOS (older SDKs lack it, and an app built with a newer one might not launch on a
+tvOS without it), so every use of it is behind `#if canImport(PDFKit) && !os(tvOS)`, and on tvOS the
+text is the package's own decoding alone. `PDF.readReference` (`Process`, `unzip`) and `pdfprobe`
+are macOS only. A new `import PDFKit` or `Process` outside such a guard breaks the build on an SDK
+without it; `Scripts/build-without-pdfkit.sh` builds for tvOS with PDFKit rewritten out, which
+catches a use outside a guard even on an SDK that has the framework.
 
 The read path is a pipeline, and the stages only make sense together:
 

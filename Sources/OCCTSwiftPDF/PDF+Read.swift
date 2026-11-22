@@ -2,13 +2,13 @@
 // OCCTSwiftPDF
 //
 // Reading a PDF document: each page through the interpreter, then each text run paired with the
-// characters PDFKit finds in its box (TextPairing.swift, where PDFKit exists), then runs joined
-// into lines.
+// characters PDFKit finds in its box (TextPairing+PDFKit.swift, on every platform but tvOS), then
+// runs joined into lines.
 
 import CoreGraphics
 import Foundation
 
-#if canImport(PDFKit)
+#if canImport(PDFKit) && !os(tvOS)
     import PDFKit
 #endif
 
@@ -21,20 +21,20 @@ extension PDF {
     /// Read every page of the PDF at `url`, or the first `maximumPages`.
     ///
     /// A file encrypted with an empty user password (only its permissions restricted) is opened.
-    /// Where the SDK has PDFKit each text run is also checked against it; where it has none (older
-    /// tvOS SDKs), a run keeps the text this reader's own font decoding gave it.
+    /// Except on tvOS, where PDFKit is not used, each text run is also checked against PDFKit; on
+    /// tvOS a run keeps the text this reader's own font decoding gave it.
     public static func read(contentsOf url: URL, maximumPages: Int? = nil) throws -> Document {
         try read(contentsOf: url, maximumPages: maximumPages, crossCheck: true)
     }
 
     /// As ``read(contentsOf:maximumPages:)``, with `crossCheck: false` leaving PDFKit out of the
-    /// text, as where the SDK has none, so that path is also exercised where PDFKit is present.
+    /// text, as on tvOS, so that path is also exercised on the other platforms.
     static func read(contentsOf url: URL, maximumPages: Int?, crossCheck: Bool) throws -> Document {
         guard let document = CGPDFDocument(url as CFURL) else { throw Error.cannotOpen }
         if document.isEncrypted && !document.isUnlocked && !document.unlockWithPassword("") {
             throw Error.cannotOpen
         }
-        #if canImport(PDFKit)
+        #if canImport(PDFKit) && !os(tvOS)
             let kit = crossCheck ? PDFDocument(url: url) : nil
             if let kit, kit.isLocked { _ = kit.unlock(withPassword: "") }
         #endif
@@ -43,7 +43,7 @@ extension PDF {
         for number in 1...max(count, 1) where number <= count {
             guard let page = document.page(at: number) else { continue }
             var read = Self.read(page, number: number)
-            #if canImport(PDFKit)
+            #if canImport(PDFKit) && !os(tvOS)
                 if let kitPage = kit?.page(at: number - 1) {
                     TextPairing.pair(&read.texts, with: kitPage)
                 }
