@@ -4,7 +4,7 @@ title: Components index
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [index]
 description: Public modules and API surfaces exposed by OCCTSwiftPDF.
-timestamp: 2026-11-22
+timestamp: 2026-11-23
 ---
 
 # Components
@@ -33,6 +33,18 @@ timestamp: 2026-11-22
     may have none, and `drawing()` then counts it in `skipped["TEXT"]`, or hold a guess or a U+FFFD
     that PDFKit would have corrected).
     `Scripts/build-without-pdfkit.sh` builds for tvOS with PDFKit rewritten out, which CI runs.
+    Vision (`ShapeText/`) is on all four platforms, behind `#if canImport(Vision)`; recovering
+    text throws `PDF.RecognitionError.unavailable` where there is none.
+  - `PDF.Document.recoveringShapeText(options:)` and `PDF.Page.recoveringShapeText(from:options:)`
+    (opt-in; the only place Vision is called) recover text a writer drew as shapes (filled outlines
+    or strokes), by OCR, where the result agrees with the geometry. They return the document with
+    the accepted text added to each page's `texts` as runs decoded `.ocr` (`TextDecoding.ocr`, with
+    the recogniser's `TextRun.confidence`; text read from the file has no confidence), and a
+    `ShapeTextReport` for each page: the clusters of shapes found, how many were accepted, and the
+    rest by rejection reason (`ShapeTextRejection`), with a `ShapeTextDecision` for each cluster.
+    `ShapeTextOptions` holds every tolerance. `drawing()` draws the OCR text with an identity ending
+    in `:ocr` and its place among the OCR text (`p1:op5:ocr0`); the shapes it came from stay in
+    `skipped["FILL"]`. `PDF.read` and `drawing()` on a page not recovered are unchanged.
   - `PDF.readReference(at:)` (spike tooling, macOS only) reads the drawing to compare with from a
     DXF, or from a zip holding exactly one entry, a DXF, through `/usr/bin/unzip`.
   - `PDF.compare(_:with:tolerance:)` (spike tooling) places a reference drawing of the same sheet
@@ -67,6 +79,32 @@ timestamp: 2026-11-22
   they contradict and a reading with U+FFFD; an inclined run's axis-aligned box can take in its
   neighbours, so there they never replace this reader's own reading and fill in only when they
   number its codes.
+- **Shape text** (`ShapeText/`): text drawn as shapes, recovered by OCR. A seam of four steps, each
+  its own file, so the rules can be tested without Vision:
+  1. **Find** (`ShapeTextPieces.swift`, `ShapeTextRegions.swift`): the small painted subpaths of a
+     page (at most 64 page units), grouped into glyphs (the hole of an `O` joins its outline), into
+     blobs by nearness, and each blob into lines along the direction (the page's x axis, its y axis
+     or the blob's principal axis) that gives the longest lines. A line is a `ShapeTextRegion`: its
+     ink box measured along its reading direction, with the baseline where most glyphs stand. A line
+     already under a text run of about its size (`TextCoverage.swift`, a grid of points tested
+     against the run's own box, so a run across the page covers only what it crosses) is skipped, or
+     recognised for comparison.
+  2. **Render** (`ShapeTextRenderer.swift`): the page rendered by CoreGraphics (`CGPDFPage`) in
+     tiles at the scale that makes a line a wanted number of pixels high, and each line cut out
+     upright with a margin; a line is read at each of `ShapeTextOptions.readingPixels` (40, 64
+     and 96).
+  3. **Recognise** (`TextRecogniser.swift`, `TextRecogniser+Vision.swift`): a protocol, with
+     `VNRecognizeTextRequest` (accurate, no language correction) behind `#if canImport(Vision)`, one
+     request in flight in the process at a time (parallel requests deadlock inside Vision). A
+     reading that fails by direction is tried the other way round.
+  4. **Validate** (`ShapeTextValidator.swift`): the recognised line is accepted only if its
+     confidence, characters (a letter or digit, no replacement character, nothing outside the
+     Unicode blocks a drawing's text is in, no Latin and Cyrillic in one word), box (intersection over union with the shapes' box), direction (within 8 degrees),
+     height (0.6 to 1.8 of the shapes'), count (a third to 1.3 of the glyph pieces) and length per
+     character (0.2 to 1.8 of its height) fit the shapes, and every reading gives the same
+     characters.
+
+  The accepted text is placed by the shapes, not by the recogniser's box.
 - **Text assembly** (`TextAssembly.swift`): joins runs that continue one another along a baseline,
   since some writers show one character per operation.
 - **Comparison support** (`Comparison+Sampling.swift`, `Similarity.swift`, `SegmentIndex.swift`):
@@ -78,4 +116,7 @@ timestamp: 2026-11-22
   SwiftJWW at full size, without Jw_cad's auxiliary lines and colours, number 9);
   `--exclude-layer <name>` leaves a DXF layer out, and `pairs` ends with the figures the experiment
   page reports; `pdfprobe debug-text <pdf> <text>` shows where
-  this reader and PDFKit each put a text.
+  this reader and PDFKit each put a text; `pdfprobe ocr [--compare] [--detail] [--pages N]
+  <file-or-folder>...` recovers text drawn as shapes and reports each page's clusters found,
+  accepted and rejected (with why), and with `--compare` checks the accepted text against the text
+  the page already has there, by string and by position.

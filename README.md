@@ -30,8 +30,12 @@ text with its own font decoding and checks it against PDFKit, joins text shown a
 time into lines, says whether each page is vector, raster or mixed, and turns a page into a
 `DXF.Drawing` in millimetres with an identity on every entity.
 
+Opt-in, not part of a plain read: text drawn as shapes (filled outlines or strokes, so there is no
+text to read) can be recovered by OCR with Apple Vision, accepted only where the result agrees with
+the measured geometry and marked as OCR (see below).
+
 Not built yet, on purpose: arc and circle recovery from curves and runs of short lines, dimension
-rebuilding, scale inference, reading text drawn as shapes, and the wiring into OCCTSwiftIO.
+rebuilding, scale inference, and the wiring into OCCTSwiftIO.
 
 ## Use
 
@@ -42,7 +46,20 @@ let document = try PDF.read(contentsOf: url)
 for page in document.pages where page.kind == .vector {
     let drawing = page.drawing()   // DXF.Drawing, millimetres on the sheet
 }
+
+// Only when asked: text a writer drew as shapes, recovered by OCR where it agrees with the shapes.
+let recovery = try document.recoveringShapeText()
+let report = recovery.reports[1]            // regions found, accepted, rejected and why
+let text = recovery.document.pages[0].texts // the accepted runs have decoding == .ocr and a confidence
 ```
+
+`PDF.read` and `drawing()` never call Vision. Recovery renders the page, finds lines of small
+filled or stroked shapes, recognises each, and keeps the result only if its position, direction and
+height agree with the shapes and its characters are plausible for their number. Accepted text is
+`.ocr` (never read from the file), and a wrong string is worse than none, so everything else is
+counted in the report with its reason. OCR can still confuse look-alike characters that the
+geometry cannot tell apart (`/` for `V`, `S` for `$`); `okf/experiments/option-1-spike.md` has the
+measured rate.
 
 ## Command line
 
@@ -51,6 +68,7 @@ swift run pdfprobe [--detail] <file-or-folder>...   # what each PDF is made of
 swift run pdfprobe compare <pdf> <dxf-or-zip>         # a PDF against the DXF of the same drawing
 swift run pdfprobe pairs <folder>                     # every <name>.pdf beside <name>_dxf.zip, or _jww.zip
 swift run pdfprobe debug-text <pdf> <text>            # where this reader and PDFKit put a text
+swift run pdfprobe ocr [--compare] [--detail] [--pages N] <pdf>...   # text drawn as shapes, by OCR
 ```
 
 `compare` and `pairs` take `--exclude-layer <name>` (repeatable) to leave a DXF layer out, such as
@@ -62,6 +80,6 @@ SwiftJWW at full size, without Jw_cad's auxiliary lines, which are never printed
 ## License
 
 LGPL-2.1, like OCCTSwiftIO, which is meant to read PDFs through this package. The library links
-SwiftDXF (MIT) and Apple's system frameworks (CoreGraphics, PDFKit) and nothing else; the `pdfprobe`
+SwiftDXF (MIT) and Apple's system frameworks (CoreGraphics, PDFKit, Vision) and nothing else; the `pdfprobe`
 tool also links SwiftJWW (MIT). No third-party code is copied into it, and no third-party drawings
 are committed.
