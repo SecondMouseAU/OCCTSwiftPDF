@@ -28,4 +28,5 @@ grep -rl 'PDFKit' Sources | xargs sed -i '' -E \
 xcodebuild build \
     -scheme OCCTSwiftPDF-Package \
     -destination "generic/platform=$platform" \
+    -derivedDataPath "$work/DerivedData" \
     -skipPackagePluginValidation
