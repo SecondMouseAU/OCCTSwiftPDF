@@ -4,7 +4,7 @@ title: Option 1 spike, Apple's frameworks only
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [spike, pdf, cgpdfscanner, pdfkit, vector]
 description: CoreGraphics' PDF scanner with this package's own font decoding reads CAD-exported vector PDFs into DXF.Drawing, matching 289 of 321 TECS pairs to hundredths of a millimetre; PDFium is not needed. Text drawn as shapes is the gap, and the bridge to scans.
-timestamp: 2026-11-22
+timestamp: 2026-11-23
 ---
 
 # Option 1 spike: Apple's frameworks only
@@ -13,8 +13,9 @@ timestamp: 2026-11-22
 
 The reader interprets each page with `CGPDFScanner`, keeps the graphics and text state itself,
 decodes text with its own font decoding, and asks PDFKit for the characters in each run's box as
-a check and a fallback. Arc recovery, dimension rebuilding, scale inference and the OCCTSwiftIO
-wiring were left out on purpose.
+a check and a fallback. Dimension rebuilding, scale inference and the OCCTSwiftIO wiring were
+left out on purpose; arc recovery was left out of the spike and has since been added
+(`fittedDrawing()`, see Arcs below).
 
 ## The corpus
 
@@ -165,13 +166,100 @@ percent covered, median 0.007 mm, 107 of 107 texts), so either is a sound refere
 Nothing found points at the reader: where geometry is missing, it is missing from one file, not
 lost by the interpretation.
 
-### Arcs (out of scope, one finding)
+### Arcs
 
-Curves come through as degree-3 splines, and SwiftDXF's `Entity.fitted(tolerance:)` turns them
-into arcs within the tolerance. It holds position, not radius: a one-inch circle drawn as four
-curves came back as eight arcs of radius 25.29 mm against 25.4 at a tolerance of 0.01 mm. Values
-for the ledger need a direct test that a run of curves, or of short lines, is one circle, with the
-radius fitted over the whole run.
+**The problem.** Curves come through `drawing()` as degree-3 splines, and SwiftDXF's
+`Entity.fitted(tolerance:)` turns each into arcs within the tolerance. It holds position, not
+radius: a one-inch circle drawn as four curves came back as eight arcs of radius 25.29 mm against
+25.4 at a tolerance of 0.01 mm. `PDF.Page.fittedDrawing()` (2026-11-23) tests the whole run
+instead: that circle comes back as one circle of radius 25.403 mm (the four curves are 0.027
+percent out of round themselves), with a largest residual of 0.0036 mm, tagged `FITTED`.
+`drawing()` is unchanged: its hash over every page of all 590 PDFs (entities, identities,
+`skipped`) is the same before and after.
+
+**What is taken.** One circle fitted over the whole run (least squares on the geometric distance,
+not a bias-prone algebraic fit) must pass within a tolerance of every vertex and of eight samples
+along every curve, the run must sweep at least 45 degrees, and a run of chords must have at least 8
+of them, each at most 24 degrees, of near equal steps, that the polyline does not carry on past in
+the same curve. Arcs that meet end to start on one circle in one layer and colour are joined across
+subpaths and strokes and fitted again. The numbers came from the corpus, not from a guess:
+
+- A first version (0.01 mm for every run, arcs from 4 chords and 20 degrees) found 54,271 arcs in
+  the 47 files of `PDFs/`, and against the TECS DXFs only 625 of the 6,281 arcs it took from
+  chords matched a reference arc (10 percent). The rest were locally round pieces of freehand
+  curves, spirals (the SOLIDWORKS Acme thread on a McMaster sheet) and the arcs of ellipses: any
+  smooth polyline is round to a hundredth of a millimetre over a few chords. Chords from the
+  writers that flatten exactly (iText: 0.0002 mm median residual, a second cluster at
+  0.005 to 0.009 for the rest) are why chords now need 0.003 mm, 8 segments and the rest.
+- For arcs from curves, the share a reference arc confirms rises with the sweep: 44 percent under
+  25 degrees, 62 at 25 to 30, 72 to 89 at 30 to 45, 93 at 45 to 60, 97 at 60 to 90 and 98 from 90.
+  That is why an arc must sweep 45 degrees. A shorter one stays a spline, and SwiftDXF's `fitted`
+  can still turn it into arcs.
+- Unit tests on hand-built runs: polygons of 3 to 14 sides, ellipses (five axis ratios, three
+  chord counts), a spiral, a parabola, an S-curve and an eccentric Bezier arc are not taken; a
+  rounded rectangle is four lines and four arcs of the corner radius, never one circle.
+
+**Recovered, over the corpus** (`pdfprobe arcs`; 589 of the 590 PDFs open, 429 have at least one
+circle or arc; 69,211 circles and 206,075 arcs):
+
+| Producer | files (with fits) | circles | arcs | from curves / lines / mixed | median residual (mm) |
+|---|---|---|---|---|---|
+| Acrobat Distiller | 314 (177) | 49892 | 142818 | 149477 / 0 / 43233 | 0.0022 |
+| Acrobat PDFWriter | 175 (168) | 5367 | 22896 | 22896 / 0 / 5367 | 0.0028 |
+| Adobe PDF Library | 7 (4) | 2043 | 9456 | 11081 / 0 / 418 | 0.0044 |
+| Aspose.PDF for .NET | 1 (1) | 1 | 0 | 0 / 1 / 0 | 0.0002 |
+| GPL Ghostscript | 2 (2) | 0 | 447 | 387 / 0 / 60 | 0.0033 |
+| JUST PDF | 2 (2) | 1905 | 3394 | 4904 / 0 / 395 | 0.0029 |
+| MicroArts PDF Exchange Project | 35 (35) | 6844 | 19407 | 26251 / 0 / 0 | 0.0001 |
+| Microsoft: Print To PDF | 1 (1) | 12 | 119 | 131 / 0 / 0 | 0.0045 |
+| Microsoft PowerPoint | 7 (3) | 146 | 490 | 608 / 0 / 28 | 0.0028 |
+| Nitro Pro | 1 (1) | 0 | 6 | 6 / 0 / 0 | 0.0056 |
+| ODA PDF Export | 1 (1) | 3 | 0 | 3 / 0 / 0 | 0.0003 |
+| Online2PDF.com | 1 (1) | 0 | 4 | 4 / 0 / 0 | 0.0012 |
+| PDF-XChange Viewer [Version: | 1 (1) | 0 | 236 | 198 / 0 / 38 | 0.0028 |
+| iText | 3 (3) | 1656 | 5217 | 0 / 6873 / 0 | 0.0002 |
+| macOS Version | 1 (1) | 27 | 58 | 0 / 85 / 0 | 0.0002 |
+| Quartz PDFContext (macOS) | 27 (27) | 1311 | 1377 | 2600 / 0 / 88 | 0.0002 |
+| pdfplot12.hdi | 1 (1) | 4 | 150 | 154 / 0 / 0 | 0.0001 |
+
+No circle or arc in the five SOLIDWORKS sheets (the McMaster sheets draw threads as spirals of
+chords), nor in Acrobat Pro, Corel, doPDF and Conv2pdf output. Mixed is curves with a closing
+line.
+
+**Against the paired DXF or JWW, by coordinates** (`pdfprobe arc-pairs`, 326 pairs, a reference
+circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles overlapping):
+
+- 228,655 fits: 215,849 (94.4 percent) match a reference circle or arc, 7,831 are circles centred
+  on a reference `POINT` (Jw_cad prints each point as a small circle: `Igata` has 161 `POINT`s
+  and 161 such circles, of the same 3 mm radius), 4,975 (2.2 percent) are neither, and 2,380 of
+  those (1.0 percent of all) have no reference geometry within 0.1 mm along them. Nine files
+  hold 90 percent of the 2,380; seven are in the pairs listed above as holding other versions or
+  extents of the sheet (`ec33`, `ec34`, `dd20-1` and the wagon family), and `dt71` and `dmh17` have
+  not been looked into.
+- Radius error, fit less reference, in millimetres at full size: MicroArts JWtoPDF median 0.003, 90th
+  percentile 0.02, and 0.0001 mm on the paper; centre error median 0.0002 mm on the paper.
+  Acrobat Distiller median 0.96, 90th percentile 2.5 (at 1:50 to 1:100): the file's coordinates
+  are in steps of about 0.01 mm on the paper, and the fit's residual is within them. Acrobat
+  PDFWriter median 3.5: its circles are 0.03 to 0.05 mm smaller on the paper than the CAD's,
+  whatever the fit, so what the file draws is not what the CAD drew. Fitting does not beat the
+  writer; it stops adding error to it.
+- Not recovered: 152,360 of the 364,776 reference circles and arcs have no fit. In the two pairs
+  looked at about four in five sweep under 45 degrees and the rest have a radius of 0.2 to 0.5
+  mm on the paper. The 2120 (Jw_cad through Acrobat PDFWriter 3.0J) has none of its 1,909
+  reference circles and arcs recovered: its arcs are runs of a few chords (4 to 6 in the ones
+  looked at), too few to take. No flattened circle was found in any TECS
+  pair, so how well chords are recovered is measured only by unit tests and by the corpus's
+  exact flatteners (iText: 1,656 circles, 5,217 arcs), which have no reference.
+- Joining matters for DraftingCAD through Quartz (the Fowler sheets), which draws each circle as
+  two half circles in two strokes with different pens. On the 47 files of `PDFs/` it took the
+  circles from 3,203 to 3,246 (18 more in the Quartz files, 25 in the iText ones) and the arcs from
+  11,629 to 11,381. Arcs that still meet on one circle but were not joined (740 pairs over the
+  corpus, mostly the strokes of text drawn as shapes) have more than one neighbour, another layer
+  or colour, or no circle that fits them all.
+
+Not done: elliptical arcs and ellipses are not recovered (they stay splines); a circle drawn as
+two strokes of different layers or colours is not joined; tolerances were set on TECS and
+`PDFs/` and are options (`PDF.ArcFitting`), not measured on other writers.
 
 ### Known limits of the spike reader
 
@@ -219,8 +307,9 @@ binary for nothing the corpus needs.
 ## Next
 
 1. Done: the ODA text is recovered from the embedded font's `cmap` (`TextDecoding.embeddedFont`).
-2. Arc and circle recovery from curves and from runs of short lines, tagged `FITTED` with the
-   residual, radius fitted over the whole run.
+2. Done: arc and circle recovery from curves and from runs of short lines, tagged `FITTED` with
+   the residual, radius fitted over the whole run (`PDF.Page.fittedDrawing()`, see Arcs). Still
+   open: arcs under 45 degrees, flattened circles with a reference to check against, ellipses.
 3. Dimension rebuilding without Jw_cad's flags (shared with OCCTSwiftIO#72): value text first, then
    the dimension line, arrowheads (filled-only paths, kept now as `skipped["FILL"]`) and extension
    lines.

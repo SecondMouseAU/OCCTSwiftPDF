@@ -4,7 +4,7 @@ title: Components index
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [index]
 description: Public modules and API surfaces exposed by OCCTSwiftPDF.
-timestamp: 2026-11-22
+timestamp: 2026-11-23
 ---
 
 # Components
@@ -27,6 +27,23 @@ timestamp: 2026-11-22
     the operator and any Form XObjects it came through, with the piece's place among those one
     painted path became (`p1:op120:0`, via `Fm0#1`). Filled-only paths, images and text with no
     characters are counted in `skipped` by layer.
+  - `PDF.Page.fittedDrawing(_:)` is `drawing()` with each run of Bezier curves, or of short
+    straight lines, that is really one circle or arc replaced by that circle or arc, with the
+    radius fitted over the whole run. It returns a `PDF.FittedDrawing`: the drawing, and one
+    `PDF.ArcFit` per circle or arc (shape, centre, radius, angles, the largest and RMS residual in
+    millimetres on the paper, what the run was made of, the operators that drew it, the stroke
+    width). The provenance is `FITTED` (`PDF.ArcFit.provenance`), and the entity's identity locator
+    ends in `:FITTED` (`p1:op120:0:FITTED`). `drawing()` itself is unchanged: curves are still
+    one spline each.
+    A run is taken only if one circle passes within `PDF.ArcFitting`'s tolerance of every vertex
+    and of points sampled along every curve (0.01 mm on the paper for a run with curves, or 0.0004
+    of the radius if that is larger; 0.003 mm for a run of chords only) and it sweeps at least 45
+    degrees. A run of chords also needs at least 8 of them, each subtending at most 24 degrees,
+    the largest no more than 1.5 times the smallest, and the polyline must not carry on in the
+    same curve past either end: that keeps ellipses, spirals and freehand curves from being cut
+    into arcs. Arcs that meet end to start on one circle, in one layer and colour, are joined
+    across subpaths and strokes and fitted again as one, because DraftingCAD through Quartz draws a
+    circle as two half circles in two strokes, with different pens.
   - `PDF.Source` is where something came from: page, operator index, Form XObjects.
   - The library builds for macOS 15, iOS 18, visionOS 1 and tvOS 18, as OCCTSwiftIO does. PDFKit is
     not used on tvOS, so there a text run keeps the text this package's own decoding gave it (it
@@ -39,7 +56,15 @@ timestamp: 2026-11-22
     on the paper, by a similarity transform fitted robustly to the texts that occur once in each
     (the pair of anchors most others agree with) and refined on the geometry, and reports how much
     of each drawing lies within the tolerance of the other, with the reference's uncovered
-    geometry by layer and entity type.
+    geometry by layer and entity type. The result's `placement` (`PDF.Placement`: scale, rotation,
+    translation) is where the reference lies on the paper.
+  - `PDF.compareArcs(_:with:placedBy:within:)` (spike tooling) matches a `FittedDrawing`'s circles
+    and arcs with the reference's, placed by that transform: each fit to the reference circle or
+    arc nearest in centre and radius within the bound (angles overlapping, for arcs), with the
+    radius, centre and endpoint errors; the circles centred on a reference `POINT` (Jw_cad prints
+    points as small circles); the fits with no reference circle or arc; the reference's that no
+    fit matched; and for each fit the fraction of its length within 0.1 mm of any reference
+    geometry.
 - **Interpreter** (`Interpreter/PageInterpreter.swift`): runs a page's content stream through
   `CGPDFScanner`, keeping the graphics state stack, the current path, the text state, marked
   content (`BDC /OC` and a Form XObject's `/OC` become layers) and Form XObjects (followed with
@@ -69,11 +94,23 @@ timestamp: 2026-11-22
   number its codes.
 - **Text assembly** (`TextAssembly.swift`): joins runs that continue one another along a baseline,
   since some writers show one character per operation.
+- **Arc recovery** (`Arcs/`): `CircleFit` (a least-squares circle, Kasa then Gauss-Newton on the
+  geometric distance, so the radius is not biased), `ArcRecovery` (from the left of each subpath,
+  the longest run of segments one circle fits, grown while it stays feasible), `ArcJoining` (arcs
+  that meet on one circle, fitted again over all their points), `Page+ArcPlan` (what the page's
+  paths hold, across subpaths and strokes, before anything is put in the drawing) and
+  `ArcComparison` (the spike tooling above). `Page+Drawing.swift` puts the plan in the drawing.
 - **Comparison support** (`Comparison+Sampling.swift`, `Similarity.swift`, `SegmentIndex.swift`):
   drawings as straight segments sampled at a fixed step, the similarity fit (least squares, and
   robust with a fixed-seed sampler so results repeat), and a grid index for nearest-segment queries.
 - **`pdfprobe`** (executable): `pdfprobe [--detail] <file-or-folder>...` reports what each PDF is
-  made of; `pdfprobe compare <pdf> <dxf-or-zip>` and `pdfprobe pairs <folder>` compare PDFs with
+  made of; `pdfprobe arcs [--detail] <file-or-folder>...` counts the circles and arcs recovered
+  per producer (`--tolerance`, `--line-tolerance`, `--relative`, `--min-sweep`, `--max-step`,
+  `--min-lines` and `--max-ratio` set the options); `pdfprobe arc-pairs [--detail] [--table <file>]
+  <folder>` compares them with the circles and arcs of each PDF's DXF or JWW by coordinates
+  (`PDFPROBE_PLACEMENTS=<file>` keeps the placements between runs); `pdfprobe digest` prints a
+  hash of each page's `drawing()`, to show that a change left it alone;
+  `pdfprobe compare <pdf> <dxf-or-zip>` and `pdfprobe pairs <folder>` compare PDFs with
   the DXFs of the same drawings, or with their JWWs where the DXF is missing (read through
   SwiftJWW at full size, without Jw_cad's auxiliary lines and colours, number 9);
   `--exclude-layer <name>` leaves a DXF layer out, and `pairs` ends with the figures the experiment
