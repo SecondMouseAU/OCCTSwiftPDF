@@ -2,7 +2,7 @@ okf_version: 1
 repo: OCCTSwiftPDF
 cluster: kernel
 visibility: public
-status: spike
+status: experimental
 language: Swift
 summary: Reader for vector PDF drawings into the SwiftDXF drawing model, read by OCCTSwiftIO like the DXF, DWG and JWW readers; Apple's CoreGraphics PDF scanner and PDFKit, no third-party PDF library.
 products: []
