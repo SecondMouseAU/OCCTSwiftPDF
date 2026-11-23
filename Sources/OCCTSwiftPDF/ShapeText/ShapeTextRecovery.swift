@@ -36,10 +36,13 @@ extension PDF.Document {
     /// added to the page's `texts` as runs decoded ``PDF/TextDecoding/ocr`` with their
     /// ``PDF/TextRun/confidence``; everything else is counted in the page's report, with why.
     /// `drawing()` on a recovered page then draws the OCR text; the filled shapes it came from
-    /// stay in `skipped["FILL"]`.
+    /// stay in `skipped["FILL"]` and the stroked ones are counted in `skipped["OCR TEXT"]`.
     ///
-    /// Nothing calls Vision except this. The first recognition after a launch can take many
-    /// seconds while the system loads its model.
+    /// Nothing calls Vision except this. It is synchronous and cannot be cancelled or report
+    /// progress, and a sheet takes a while: about a minute for a thousand clusters, minutes for a
+    /// large sheet with a great deal of outlined text (three readings of every cluster, and the
+    /// page is rendered in tiles for each), and the first recognition after a boot takes about
+    /// half a minute longer while the system loads its model. Call it off the main thread.
     ///
     /// - Throws: ``PDF/Error/cannotOpen`` where the file cannot be opened again, and
     ///   ``PDF/RecognitionError/unavailable`` where the platform has no Vision.

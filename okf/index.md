@@ -4,14 +4,15 @@ title: OCCTSwiftPDF
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [pdf, vector, 2d, import, drawing, swift]
 description: Reader for vector PDF drawings into the SwiftDXF drawing model, on Apple's frameworks only. A spike today.
-timestamp: 2026-11-18
+timestamp: 2026-11-23
 ---
 
 # OCCTSwiftPDF
 
 A reader for **vector PDF drawings**, returning the `DXF.Drawing` model of SwiftDXF so that a
 drawing is read the same way whatever its format. It is built on Apple's CoreGraphics PDF scanner
-and PDFKit, with no third-party PDF library.
+and PDFKit (and, opt-in, Vision, to read text a writer drew as shapes), with no third-party PDF
+library.
 
 ## Role in the ecosystem
 

@@ -103,9 +103,18 @@ extension PDF.Page {
                 piece += 1
             }
             for (subpathIndex, subpath) in path.subpaths.enumerated() {
-                if consumed[pathIndex]?.contains(subpathIndex) == true {
-                    skip("OCR TEXT", layer)
-                    continue
+                // A subpath that is OCR text is converted like any other and then taken out
+                // again, so the pieces after it in its path keep the numbers they have on a page
+                // that was not recovered, whatever the recogniser accepted.
+                let mark = (entities.count, identities.count, counts)
+                let isText = consumed[pathIndex]?.contains(subpathIndex) == true
+                defer {
+                    if isText {
+                        entities.removeSubrange(mark.0...)
+                        identities.removeSubrange(mark.1...)
+                        counts = mark.2
+                        skip("OCR TEXT", layer)
+                    }
                 }
                 if isPageBorder(subpath) {
                     skip("PAGE BORDER", layer)

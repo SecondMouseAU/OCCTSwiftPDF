@@ -175,7 +175,7 @@
                 let read = decision.readText.map { " page text \"\($0)\"" } ?? ""
                 print(
                     String(
-                        format: "    (%.0f, %.0f) %@ glyphs %d: \"%@\"%@ %@", corner.x, corner.y,
+                        format: "    (%.0f, %.0f) %@ glyphs %ld: \"%@\"%@ %@", corner.x, corner.y,
                         box, decision.glyphs, decision.recognised ?? "-", confidence, outcome)
                         + read)
             }

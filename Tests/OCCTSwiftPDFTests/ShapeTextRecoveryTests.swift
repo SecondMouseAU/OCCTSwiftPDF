@@ -146,6 +146,55 @@ struct ShapeTextRecoveryTests {
         #expect(report.rejected == [.characters: 1])
     }
 
+    @Test("a strike-through is in the cluster but is not text, and stays in the drawing")
+    func strikeThrough() throws {
+        let text = OutlineText.drawn("10,439", at: Self.origin, stroke: true)
+        let middle = Self.origin.y + 3.5
+        let content =
+            text.content
+            + "0.3 w \(text.ink.minX - 1) \(middle) m \(text.ink.maxX + 1) \(middle) l S\n"
+        let (_, recovery) = try Self.recover(content, recogniser: Self.visionLike("10,439"))
+        let page = try #require(recovery.document.pages.first)
+        let run = try #require(page.texts.first)
+        let recovered = page.drawing()
+        #expect(recovery.reports[1]?.accepted == 1)
+        // The strike's subpath is not one the text was drawn with, and is drawn as a line.
+        let subpaths = page.paths.reduce(0) { $0 + $1.subpaths.count }
+        #expect(run.shapes.count == subpaths - 1)
+        #expect(recovered.counts.line == 1)
+        #expect(recovered.skipped["OCR TEXT"] == subpaths - 1)
+    }
+
+    @Test("what is drawn with the text in one path keeps its identity when the text is taken out")
+    func identitiesStay() throws {
+        // The digits' strokes and two long lines, all in one painted path: the lines' pieces are
+        // numbered after the digits', with or without the text recovered.
+        let digits = OutlineText.drawn("10,439", at: Self.origin)
+        let strokes = digits.content.replacingOccurrences(of: "f\n", with: "")
+        let content = "0.3 w\n" + strokes + "20 20 m 300 20 l 20 30 m 300 30 l S\n"
+        let (document, recovery) = try Self.recover(
+            content, recogniser: Self.visionLike("10,439"))
+        let plain = try #require(document.pages.first).drawing()
+        let recovered = try #require(recovery.document.pages.first).drawing()
+        #expect(recovery.reports[1]?.accepted == 1)
+        let lines = recovered.identities.map(\.locator).filter { !$0.contains(":ocr") }
+        #expect(lines.count == 2)
+        #expect(lines == Array(plain.identities.map(\.locator).suffix(2)))
+        #expect(lines.allSatisfy { $0.hasPrefix("p1:op") })
+    }
+
+    @Test("a line too long to cut out is counted as not rendered")
+    func notRendered() throws {
+        var content = "0.3 w\n"
+        for tick in 0..<1_900 { content += "\(10 + 9 * tick) 20 6 6 re S\n" }
+        let recogniser = Self.visionLike("IDIOT")
+        let (_, recovery) = try Self.recover(
+            content, recogniser: recogniser, mediaBox: "[0 0 17500 100]")
+        #expect(recovery.reports[1]?.regions == 1)
+        #expect(recovery.reports[1]?.rejected == [.notRendered: 1])
+        #expect(recogniser.calls == 0)
+    }
+
     @Test("on a recovered page the stroked shapes are the text, and are not drawn again")
     func strokedNotDrawnTwice() throws {
         let text = OutlineText.drawn("10,439", at: Self.origin, stroke: true)

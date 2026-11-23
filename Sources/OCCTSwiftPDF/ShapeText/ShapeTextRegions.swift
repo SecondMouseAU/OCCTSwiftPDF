@@ -256,18 +256,22 @@ enum ShapeTextRegions {
         var u = (low: Double.infinity, high: -Double.infinity)
         var v = (low: Double.infinity, high: -Double.infinity)
         var paths: [Int] = []
-        var shapes: [PDF.ShapeReference] = []
         var stroked = 0
-        // Each glyph's extent across the direction, as measured, before the box's start is known.
+        // Each glyph's extent across the direction, as measured, before the box's start is known,
+        // its extent along it, and the shapes it is.
         var extents: [(low: Double, high: Double)] = []
+        var lengths: [Double] = []
+        var glyphShapes: [[PDF.ShapeReference]] = []
         for index in line {
             let glyph = glyphs[index]
             if !glyph.filled { stroked += 1 }
             var own = (low: Double.infinity, high: -Double.infinity)
+            var along = (low: Double.infinity, high: -Double.infinity)
+            var references: [PDF.ShapeReference] = []
             for pieceIndex in glyph.pieces {
                 let piece = pieces[pieceIndex]
                 if !paths.contains(piece.path) { paths.append(piece.path) }
-                shapes.append(PDF.ShapeReference(path: piece.path, subpath: piece.subpath))
+                references.append(PDF.ShapeReference(path: piece.path, subpath: piece.subpath))
                 let path = page.paths[piece.path]
                 let widen = path.paint == .fill ? 0 : path.lineWidth / 2
                 for point in points(of: path.subpaths[piece.subpath]) {
@@ -276,11 +280,24 @@ enum ShapeTextRegions {
                     u = (min(u.low, pu - widen), max(u.high, pu + widen))
                     v = (min(v.low, pv - widen), max(v.high, pv + widen))
                     own = (min(own.low, pv - widen), max(own.high, pv + widen))
+                    along = (min(along.low, pu - widen), max(along.high, pu + widen))
                 }
             }
             extents.append(own)
+            lengths.append(along.high - along.low)
+            glyphShapes.append(references)
         }
         paths.sort()
+        // A stroke that runs the length of several glyphs and is thin (a strike-through, an
+        // overline) is in the line but is not a glyph, and is not text.
+        let sizes = zip(lengths, extents).map { max($0, $1.high - $1.low) }.sorted()
+        let median = sizes.isEmpty ? 0 : sizes[sizes.count / 2]
+        var shapes: [PDF.ShapeReference] = []
+        for (index, references) in glyphShapes.enumerated() {
+            let across = extents[index].high - extents[index].low
+            if lengths[index] > 3 * median && across < 0.25 * lengths[index] { continue }
+            shapes += references
+        }
         let angle = atan2(d.y, d.x) * 180 / .pi
         return ShapeTextRegion(
             direction: d,
