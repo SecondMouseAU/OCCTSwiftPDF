@@ -4,7 +4,7 @@ title: Components index
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [index]
 description: Public modules and API surfaces exposed by OCCTSwiftPDF.
-timestamp: 2026-11-22
+timestamp: 2026-11-23
 ---
 
 # Components
@@ -27,6 +27,23 @@ timestamp: 2026-11-22
     the operator and any Form XObjects it came through, with the piece's place among those one
     painted path became (`p1:op120:0`, via `Fm0#1`). Filled-only paths, images and text with no
     characters are counted in `skipped` by layer.
+  - `PDF.Page.recoveringDimensions(_:)` (opt-in, `drawing()` is unchanged) rebuilds the page's
+    dimensions from its loose pieces, without any flag in the file, and infers the scale from the
+    values against the drawn lengths. It returns a `PDF.DimensionRecovery`: the sheet's scale
+    (`sheet`, `scale`: the real value per millimetre on the paper, `80` for 1:80) with how many
+    values support it and how many do not; the dimensions, each a SwiftDXF `DXF.Dimension` with its
+    `rebuilt` set (the mark that says it was recovered, not stored: the pieces it was built from and
+    the scale it was explained at); and per view (`views`, a `PDF.DimensionView`) the supporting and
+    contradicting counts, each value text no dimension explains as a warning with its reason, and,
+    where the view's own values strongly favour another scale, an `alternative` with the
+    dimensions that scale would give. Nothing is scaled and nothing that the evidence does not
+    settle is applied: the caller reads `scale` and the evidence, then multiplies. `rebuild` gives
+    the result as SwiftDXF's `DimensionRebuild`, and `applied(to:)` adds the dimensions to a
+    drawing. `PDF.DimensionOptions` takes the number convention (a Jw_cad PDF writes `1,829` for
+    1829: `.commaSeparatesThousands`), a tolerance, a forced scale, the range of credible scales
+    (default 10:1 to 1:300), whether arrowheads and views are used, and the gap that parts views.
+    Needs SwiftDXF 0.6.0 or later, which holds the rebuild itself
+    ([SwiftDXF#37](https://github.com/SecondMouseAU/SwiftDXF/issues/37)).
   - `PDF.Source` is where something came from: page, operator index, Form XObjects.
   - The library builds for macOS 15, iOS 18, visionOS 1 and tvOS 18, as OCCTSwiftIO does. PDFKit is
     not used on tvOS, so there a text run keeps the text this package's own decoding gave it (it
@@ -39,7 +56,21 @@ timestamp: 2026-11-22
     on the paper, by a similarity transform fitted robustly to the texts that occur once in each
     (the pair of anchors most others agree with) and refined on the geometry, and reports how much
     of each drawing lies within the tolerance of the other, with the reference's uncovered
-    geometry by layer and entity type.
+    geometry by layer and entity type. The result carries the fit (`scale`, `rotationDeg` and
+    `translation`), which `pdfprobe dimension-pairs` uses to place the reference's dimensions on the
+    paper.
+- **Dimension rebuild** (`Dimensions/`): `PageDimensions.swift` runs SwiftDXF's
+  `rebuildingDimensions(_:)` on a working drawing, once for the whole sheet (the scale and the
+  dimensions) and once with each view on a layer of its own (to say where a view disagrees).
+  Every entity is moved onto the sheet's or the view's layer first, since a PDF's layers say
+  nothing about scale and SwiftDXF looks for a dimension's pieces on the layer of its text. A scale
+  outside `scaleRange` is not used. `Arrowheads.swift` adds the tip of each arrowhead, a filled
+  triangle that is a path's only subpaths and is narrow like an arrow, as a point (SwiftDXF's mark
+  at the end of a dimension line), and only where no piece meets the line near the
+  tip: an arrowhead beside an extension line says nothing new, and extra marks gave the rebuild
+  more spans to explain a value by chance. `Views.swift` splits the drawing into views by 8-connected
+  cells of twice the median text height, so views are told apart by a gap of one to two cells.
+  `DimensionRecovery.swift` holds the public result and option types.
 - **Interpreter** (`Interpreter/PageInterpreter.swift`): runs a page's content stream through
   `CGPDFScanner`, keeping the graphics state stack, the current path, the text state, marked
   content (`BDC /OC` and a Form XObject's `/OC` become layers) and Form XObjects (followed with
@@ -78,4 +109,10 @@ timestamp: 2026-11-22
   SwiftJWW at full size, without Jw_cad's auxiliary lines and colours, number 9);
   `--exclude-layer <name>` leaves a DXF layer out, and `pairs` ends with the figures the experiment
   page reports; `pdfprobe debug-text <pdf> <text>` shows where
-  this reader and PDFKit each put a text.
+  this reader and PDFKit each put a text. `pdfprobe dimensions [--detail] [--numbers
+  thousands|decimal|plain] [--scale N] [--scale-range LOW HIGH] [--tolerance MM] [--no-views]
+  [--view-gap MM] [--no-arrowheads] <file-or-folder>...` reports the dimensions, the scale and the evidence of each
+  PDF's first page; `pdfprobe dimension-pairs <folder>` rebuilds the dimensions of each PDF and of
+  the DXF (or JWW) beside it and compares them by text and by the place of both ends, and the scale
+  with the one the geometry fit found
+  ([the experiment](../experiments/dimensions-and-scale.md)).

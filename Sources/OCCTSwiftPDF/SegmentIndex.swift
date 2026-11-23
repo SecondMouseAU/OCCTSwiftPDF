@@ -1,7 +1,8 @@
 // SegmentIndex.swift
 // OCCTSwiftPDF
 //
-// Spike tooling: segments bucketed by position, for nearest-segment queries.
+// Segments bucketed by position, for nearest-segment queries: the comparison's, and the dimension
+// rebuild's, which asks whether a piece passes near the tip of an arrowhead.
 
 import Foundation
 import SwiftDXF
@@ -71,6 +72,23 @@ extension PDF {
                 }
             }
             return found
+        }
+
+        /// Whether a segment that `accepts` passes within `radius` of `p`.
+        func passes(
+            near p: DXF.Point2, within radius: Double,
+            where accepts: (DXF.Point2, DXF.Point2) -> Bool
+        ) -> Bool {
+            guard let cx = cellIndex(p.x), let cy = cellIndex(p.y) else { return false }
+            for x in (cx - 1)...(cx + 1) {
+                for y in (cy - 1)...(cy + 1) {
+                    for index in buckets[Self.key(x, y)] ?? [] {
+                        let (a, b) = segments[index]
+                        if Self.distance(p, a, b) <= radius, accepts(a, b) { return true }
+                    }
+                }
+            }
+            return false
         }
 
         static func closest(_ p: DXF.Point2, _ a: DXF.Point2, _ b: DXF.Point2) -> DXF.Point2 {

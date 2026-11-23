@@ -4,7 +4,7 @@ title: OCCTSwiftPDF
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [pdf, vector, 2d, import, drawing, swift]
 description: Reader for vector PDF drawings into the SwiftDXF drawing model, on Apple's frameworks only. A spike today.
-timestamp: 2026-11-18
+timestamp: 2026-11-23
 ---
 
 # OCCTSwiftPDF
@@ -16,7 +16,8 @@ and PDFKit, with no third-party PDF library.
 ## Role in the ecosystem
 
 - **Cluster:** kernel
-- **Depends on:** SwiftDXF (the drawing model); SwiftJWW for the `pdfprobe` tool only
+- **Depends on:** SwiftDXF 0.6.0 or later (the drawing model, and the dimension rebuild); SwiftJWW
+  for the `pdfprobe` tool only
 - **Feeds products:** PDF import for OCCTSwiftIO's `DrawingLoader`, and through it the Drawings
   Toolbox (OCCTDesignLoop). Phase 4 of the ecosystem plan `okf/plans/drawings-toolbox.md`.
 - **Visibility:** public, LGPL-2.1 (as OCCTSwiftIO).
@@ -33,6 +34,7 @@ the corpus results are checked against.
 ## Experiments
 
 - [Option 1 spike: Apple's frameworks only](experiments/option-1-spike.md)
+- [Dimensions and scale from a PDF page](experiments/dimensions-and-scale.md)
 
 ## Policies
 

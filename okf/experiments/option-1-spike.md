@@ -4,7 +4,7 @@ title: Option 1 spike, Apple's frameworks only
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [spike, pdf, cgpdfscanner, pdfkit, vector]
 description: CoreGraphics' PDF scanner with this package's own font decoding reads CAD-exported vector PDFs into DXF.Drawing, matching 289 of 321 TECS pairs to hundredths of a millimetre; PDFium is not needed. Text drawn as shapes is the gap, and the bridge to scans.
-timestamp: 2026-11-22
+timestamp: 2026-11-23
 ---
 
 # Option 1 spike: Apple's frameworks only
@@ -221,10 +221,14 @@ binary for nothing the corpus needs.
 1. Done: the ODA text is recovered from the embedded font's `cmap` (`TextDecoding.embeddedFont`).
 2. Arc and circle recovery from curves and from runs of short lines, tagged `FITTED` with the
    residual, radius fitted over the whole run.
-3. Dimension rebuilding without Jw_cad's flags (shared with OCCTSwiftIO#72): value text first, then
-   the dimension line, arrowheads (filled-only paths, kept now as `skipped["FILL"]`) and extension
-   lines.
-4. Scale inference from values against drawn lengths, per view.
+3. Done, see [dimensions and scale](dimensions-and-scale.md): dimension rebuilding without Jw_cad's
+   flags (shared with OCCTSwiftIO#72), as `PDF.Page.recoveringDimensions(_:)` on SwiftDXF's
+   `rebuildingDimensions`: value text first, then the dimension line, the extension lines and the
+   arrowheads (filled-only paths, still `skipped["FILL"]` in `drawing()`). Diameters and radii wait
+   for item 2's circles and arcs.
+4. Done, on the same page: the scale from the values against the drawn lengths, with the evidence
+   (values that support it, values that do not, each unexplained value as a warning, and per view
+   what the view's own values favour, reported and not applied).
 5. Wire into OCCTSwiftIO's `DrawingLoader` as `.pdf`. This package is public and LGPL-2.1 like
    OCCTSwiftIO, which builds for iOS, visionOS and tvOS. The PDFKit use is now guarded and off on
    tvOS ([#3](https://github.com/SecondMouseAU/OCCTSwiftPDF/issues/3)), and the comparison's `unzip`

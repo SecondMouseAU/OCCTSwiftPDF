@@ -27,11 +27,14 @@ PDFs that CAD programs produce, or whether PDFium is needed. The results are in
 
 What it does: interprets each page (paths, transforms, Form XObjects, layers, clipping), decodes
 text with its own font decoding and checks it against PDFKit, joins text shown a character at a
-time into lines, says whether each page is vector, raster or mixed, and turns a page into a
-`DXF.Drawing` in millimetres with an identity on every entity.
+time into lines, says whether each page is vector, raster or mixed, turns a page into a
+`DXF.Drawing` in millimetres with an identity on every entity, and, on request, rebuilds the
+page's dimensions from its loose pieces and infers the scale from the values against the drawn
+lengths, with the evidence ([`okf/experiments/dimensions-and-scale.md`](okf/experiments/dimensions-and-scale.md)).
 
-Not built yet, on purpose: arc and circle recovery from curves and runs of short lines, dimension
-rebuilding, scale inference, reading text drawn as shapes, and the wiring into OCCTSwiftIO.
+Not built yet, on purpose: arc and circle recovery from curves and runs of short lines (so
+diameter and radius dimensions are not rebuilt from a PDF yet), reading text drawn as shapes, and
+the wiring into OCCTSwiftIO.
 
 ## Use
 
@@ -44,6 +47,22 @@ for page in document.pages where page.kind == .vector {
 }
 ```
 
+Dimensions and scale are an inference, so they are a separate, opt-in call. The page's drawing stays
+at the paper's size; the scale is a fact the caller reads and applies:
+
+```swift
+let recovery = page.recoveringDimensions(
+    PDF.DimensionOptions(numbers: .commaSeparatesThousands))   // a Jw_cad PDF writes 1,829 for 1829
+recovery.scale                    // 80 for a sheet at 1:80, or nil: no credible scale
+recovery.sheet?.supporting        // the values that scale explains, and sheet?.contradicting
+for view in recovery.views {      // pieces that lie together, apart from the others
+    view.dimensions               // DXF.Dimension, each with `rebuilt` set (recovered, not stored)
+    view.warnings                 // each value no dimension explains, with the reason
+    view.alternative              // another scale the view's own values favour, not applied
+}
+let withDimensions = recovery.applied(to: page.drawing())
+```
+
 ## Command line
 
 ```bash
@@ -51,9 +70,13 @@ swift run pdfprobe [--detail] <file-or-folder>...   # what each PDF is made of
 swift run pdfprobe compare <pdf> <dxf-or-zip>         # a PDF against the DXF of the same drawing
 swift run pdfprobe pairs <folder>                     # every <name>.pdf beside <name>_dxf.zip, or _jww.zip
 swift run pdfprobe debug-text <pdf> <text>            # where this reader and PDFKit put a text
+swift run pdfprobe dimensions [flags] <file-or-folder>...   # dimensions, scale and evidence of each PDF
+swift run pdfprobe dimension-pairs [flags] <folder>   # the same, against the DXF or JWW beside each PDF
 ```
 
-`compare` and `pairs` take `--exclude-layer <name>` (repeatable) to leave a DXF layer out, such as
+`dimensions` and `dimension-pairs` take `--detail`, `--numbers thousands|decimal|plain`, `--scale N`,
+`--scale-range LOW HIGH`, `--tolerance MM`, `--view-gap MM`, `--no-views` and `--no-arrowheads`; they stop
+on a flag they do not understand. `compare`, `pairs` and `dimension-pairs` take `--exclude-layer <name>` (repeatable) to leave a DXF layer out, such as
 Jw_cad's auxiliary lines, which are never printed: the TECS figures in the experiment page come
 from `pdfprobe pairs --exclude-layer ADD_LINE <tecs-pairs folder>`. A zip must hold exactly one
 entry, a DXF or a JWW. A JWW (`<name>_jww.zip` or `.lzh`, used where the DXF is missing) is read by

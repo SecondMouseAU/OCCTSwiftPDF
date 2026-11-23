@@ -32,9 +32,57 @@ struct ComparisonTests {
         #expect(result.anchors == 3)
         #expect(abs(result.scale - 1.0 / 80) < 1e-9)
         #expect(abs(result.rotationDeg) < 1e-6)
+        // The reference's origin on the paper: a reference point p is at p / 80 + (82.5, 15), since
+        // the reference's (-5000, 1200) is the paper's (20, 30).
+        #expect(abs(result.translation.x - 82.5) < 1e-6)
+        #expect(abs(result.translation.y - 15) < 1e-6)
         #expect(result.referenceCovered > 0.999)
         #expect(result.pdfCovered > 0.999)
         #expect(result.textsMatched == 3)
+    }
+
+    @Test(
+        "a reference turned and scaled is placed by the fit: place(_:) maps its points to the paper"
+    )
+    func placedPoints() throws {
+        let paper = Self.sheet(scale: 1, dx: 20, dy: 30)
+        // The same sheet at full size, turned 30 degrees about the origin and moved.
+        let turn = 30.0 * Double.pi / 180
+        func rotate(_ p: DXF.Point) -> DXF.Point {
+            DXF.Point(
+                cos(turn) * p.x - sin(turn) * p.y - 900, sin(turn) * p.x + cos(turn) * p.y + 400)
+        }
+        var entities: [DXF.Entity] = []
+        for entity in Self.sheet(scale: 80, dx: 0, dy: 0).entities {
+            switch entity {
+            case .polyline(let vertices, let closed, let layer, let color):
+                entities.append(
+                    .polyline(
+                        vertices: vertices.map { DXF.PolyVertex(rotate($0.point)) }, closed: closed,
+                        layer: layer, color: color))
+            case .circle(let center, let radius, let layer, let color):
+                entities.append(
+                    .circle(center: rotate(center), radius: radius, layer: layer, color: color))
+            case .text(let at, let height, _, let string, let layer, let color):
+                entities.append(
+                    .text(
+                        at: rotate(at), height: height, rotationDeg: 30, string: string,
+                        layer: layer,
+                        color: color))
+            default:
+                break
+            }
+        }
+        let reference = DXF.Drawing(entities: entities)
+        let result = try #require(PDF.compare(paper, with: reference))
+        #expect(abs(result.scale - 1.0 / 80) < 1e-6)
+        #expect(abs(abs(result.rotationDeg) - 30) < 1e-3)
+        // The box's corner (0, 0) of the sheet is on the paper at (20, 30), and (100, 60) at (120, 90).
+        let (a, b) = (rotate(DXF.Point(0, 0)), rotate(DXF.Point(100 * 80, 60 * 80)))
+        let first = result.place(DXF.Point2(a.x, a.y))
+        let second = result.place(DXF.Point2(b.x, b.y))
+        #expect(abs(first.x - 20) < 0.01 && abs(first.y - 30) < 0.01)
+        #expect(abs(second.x - 120) < 0.01 && abs(second.y - 90) < 0.01)
     }
 
     @Test("a text that matches by coincidence does not throw the fit off")

@@ -7,6 +7,8 @@
 //   pdfprobe compare <pdf> <dxf-or-zip>         the PDF's first page against the DXF
 //   pdfprobe pairs <folder>                     every <name>.pdf beside <name>_dxf.zip, or beside
 //                                               <name>_jww.zip or .lzh where that is missing
+//   pdfprobe dimensions <file-or-folder>...     the dimensions, scale and evidence of each PDF
+//   pdfprobe dimension-pairs <folder>           the same, against the DXF or JWW beside each PDF
 //
 // `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
 // auxiliary lines (`ADD_LINE` in the TECS DXFs), which are never printed.
@@ -307,6 +309,10 @@ import Foundation
     }
 
     switch arguments.first {
+    case "dimensions" where arguments.count >= 2:
+        dimensionsCommand(Array(arguments.dropFirst()))
+    case "dimension-pairs" where arguments.count >= 2:
+        dimensionPairsCommand(Array(arguments.dropFirst()), excluded: excludedLayers)
     case "debug-text" where arguments.count == 3:
         debugText(arguments[1], arguments[2])
     case "compare" where arguments.count == 3:
@@ -354,10 +360,12 @@ import Foundation
     default:
         let detail = arguments.contains("--detail")
         let paths = arguments.filter { $0 != "--detail" }
-        guard !paths.isEmpty else {
+        guard !paths.isEmpty, !["dimensions", "dimension-pairs"].contains(arguments.first) else {
             print(
                 "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | "
-                    + "pairs <folder> | debug-text <pdf> <text>; --exclude-layer <name> for compare and pairs"
+                    + "pairs <folder> | debug-text <pdf> <text> | "
+                    + "dimensions [flags] <file-or-folder>... | dimension-pairs [flags] <folder>; "
+                    + "--exclude-layer <name> for compare, pairs and dimension-pairs"
             )
             exit(2)
         }
