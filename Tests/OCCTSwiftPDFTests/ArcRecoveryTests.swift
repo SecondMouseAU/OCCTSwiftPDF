@@ -127,9 +127,13 @@ struct ArcRecoveryTests {
                 ArcShapes.polygon(centre: Self.centre, radius: 25, sides: sides))
             #expect(found.isEmpty, "\(sides) sides")
         }
-        // Past that a polygon is what a writer makes of a circle.
-        let flattened = Self.recover(ArcShapes.polygon(centre: Self.centre, radius: 25, sides: 24))
-        #expect(flattened.count == 1 && flattened[0].isCircle)
+        // Past that a polygon is what a writer makes of a circle: 15 sides are 24 degrees each,
+        // the most a step may be.
+        for sides in [15, 24] {
+            let flattened = Self.recover(
+                ArcShapes.polygon(centre: Self.centre, radius: 25, sides: sides))
+            #expect(flattened.count == 1 && flattened[0].isCircle, "\(sides) sides")
+        }
     }
 
     @Test("an ellipse, flattened finely, is not cut into arcs: its pieces are round only locally")
@@ -337,16 +341,14 @@ struct ArcRecoveryTests {
         #expect(abs(abs(short[0].sweep) * 180 / .pi - 356) < 0.1)
     }
 
-    @Test("a smooth polyline of many chords is searched in a moment, not a quarter of a minute")
-    func fineChordsAreQuick() {
-        // An ellipse of 800 chords is round to 0.003 mm over most of its length from any start.
-        let chords = ArcShapes.ellipse(centre: Self.centre, a: 150, b: 120, segments: 800)
-        let start = ContinuousClock.now
-        #expect(Self.recover(chords).isEmpty)
-        let seconds = ContinuousClock.now - start
-        // 18 seconds before the longest run was found by doubling, and under 2 after, in a debug
-        // build.
-        #expect(seconds < .seconds(10), "\(seconds)")
+    @Test("a smooth polyline of many chords is searched in a few fits a start, not one a length")
+    func fineChordsAreCheap() {
+        // An ellipse of 800 chords is round to 0.003 mm over some 45 of them from any start:
+        // growing a run one chord at a time takes 36,000 fits, and doubling and halving 9,000.
+        let chords = ArcShapes.ellipse(centre: Self.centre, a: 150, b: 147, segments: 800)
+        let count = SearchCount()
+        #expect(ArcRecovery.recover(chords, Self.options, count: count).isEmpty)
+        #expect(count.fits < 15_000, "\(count.fits) fits")
     }
 
     @Test("arcs drawn clockwise join as the circle they make")
@@ -465,5 +467,50 @@ struct ArcRecoveryTests {
             centre: Self.centre, radius: 20, from: 90, sweep: 90, curves: 1)
         #expect(
             ArcJoining.join(Self.arcs([first, meeting]), keys: ["", ""], Self.options).count == 1)
+    }
+
+    @Test("a chord that is not on the circle keeps it from being a circle of curves")
+    func flatOnACircle() throws {
+        // 340 degrees of curves and a 20 degree chord to close it, at 20 mm: the chord's middle
+        // is 0.3 mm inside the circle, which its ends do not show.
+        var elements = ArcShapes.bezierArc(
+            centre: Self.centre, radius: 20, from: 10, sweep: 340, curves: 4)
+        elements.append(.line(elements[3].end, elements[0].start))
+        let found = Self.recover(elements)
+        let arc = try #require(found.first)
+        #expect(found.count == 1 && !arc.isCircle && arc.range == 0..<4)
+        #expect(abs(abs(arc.sweep) * 180 / .pi - 340) < 0.1)
+        // A closing line too short to leave the circle is part of it.
+        var closed = ArcShapes.bezierArc(centre: Self.centre, radius: 20, curves: 4)
+        closed.append(.line(closed[3].end, P(closed[3].end.x + 1e-4, closed[3].end.y)))
+        let whole = try #require(Self.recover(closed).first)
+        #expect(whole.isCircle && whole.range == 0..<5)
+    }
+
+    @Test("a vertex written twice does not stop chords being a circle")
+    func repeatedVertex() throws {
+        var chords = ArcShapes.flattened(centre: Self.centre, radius: 20, segments: 48)
+        chords.insert(.line(chords[20].start, chords[20].start), at: 20)
+        let circle = try #require(Self.recover(chords).first)
+        #expect(circle.isCircle && circle.range == 0..<49)
+    }
+
+    @Test(
+        "chords off the circle by more than the line tolerance are not an arc, unless it is raised")
+    func lineTolerance() {
+        // 36 chords of 10 degrees with the corners 0.006 mm in and out alternately.
+        var chords: [ArcElement] = []
+        for index in 0..<36 {
+            let inner = index % 2 == 0 ? 20.0 : 20.012
+            let next = index % 2 == 0 ? 20.012 : 20.0
+            chords.append(
+                .line(
+                    ArcShapes.point(Self.centre, inner, Double(index) * 10),
+                    ArcShapes.point(Self.centre, next, Double(index + 1) * 10)))
+        }
+        #expect(Self.recover(chords).isEmpty)
+        var loose = Self.options
+        loose.lineTolerance = 0.01
+        #expect(ArcRecovery.recover(chords, loose).count == 1)
     }
 }

@@ -33,9 +33,7 @@ enum ArcJoining {
             arc.sweep >= 0 ? arc.points[arc.points.count - 1] : arc.points[0]
         }
         func tolerance(_ arc: RecoveredArc) -> Double {
-            arc.curves == 0
-                ? options.lineTolerance
-                : max(options.tolerance, options.relativeTolerance * arc.circle.radius)
+            ArcRecovery.tolerance(curves: arc.curves, radius: arc.circle.radius, options)
         }
         // Start points by key and cell, so each end looks only at the starts near it: a cell is
         // wider than the slack of any arc, and the ends look in the cells round their own.
@@ -120,17 +118,9 @@ enum ArcJoining {
         else { return nil }
         let curves = arcs.reduce(0) { $0 + $1.curves }
         let lines = arcs.reduce(0) { $0 + $1.lines }
-        let tolerance =
-            curves == 0
-            ? options.lineTolerance
-            : max(options.tolerance, options.relativeTolerance * circle.radius)
-        var worst = 0.0
-        var squares = 0.0
-        for point in points {
-            let distance = abs(circle.deviation(of: point))
-            worst = max(worst, distance)
-            squares += distance * distance
-        }
+        let tolerance = ArcRecovery.tolerance(curves: curves, radius: circle.radius, options)
+        let middles = arcs.flatMap(\.chordMiddles)
+        let (worst, squares) = ArcRecovery.residuals(of: points, and: middles, about: circle)
         guard worst <= tolerance else { return nil }
         let (total, steps) = ArcRecovery.walk(points, about: circle)
         let backwards = 2 * tolerance / circle.radius
@@ -144,6 +134,7 @@ enum ArcJoining {
             startAngle: atan2(points[0].y - circle.centre.y, points[0].x - circle.centre.x),
             sweep: total, isCircle: closes, maxResidual: worst,
             rmsResidual: (squares / Double(points.count)).squareRoot(), curves: curves,
-            lines: lines, stepRatio: arcs.map(\.stepRatio).max() ?? 1, points: points)
+            lines: lines, stepRatio: arcs.map(\.stepRatio).max() ?? 1, points: points,
+            chordMiddles: middles)
     }
 }

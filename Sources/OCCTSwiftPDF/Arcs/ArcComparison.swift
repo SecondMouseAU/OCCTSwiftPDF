@@ -212,12 +212,3 @@ extension PDF {
             bound: bound)
     }
 }
-
-extension PDF.Comparison {
-    /// Where the comparison placed the reference on the paper.
-    public var placement: PDF.Placement {
-        PDF.Placement(
-            scale: scale, rotationDeg: rotationDeg, translationX: translationX,
-            translationY: translationY)
-    }
-}

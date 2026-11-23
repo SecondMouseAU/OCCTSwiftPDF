@@ -78,10 +78,10 @@ struct ArcComparisonTests {
         }
         #expect(result.matches[0].referenceIsCircle && result.matches[0].endpointError == nil)
         #expect(!result.matches[1].referenceIsCircle)
-        // The arc's ends are a few hundredths of a millimetre from the fit's, and the reference
-        // arc is 10 degrees longer than the fit, so its ends are 40 mm * 0.087 = 3.5 mm out.
+        // The reference arc runs 5 degrees past each end of the fit's, and the arc is 40 points
+        // (14.1 mm) in radius: each end is 14.1 mm * 5 degrees = 1.23 mm from the fit's.
         if let ends = result.matches[1].endpointError {
-            #expect(ends > 1 && ends < 6)
+            #expect(abs(ends - 1.23) < 0.05, "\(ends)")
         } else {
             Issue.record("no endpoint error for two arcs")
         }

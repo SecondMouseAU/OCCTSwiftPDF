@@ -31,7 +31,13 @@
         if let value = take("--line-tolerance") { options.lineTolerance = value }
         if let value = take("--min-sweep") { options.minimumSweepDeg = value }
         if let value = take("--max-step") { options.maximumLineStepDeg = value }
-        if let value = take("--min-lines") { options.minimumLineSegments = Int(value) }
+        if let value = take("--min-lines") {
+            guard let whole = Int(exactly: value) else {
+                print("--min-lines needs a whole number")
+                exit(2)
+            }
+            options.minimumLineSegments = whole
+        }
         if let value = take("--max-ratio") { options.maximumStepRatio = value }
         if let value = take("--min-radius") { options.minimumRadius = value }
         if let value = take("--max-radius") { options.maximumRadius = value }

@@ -105,6 +105,10 @@ struct RecoveredArc: Equatable, Sendable {
     var stepRatio: Double
     /// The points the circle was fitted over, in the order the run went.
     var points: [SIMD2<Double>] = []
+    /// The middles of the straight segments of a run that has curves in it, which the circle must
+    /// also pass within the tolerance of: a chord there is claimed to lie on the circle, where a
+    /// run of chords only is a polygon on it.
+    var chordMiddles: [SIMD2<Double>] = []
 
     /// The angles of the first and last points, in degrees from 0 to 360.
     var firstDeg: Double { Self.degrees(startAngle) }
@@ -116,7 +120,38 @@ struct RecoveredArc: Equatable, Sendable {
     }
 }
 
+/// Counts the fits a search makes, so a test can see its cost without a clock.
+final class SearchCount {
+    var fits = 0
+}
+
 enum ArcRecovery {
+    /// The tolerance a run is held to: that of chords for a run of chords only, and the larger of
+    /// the absolute and the relative one for a run with curves.
+    static func tolerance(
+        curves: Int, radius: Double, _ options: PDF.ArcFitting
+    ) -> Double {
+        curves == 0
+            ? options.lineTolerance
+            : max(options.tolerance, options.relativeTolerance * radius)
+    }
+
+    /// The largest distance of `points` and `extra` from the circle, and the sum of squares of the
+    /// distances of `points`.
+    static func residuals(
+        of points: [SIMD2<Double>], and extra: [SIMD2<Double>] = [], about circle: Circle
+    ) -> (worst: Double, squares: Double) {
+        var worst = 0.0
+        var squares = 0.0
+        for point in points {
+            let distance = abs(circle.deviation(of: point))
+            worst = max(worst, distance)
+            squares += distance * distance
+        }
+        for point in extra { worst = max(worst, abs(circle.deviation(of: point))) }
+        return (worst, squares)
+    }
+
     /// How one stretch of elements fared against the circle fitted over it.
     private enum Evaluation {
         /// Too little to fit yet: a single straight segment.
@@ -133,7 +168,8 @@ enum ArcRecovery {
     /// default: a caller that will join arcs sets it lower and applies the minimum afterwards, so
     /// that a circle drawn in pieces is found from pieces that are each short.
     static func recover(
-        _ elements: [ArcElement], _ options: PDF.ArcFitting, curveSweepDeg: Double? = nil
+        _ elements: [ArcElement], _ options: PDF.ArcFitting, curveSweepDeg: Double? = nil,
+        count: SearchCount? = nil
     ) -> [RecoveredArc] {
         let curveCount = elements.filter(\.isCurve).count
         guard elements.count >= 1, curveCount > 0 || elements.count >= options.minimumLineSegments
@@ -143,7 +179,8 @@ enum ArcRecovery {
         var first = 0
         while first < elements.count {
             if let best = longest(
-                from: first, elements, samples, options, curveSweepDeg: curveSweepDeg)
+                from: first, elements, samples, options, curveSweepDeg: curveSweepDeg,
+                count: count)
             {
                 found.append(best)
                 first = best.range.upperBound
@@ -156,14 +193,17 @@ enum ArcRecovery {
 
     /// The longest run from `first` that one circle fits and that is taken as an arc, or `nil`.
     ///
-    /// A run that fits has every shorter run from the same start fitting too, so the longest is
-    /// found by doubling the length until a run does not fit and then halving the gap, which
-    /// takes a handful of fits where trying every length would take one for each element: a
-    /// finely flattened ellipse of a few hundred chords fits over most of its length from every
-    /// start. The longest run is taken if it is an arc, and otherwise a few shorter ones are tried.
+    /// A run that fits has nearly every shorter run from the same start fitting too, so the
+    /// longest is found by doubling the length until a run does not fit and then halving the
+    /// gap, which takes a handful of fits where trying every length would take one for each
+    /// element: a finely flattened ellipse of a few hundred chords fits over most of its length
+    /// from every start. (Nearly: a run is held to a tighter tolerance while it is chords only,
+    /// so a run that starts with many chords and goes on to curves can pass as a whole and fail as
+    /// a prefix, and is missed.) The longest run is taken if it is an arc, and otherwise a few
+    /// shorter ones are tried.
     private static func longest(
         from first: Int, _ elements: [ArcElement], _ samples: [[SIMD2<Double>]],
-        _ options: PDF.ArcFitting, curveSweepDeg: Double?
+        _ options: PDF.ArcFitting, curveSweepDeg: Double?, count: SearchCount?
     ) -> RecoveredArc? {
         let limit = min(elements.count, first + maximumRun)
         // A run of straight segments is tested from the fewest an arc may have: a few points of a
@@ -177,6 +217,7 @@ enum ArcRecovery {
         var arcs: [Int: RecoveredArc] = [:]
         var bad: Int?
         func probe(_ length: Int) -> Bool {
+            count?.fits += 1
             switch evaluate(elements, samples, first..<(first + length), options) {
             case .infeasible:
                 return false
@@ -283,18 +324,15 @@ enum ArcRecovery {
         guard let circle = Circle.fitting(points),
             circle.radius >= options.minimumRadius, circle.radius <= options.maximumRadius
         else { return .infeasible }
-        let tolerance =
-            curves == 0
-            ? options.lineTolerance
-            : max(options.tolerance, options.relativeTolerance * circle.radius)
-
-        var worst = 0.0
-        var squares = 0.0
-        for point in points {
-            let distance = abs(circle.deviation(of: point))
-            worst = max(worst, distance)
-            squares += distance * distance
+        let tolerance = Self.tolerance(curves: curves, radius: circle.radius, options)
+        // A chord in a run with curves is claimed to be on the circle, so its middle is checked.
+        var chordMiddles: [SIMD2<Double>] = []
+        if curves > 0 {
+            for index in range {
+                if case .line(let a, let b) = elements[index] { chordMiddles.append((a + b) / 2) }
+            }
         }
+        let (worst, squares) = residuals(of: points, and: chordMiddles, about: circle)
         guard worst <= tolerance else { return .infeasible }
 
         // Walk the points round the centre: the run must go one way, and not more than once round.
@@ -312,10 +350,15 @@ enum ArcRecovery {
         var smallest = Double.infinity
         for index in range {
             let count = samples[index].count
-            if !elements[index].isCurve && abs(deltas[cursor]) > maximumStep { return .infeasible }
+            if !elements[index].isCurve && abs(deltas[cursor]) > maximumStep + 1e-9 {
+                return .infeasible
+            }
             let sweep = abs(deltas[cursor..<(cursor + count)].reduce(0, +))
-            largest = max(largest, sweep)
-            smallest = min(smallest, sweep)
+            // A segment of no length (a vertex written twice) has no step to compare.
+            if sweep > 1e-12 {
+                largest = max(largest, sweep)
+                smallest = min(smallest, sweep)
+            }
             cursor += count
         }
 
@@ -327,7 +370,7 @@ enum ArcRecovery {
                 isCircle: closes, maxResidual: worst,
                 rmsResidual: (squares / Double(points.count)).squareRoot(), curves: curves,
                 lines: lines, stepRatio: smallest > 1e-12 ? largest / smallest : .infinity,
-                points: points))
+                points: points, chordMiddles: chordMiddles))
     }
 
     /// The angular steps between consecutive points about the circle's centre, each in

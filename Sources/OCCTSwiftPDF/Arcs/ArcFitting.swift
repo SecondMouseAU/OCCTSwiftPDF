@@ -155,7 +155,14 @@ extension PDF {
 
         /// The fit behind the entity at `index`, or `nil` when that entity was drawn as it is.
         public func fit(atEntity index: Int) -> ArcFit? {
-            fits.first { $0.entityIndex == index }
+            // ``fits`` are in the order of their entities, so look for the index by halving.
+            var low = 0
+            var high = fits.count
+            while low < high {
+                let middle = (low + high) / 2
+                if fits[middle].entityIndex < index { low = middle + 1 } else { high = middle }
+            }
+            return low < fits.count && fits[low].entityIndex == index ? fits[low] : nil
         }
     }
 }
