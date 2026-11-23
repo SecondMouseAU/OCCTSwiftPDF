@@ -4,7 +4,8 @@
 // A least-squares circle through points: an algebraic start (Kasa) refined by Gauss-Newton on the
 // geometric distance, so the radius is the one that minimises the distance of the points from the
 // circle, not a biased one. (OCCTReconstruct has a Kasa fit of its own; this package links only
-// SwiftDXF and Apple's frameworks, and the refinement is what a short arc needs.)
+// SwiftDXF and Apple's frameworks, and the refinement is what a short arc needs. The 3 by 3
+// solve is written out, with a pivot test, as `simd`'s inverse gives no sign of a singular system.)
 
 import Foundation
 

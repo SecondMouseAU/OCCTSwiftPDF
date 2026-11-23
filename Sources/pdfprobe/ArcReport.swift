@@ -61,8 +61,8 @@
         var joinable = 0
     }
 
-    /// The number of pairs of arcs, one ending where the other starts, on the same circle within
-    /// 0.02 mm (or 0.04 percent of the radius) of centre and radius.
+    /// The number of pairs of arcs, one ending where the other starts, on the same circle: the
+    /// centres, the radii and the ends within 0.02 mm plus 0.04 percent of the radius.
     func joinablePairs(_ fits: [PDF.ArcFit]) -> Int {
         func end(_ fit: PDF.ArcFit, _ degrees: Double) -> (Double, Double) {
             let point = fit.point(atDeg: degrees)

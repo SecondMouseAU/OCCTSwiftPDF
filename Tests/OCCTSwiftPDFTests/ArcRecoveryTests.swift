@@ -255,7 +255,7 @@ struct ArcRecoveryTests {
     @Test("an eccentric Bezier arc is not an arc")
     func eccentricity() {
         // A quarter of an ellipse as one curve, the axes 1.2 to 1 and then 1.02 to 1: the second
-        // is 0.4 mm off round, ten times the tolerance.
+        // strays 0.025 mm from its best circle, two and a half times the tolerance.
         let k = 0.5522847498
         for a in [24.0, 20.4] {
             let quarter = ArcElement.curve(
@@ -552,5 +552,48 @@ struct ArcRecoveryTests {
             centre: Self.centre, radius: 20, from: 120, sweep: 120, segments: 8)
         #expect(
             ArcJoining.join(Self.arcs([coarse, same]), keys: ["", ""], Self.options).count == 1)
+    }
+
+    /// Chords of 12 degrees from `from`, each of `steps`, as a run.
+    static func chords(from start: Double, steps: [Double]) -> [ArcElement] {
+        var out: [ArcElement] = []
+        var angle = start
+        for step in steps {
+            let a = ArcShapes.point(centre, 20, angle)
+            let b = ArcShapes.point(centre, 20, angle + step)
+            out.append(.line(a, b))
+            angle += step
+        }
+        return out
+    }
+
+    @Test("an odd chord at either end of an arc is left out of it, not the whole arc")
+    func oddChordsAtTheEnds() throws {
+        var steps = [Double](repeating: 12, count: 8)
+        // An odd chord at the end.
+        let atEnd = Self.chords(from: 0, steps: steps + [4])
+        #expect(Self.recover(atEnd).first?.range == 0..<8)
+        // At the start, with the arc running to the end of the subpath.
+        let atStart = Self.chords(from: 0, steps: [4] + steps)
+        let start = try #require(Self.recover(atStart).first)
+        #expect(start.range == 1..<9)
+        // At both ends.
+        steps.insert(4, at: 0)
+        steps.append(4)
+        let both = try #require(Self.recover(Self.chords(from: 0, steps: steps)).first)
+        #expect(both.range == 1..<9)
+    }
+
+    @Test("arcs whose ends meet across a cell of the search are joined")
+    func joinAcrossCells() {
+        // The first ends at x = 0.4995, the second starts at x = 0.5035, 0.004 mm on and in the
+        // next 0.5 mm cell.
+        let first = ArcShapes.bezierArc(
+            centre: P(0.4995, 0), radius: 20, from: 0, sweep: 90, curves: 1)
+        let second = ArcShapes.bezierArc(
+            centre: P(0.5035, 0), radius: 20, from: 90, sweep: 90, curves: 1)
+        let arcs = Self.arcs([first, second])
+        #expect(arcs.count == 2)
+        #expect(ArcJoining.join(arcs, keys: ["", ""], Self.options).count == 1)
     }
 }

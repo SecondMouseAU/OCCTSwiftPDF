@@ -261,11 +261,11 @@ circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles
   circle that fits them all.
 
 Not done: elliptical arcs and ellipses are not recovered (they stay splines); a circle drawn as
-two strokes of different layers or colours is not joined; a flattened arc whose last chord is a
-short remainder fails the equal-steps test; a run that starts with many chords and goes on to
-curves, or a circle of curves and finely flattened chords, is missed or cut at the chords; a very
-large radius drawn with coarse rounding (over the 2 m limit, or too flat for a few points to say)
-is not taken; tolerances were set on
+two strokes of different layers or colours is not joined; a flattened arc with an odd chord at an
+end is taken without that chord, which stays a line; a run that starts with many chords and goes
+on to curves, or a circle of curves and finely flattened chords, is missed or cut at the chords; a
+very large radius drawn with coarse rounding (over the 2 m limit, or too flat for a few points to
+say) is not taken; tolerances were set on
 TECS and `PDFs/` and are options (`PDF.ArcFitting`), not measured on other writers.
 
 ### Known limits of the spike reader

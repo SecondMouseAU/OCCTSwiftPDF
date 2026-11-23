@@ -130,7 +130,6 @@ extension PDF {
         let index = SegmentIndex(segments(reference, transform: placement), cell: 1)
         var support: [Double] = []
         for fit in fitted.fits {
-            let centre = DXF.Point2(fit.center.x, fit.center.y)
             let length: Double = fit.sweepDeg * Double.pi / 180 * fit.radius
             let count = max(8, min(2_000, Int((length / 0.1).rounded(.up))))
             var near = 0

@@ -114,6 +114,12 @@ struct ArcComparisonTests {
         let apart = PDF.compareArcs(fitted, with: away, placedBy: Self.placement)
         #expect(apart.matches.map(\.fit) == [0])
         #expect(apart.unmatchedFits == [1] && apart.pointMarkers == [2])
+        // A reference arc that starts inside the fit's, and runs on past its end, still overlaps.
+        let turnNow = Self.placement.rotationDeg
+        let through = Self.referenceDrawing(
+            fitted.fits, arcSpan: (arc.endDeg - turnNow - 20, arc.endDeg - turnNow + 80))
+        let overlapping = PDF.compareArcs(fitted, with: through, placedBy: Self.placement)
+        #expect(overlapping.matches.map(\.fit) == [0, 1])
         // The same circle placed 0.3 mm (on the paper) too far over: matched within 0.5 mm, not
         // within 0.15.
         var moved = Self.referenceDrawing(fitted.fits)

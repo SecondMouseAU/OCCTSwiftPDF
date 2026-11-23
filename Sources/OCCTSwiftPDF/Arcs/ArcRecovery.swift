@@ -211,17 +211,13 @@ enum ArcRecovery {
         return found
     }
 
-    /// The longest run from `first` that one circle fits and that is taken as an arc, or `nil`,
-    /// how many elements to step over before looking again, and where the longest run that fits
-    /// ends.
+    /// The longest run from `first` that is taken as an arc, or `nil`, how many elements to step
+    /// over before looking again, and where the longest run that fits ends.
     ///
-    /// The longest is found by doubling the length until a run does not fit and then halving the
-    /// gap, as a run that fits has nearly every shorter run from the same start fitting too (a
-    /// run of chords is held to a tighter tolerance than one with curves, so one that starts
-    /// with many chords and goes on to curves can be missed). It is taken if it is an arc, and
-    /// if it is not one for want of sweep, chords or equal steps a few shorter ones are tried. A run that fits all the way to the most elements
-    /// tried and is not an arc is stepped over whole, not one element at a time. `hint` is where
-    /// the run from the start before ended, which saves the doubling.
+    /// The longest run that fits is found by growing the length until a run does not fit and
+    /// halving the gap, from `hint`, where the run from the start before ended, if there is one.
+    /// Where it has chords of unlike steps a few shorter runs are tried; a run cut by the most
+    /// elements tried, and no arc, is stepped over whole.
     private static func longest(
         from first: Int, _ elements: [ArcElement], _ samples: [[SIMD2<Double>]],
         _ options: PDF.ArcFitting, curveSweepDeg: Double?, count: SearchCount?, maximumRun: Int,
@@ -277,14 +273,15 @@ enum ArcRecovery {
             }
             good = low
         }
-        // The longest run that fits, or one of the few just under it.
+        // The longest run that fits, or one of the few just under it. A run cut by the most
+        // elements tried, not by the end of the subpath, is stepped over whole when it is no arc.
+        let cut = first + maximumRun < elements.count && good >= maximumRun
         var tried = 0
         var candidate = good
         while candidate >= 1, tried < 4 {
             if arcs[candidate] == nil { _ = probe(candidate) }
             if let arc = arcs[candidate] {
-                // A run that fits to the end of what is tried and is no arc is stepped over whole.
-                let skip = good >= limit - first && good > 1 ? good : 1
+                let skip = cut ? good : 1
                 switch verdict(arc, options, curveSweepDeg: curveSweepDeg) {
                 case .taken:
                     // A run that is part of a longer curve is no arc, and nor is one a little shorter.
@@ -300,7 +297,7 @@ enum ArcRecovery {
             candidate -= 1
             tried += 1
         }
-        return (nil, good >= limit - first && good > 1 ? good : 1, first + good)
+        return (nil, cut ? good : 1, first + good)
     }
 
     /// The most elements one run is tried over, which bounds the work on a long polyline.
