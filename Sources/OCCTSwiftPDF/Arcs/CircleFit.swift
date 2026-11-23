@@ -60,21 +60,36 @@ struct Circle: Equatable, Sendable {
 
         // Gauss-Newton on r_i = |p_i - c| - r, in coordinates moved to the centroid.
         for _ in 0..<30 {
-            var jtj = [Double](repeating: 0, count: 9)
-            var jtr = [Double](repeating: 0, count: 3)
+            // The normal equations of the Jacobian rows (-dx/d, -dy/d, -1), summed in scalars.
+            var xx = 0.0
+            var xy = 0.0
+            var xr = 0.0
+            var yy = 0.0
+            var yr = 0.0
+            var rr = 0.0
+            var gx = 0.0
+            var gy = 0.0
+            var gr = 0.0
             for p in points {
                 let dx = p.x - mean.x - a
                 let dy = p.y - mean.y - b
                 let d = (dx * dx + dy * dy).squareRoot()
                 guard d > 1e-300 else { continue }
-                let row = [-dx / d, -dy / d, -1.0]
+                let ux = -dx / d
+                let uy = -dy / d
                 let residual = d - r
-                for i in 0..<3 {
-                    jtr[i] += row[i] * residual
-                    for j in 0..<3 { jtj[i * 3 + j] += row[i] * row[j] }
-                }
+                xx += ux * ux
+                xy += ux * uy
+                xr += -ux
+                yy += uy * uy
+                yr += -uy
+                rr += 1
+                gx += ux * residual
+                gy += uy * residual
+                gr += -residual
             }
-            guard let step = solve3(jtj, jtr) else { break }
+            let jtj = [xx, xy, xr, xy, yy, yr, xr, yr, rr]
+            guard let step = solve3(jtj, [gx, gy, gr]) else { break }
             a -= step[0]
             b -= step[1]
             r -= step[2]

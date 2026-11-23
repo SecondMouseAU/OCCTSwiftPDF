@@ -192,33 +192,41 @@ enum ArcRecovery {
         let samples = elements.map(\.samples)
         var found: [RecoveredArc] = []
         var first = 0
+        // Where the run from the start before ended: the run from the next start fits at least
+        // that far, since it is a part of that run.
+        var hint = 0
         while first < elements.count {
-            let (best, skip) = longest(
+            let (best, skip, reach) = longest(
                 from: first, elements, samples, options, curveSweepDeg: curveSweepDeg,
-                count: count, maximumRun: maximumRun)
+                count: count, maximumRun: maximumRun, hint: hint)
             if let best {
                 found.append(best)
                 first = best.range.upperBound
+                hint = 0
             } else {
                 first += skip
+                hint = skip == 1 ? reach : 0
             }
         }
         return found
     }
 
-    /// The longest run from `first` that one circle fits and that is taken as an arc, or `nil`
-    /// and how many elements to step over before looking again.
+    /// The longest run from `first` that one circle fits and that is taken as an arc, or `nil`,
+    /// how many elements to step over before looking again, and where the longest run that fits
+    /// ends.
     ///
     /// The longest is found by doubling the length until a run does not fit and then halving the
     /// gap, as a run that fits has nearly every shorter run from the same start fitting too (a
     /// run of chords is held to a tighter tolerance than one with curves, so one that starts
     /// with many chords and goes on to curves can be missed). It is taken if it is an arc, and
-    /// otherwise a few shorter ones are tried. A run that fits all the way to the most elements
-    /// tried and is not an arc is stepped over whole, not one element at a time.
+    /// if it is not one for want of sweep, chords or equal steps a few shorter ones are tried. A run that fits all the way to the most elements
+    /// tried and is not an arc is stepped over whole, not one element at a time. `hint` is where
+    /// the run from the start before ended, which saves the doubling.
     private static func longest(
         from first: Int, _ elements: [ArcElement], _ samples: [[SIMD2<Double>]],
-        _ options: PDF.ArcFitting, curveSweepDeg: Double?, count: SearchCount?, maximumRun: Int
-    ) -> (RecoveredArc?, skip: Int) {
+        _ options: PDF.ArcFitting, curveSweepDeg: Double?, count: SearchCount?, maximumRun: Int,
+        hint: Int
+    ) -> (RecoveredArc?, skip: Int, reach: Int) {
         let limit = min(elements.count, first + maximumRun)
         // A run of straight segments is tested from the fewest an arc may have: a few points of a
         // finely flattened arc are too close to straight for their circle to mean anything.
@@ -228,6 +236,13 @@ enum ArcRecovery {
             length = wanted
         }
         var good = 0
+        // From a hint, grow by 1, 2, 4 and so on past it; otherwise by doubling the length.
+        var step = 0
+        if hint > first + 1, hint <= limit {
+            good = hint - first
+            length = good + 1
+            step = 1
+        }
         var arcs: [Int: RecoveredArc] = [:]
         var bad: Int?
         func probe(_ length: Int) -> Bool {
@@ -246,7 +261,8 @@ enum ArcRecovery {
             if probe(length) {
                 good = length
                 if first + length == limit { break }
-                length = min(length * 2, limit - first)
+                step = step > 0 ? step * 2 : length
+                length = min(good + step, limit - first)
             } else {
                 bad = length
                 break
@@ -265,34 +281,53 @@ enum ArcRecovery {
         var tried = 0
         var candidate = good
         while candidate >= 1, tried < 4 {
-            if arcs[candidate] == nil, candidate < good { _ = probe(candidate) }
-            if let arc = arcs[candidate], accepts(arc, options, curveSweepDeg: curveSweepDeg),
-                !carriesOn(elements, arc)
-            {
-                return (arc, 0)
+            if arcs[candidate] == nil { _ = probe(candidate) }
+            if let arc = arcs[candidate] {
+                // A run that fits to the end of what is tried and is no arc is stepped over whole.
+                let skip = good >= limit - first && good > 1 ? good : 1
+                switch verdict(arc, options, curveSweepDeg: curveSweepDeg) {
+                case .taken:
+                    // A run that is part of a longer curve is no arc, and nor is one a little shorter.
+                    if carriesOn(elements, arc) { return (nil, skip, first + good) }
+                    return (arc, 0, first + good)
+                case .tooShort:
+                    // A shorter run is shorter still.
+                    return (nil, skip, first + good)
+                case .uneven:
+                    break
+                }
             }
             candidate -= 1
             tried += 1
         }
-        return (nil, good >= limit - first && good > 1 ? good : 1)
+        return (nil, good >= limit - first && good > 1 ? good : 1, first + good)
     }
 
     /// The most elements one run is tried over, which bounds the work on a long polyline.
     static let defaultMaximumRun = 65_536
 
-    private static func accepts(
+    /// How a run that fits stands as an arc.
+    private enum Verdict {
+        case taken
+        /// Too little sweep, or too few chords: any shorter run is too.
+        case tooShort
+        /// Chords of steps too unlike: a shorter run, without an odd chord at an end, may do.
+        case uneven
+    }
+
+    private static func verdict(
         _ arc: RecoveredArc, _ options: PDF.ArcFitting, curveSweepDeg: Double?
-    ) -> Bool {
+    ) -> Verdict {
         let minimum =
             arc.curves == 0 ? options.minimumSweepDeg : curveSweepDeg ?? options.minimumSweepDeg
-        if abs(arc.sweep) < minimum * .pi / 180 - 1e-9 { return false }
+        if abs(arc.sweep) < minimum * .pi / 180 - 1e-9 { return .tooShort }
         if arc.curves == 0 {
             // A flattened circle is cut into equal steps; the chords of a freehand or elliptical
             // curve are not.
-            return arc.lines >= options.minimumLineSegments
-                && arc.stepRatio <= options.maximumStepRatio
+            if arc.lines < options.minimumLineSegments { return .tooShort }
+            if arc.stepRatio > options.maximumStepRatio { return .uneven }
         }
-        return true
+        return .taken
     }
 
     /// Whether a run of straight segments is only part of a curve that goes on bending the same

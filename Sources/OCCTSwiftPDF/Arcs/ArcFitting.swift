@@ -111,6 +111,13 @@ extension PDF {
         /// first, where a circle was drawn in several.
         public var lineWidth: Double
 
+        /// The point of the circle at `degrees` counterclockwise from the x axis, in millimetres
+        /// on the paper.
+        public func point(atDeg degrees: Double) -> DXF.Point {
+            let angle: Double = degrees * Double.pi / 180
+            return DXF.Point(center.x + radius * cos(angle), center.y + radius * sin(angle))
+        }
+
         /// The sweep in degrees: 360 for a circle.
         public var sweepDeg: Double {
             shape == .circle ? 360 : (endDeg - startDeg + 720).truncatingRemainder(dividingBy: 360)

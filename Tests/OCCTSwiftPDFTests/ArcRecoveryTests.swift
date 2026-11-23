@@ -344,11 +344,12 @@ struct ArcRecoveryTests {
     @Test("a smooth polyline of many chords is searched in a few fits a start, not one a length")
     func fineChordsAreCheap() {
         // An ellipse of 800 chords is round to 0.003 mm over some 45 of them from any start:
-        // growing a run one chord at a time takes 36,000 fits, and doubling and halving 9,000.
+        // growing a run one chord at a time takes 36,000 fits, doubling and halving 9,000, and
+        // starting from where the last start's run ended 2 a start.
         let chords = ArcShapes.ellipse(centre: Self.centre, a: 150, b: 147, segments: 800)
         let count = SearchCount()
         #expect(ArcRecovery.recover(chords, Self.options, count: count).isEmpty)
-        #expect(count.fits < 15_000, "\(count.fits) fits")
+        #expect(count.fits < 4_000, "\(count.fits) fits")
     }
 
     @Test("arcs drawn clockwise join as the circle they make")

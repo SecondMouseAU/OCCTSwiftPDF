@@ -309,4 +309,25 @@ struct FittedDrawingTests {
         #expect(fitted.identity(ofEntityAt: 0).id.hasSuffix(":0:FITTED"))
         #expect(fitted.identity(ofEntityAt: 1).id.hasSuffix(":1"))
     }
+
+    @Test("fit(atEntity:) finds each of several fits, and nothing between them")
+    func fitsByEntity() throws {
+        var content = ""
+        for index in 0..<5 {
+            let at = P(100 + Double(index) * 150, 200)
+            // A line, then a circle, five times.
+            content += "0 0 m 9 9 l S "
+            let circle = ArcShapes.bezierArc(centre: at, radius: 30, curves: 4)
+            content += Self.operators(circle) + " S "
+        }
+        let fitted = try Self.page(content).fittedDrawing()
+        #expect(fitted.fits.count == 5 && fitted.drawing.entities.count == 10)
+        #expect(fitted.fits.map(\.entityIndex) == [1, 3, 5, 7, 9])
+        for fit in fitted.fits {
+            #expect(fitted.fit(atEntity: fit.entityIndex)?.center == fit.center)
+        }
+        for index in [0, 2, 4, 6, 8, 10, -1] {
+            #expect(fitted.fit(atEntity: index) == nil)
+        }
+    }
 }

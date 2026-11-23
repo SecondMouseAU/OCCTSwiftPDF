@@ -10,24 +10,6 @@ import Foundation
 import SwiftDXF
 
 extension PDF {
-    /// Where a reference drawing lies on the paper: a similarity, as ``Comparison`` fitted it.
-    public struct Placement: Sendable, Equatable {
-        /// Reference units to paper millimetres.
-        public var scale: Double
-        public var rotationDeg: Double
-        /// Where the reference's origin lands, in millimetres on the paper.
-        public var translationX: Double
-        public var translationY: Double
-
-        public init(scale: Double, rotationDeg: Double, translationX: Double, translationY: Double)
-        {
-            self.scale = scale
-            self.rotationDeg = rotationDeg
-            self.translationX = translationX
-            self.translationY = translationY
-        }
-    }
-
     /// A recovered circle or arc paired with the reference circle or arc it stands for.
     public struct ArcMatch: Sendable {
         /// Position in ``FittedDrawing/fits``.
@@ -87,7 +69,9 @@ extension PDF {
     ///
     /// A fit matches the reference circle or arc whose centre and radius are nearest, if both are
     /// within `bound` millimetres on the paper and, where both are arcs, the angles overlap. The
-    /// matching is not one to one: a reference arc that two fits share is matched by both.
+    /// matching is not one to one: a reference arc that two fits share is matched by both. Every
+    /// fit is tried against every reference circle and arc, so the cost is the product of their
+    /// numbers: this is spike tooling, not for a sheet of tens of thousands.
     public static func compareArcs(
         _ fitted: FittedDrawing, with reference: DXF.Drawing, placedBy location: Placement,
         within bound: Double = 0.5
@@ -137,6 +121,10 @@ extension PDF {
             let y: Double = centre.y + radius * sin(angle)
             return DXF.Point2(x, y)
         }
+        func endPoint(of fit: ArcFit, _ deg: Double) -> DXF.Point2 {
+            let point = fit.point(atDeg: deg)
+            return DXF.Point2(point.x, point.y)
+        }
 
         // Points every 0.1 mm along each fit, against all of the reference's geometry.
         let index = SegmentIndex(segments(reference, transform: placement), cell: 1)
@@ -149,7 +137,7 @@ extension PDF {
             for step in 0..<count {
                 let along: Double = (Double(step) + 0.5) / Double(count)
                 let degrees: Double = fit.startDeg + fit.sweepDeg * along
-                let point = endPoint(centre, fit.radius, degrees)
+                let point = endPoint(of: fit, degrees)
                 if index.distance(from: point, within: 0.5) <= 0.1 { near += 1 }
             }
             support.append(Double(near) / Double(count))
@@ -187,8 +175,8 @@ extension PDF {
             matchedReference.insert(round.index)
             var endpointError: Double?
             if fit.shape == .arc, let span = round.span {
-                let fitStart = endPoint(centre, fit.radius, fit.startDeg)
-                let fitEnd = endPoint(centre, fit.radius, fit.endDeg)
+                let fitStart = endPoint(of: fit, fit.startDeg)
+                let fitEnd = endPoint(of: fit, fit.endDeg)
                 let refStart = endPoint(round.centre, round.radius, span.start)
                 let refEnd = endPoint(round.centre, round.radius, span.end)
                 endpointError = max(fitStart.distance(to: refStart), fitEnd.distance(to: refEnd))

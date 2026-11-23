@@ -65,8 +65,8 @@
     /// 0.02 mm (or 0.04 percent of the radius) of centre and radius.
     func joinablePairs(_ fits: [PDF.ArcFit]) -> Int {
         func end(_ fit: PDF.ArcFit, _ degrees: Double) -> (Double, Double) {
-            let a = degrees * .pi / 180
-            return (fit.center.x + fit.radius * cos(a), fit.center.y + fit.radius * sin(a))
+            let point = fit.point(atDeg: degrees)
+            return (point.x, point.y)
         }
         let arcs = fits.filter { $0.shape == .arc }
         var cells: [String: [Int]] = [:]

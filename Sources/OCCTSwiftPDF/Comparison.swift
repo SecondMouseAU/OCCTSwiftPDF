@@ -197,6 +197,26 @@ extension PDF {
 
 }
 
+extension PDF {
+    /// Where a reference drawing lies on the paper: a similarity, as ``Comparison`` fitted it.
+    public struct Placement: Sendable, Equatable {
+        /// Reference units to paper millimetres.
+        public var scale: Double
+        public var rotationDeg: Double
+        /// Where the reference's origin lands, in millimetres on the paper.
+        public var translationX: Double
+        public var translationY: Double
+
+        public init(scale: Double, rotationDeg: Double, translationX: Double, translationY: Double)
+        {
+            self.scale = scale
+            self.rotationDeg = rotationDeg
+            self.translationX = translationX
+            self.translationY = translationY
+        }
+    }
+}
+
 extension PDF.Comparison {
     /// Where the comparison placed the reference on the paper.
     public var placement: PDF.Placement {
