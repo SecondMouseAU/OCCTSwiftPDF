@@ -3,8 +3,8 @@ type: experiment
 title: Option 1 spike, Apple's frameworks only
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [spike, pdf, cgpdfscanner, pdfkit, vector]
-description: CoreGraphics' PDF scanner with this package's own font decoding reads CAD-exported vector PDFs into DXF.Drawing, matching 289 of 321 TECS pairs to hundredths of a millimetre; PDFium is not needed. Text drawn as shapes is the gap, and the bridge to scans.
-timestamp: 2026-11-22
+description: CoreGraphics' PDF scanner with this package's own font decoding reads CAD-exported vector PDFs into DXF.Drawing, matching 289 of 321 TECS pairs to hundredths of a millimetre; PDFium is not needed. Text drawn as shapes, which has no text to read, is recovered by opt-in OCR where it agrees with the geometry; the first piece of the raster path.
+timestamp: 2026-11-23
 ---
 
 # Option 1 spike: Apple's frameworks only
@@ -87,6 +87,58 @@ on one sheet that nothing decodes:
   PDFWriter (`Repw604s`, filled outlines) and Microsoft Print to PDF draw text as geometry and give
   no text at all. These need glyph recognition: OCR on the rendered area or matching stroke fonts.
   This is where the vector path meets the raster path.
+- **Text drawn as shapes, recovered by OCR (opt-in, Next 6).** `PDF.Document.recoveringShapeText()`
+  finds lines of small filled or stroked shapes from the geometry already read, renders the page
+  (CoreGraphics) and cuts each line out upright, reads it with Apple Vision at three sizes, and
+  keeps the text only where it agrees with the shapes: the recognised box overlaps theirs (at least
+  0.5 intersection over union), runs along their direction (within 8 degrees) and is 0.6 to 1.8 of
+  their height, the number of characters is plausible for the number of glyph pieces, the length
+  fits the number of characters, the characters are plausible (a letter or digit, no replacement
+  character, no Latin and Cyrillic in one word, nothing outside the blocks a drawing's text is in),
+  and all three readings give the same characters. The rest is counted with its reason. Accepted
+  text is a run decoded `.ocr` with the recogniser's confidence, and a drawing marks it `:ocr` in
+  the entity's identity. Measured with Vision on macOS 27.2 (the output differs by OS version), page
+  1 unless said, the shipped defaults:
+
+  | Sheet | How the text is drawn | Clusters | Accepted | Rejected, and why | Checked against |
+  |---|---|---|---|---|---|
+  | `Repw604s` | Acrobat PDFWriter 3.02, filled outlines, no text layer | 308 | 176 | 132: no text 79, readings disagree 17, position 14, direction 6, ambiguous 6, glyph count 4, characters 4, confidence 2 | 52 accepted strings checked by eye against the page rendered by `pdftocairo`: about one in six wrong |
+  | `repw618j` | same writer, strokes, invisible text layer | 1,957 | 1,114 | 843: no text 537, readings disagree 184, position 28, direction 27, confidence 26, glyph count 16, characters 14, ambiguous 11 | the text layer, below |
+  | `TS.pdf`, 20 pages | MicroStation through Adobe PDF Library, outlines, invisible text layer | 3,657 | 2,313 | 1,344: no text 729, position 217, readings disagree 162, ambiguous 126, direction 63, characters 19, confidence 19, glyph count 8, height 1 | the text layer, below |
+  | `a3012183-...` | Microsoft Print to PDF, outlines | 203 | 123 | 80: no text 36, readings disagree 22, position 9, ambiguous 6, direction 3, confidence 2, characters 1, glyph count 1 | no text layer; 16 of 16 sampled right |
+  | `Pandrol...` | AutoCAD plot, SHX strokes | 200 | 98 | 102: no text 72, position 9, readings disagree 7, direction 7, ambiguous 3, characters 2, confidence 1, already read 1 | no text layer; 15 of 16 sampled right (`RAL` for `RAIL`) |
+
+  A cluster is one line of at least two glyph pieces; "too small" clusters (a single piece) are
+  counted apart and not looked at (556 on `repw618j`).
+  - **Against the text layer** (`pdfprobe ocr --compare`, which recognises the clusters over the
+    invisible text as well and compares the accepted string with it, ignoring spaces). On
+    `repw618j`, 1,083 accepted clusters lie over text the page has: 691 give the same characters, 358
+    are a word or part of a longer run's text, 34 (3.1 percent) differ. On `TS.pdf`, 2,208:
+    1,301 the same, 868 a part, 12 the page's text is a part of the OCR, 27 (1.2 percent) differ.
+    Position: the accepted cluster's centre is inside or within 0.58 mm of a text run's box in every
+    case. Of the 34 on `repw618j`, 25 are `L/R` read as `LYR` or `LVR` (the slash), 5 are a
+    fraction read as `½` or `¾`, one is a Cyrillic `Х-Х` for `X-X`, and 3 are other fragments; of the
+    27 on `TS.pdf`, 8 are `W.Ariyaratne` with its full stop lost, 11 are the centre-line sign read
+    as `&`, `*` or `E` (the text layer has a replacement character there), 5 are superscripts
+    (`x 10^7`) and 3 other. Where the text layer is itself wrong (mojibake for `°` and `¶`) the OCR
+    is the likelier right.
+  - **What three readings buy.** In an earlier build, on `repw618j` one reading (40 pixels high)
+    accepted 1,247 clusters over text, 121 of them (9.7 percent) different; the three agreeing readings accepted 1,070, 31
+    (2.9 percent) different, and lost about 14 percent of the accepted number, some of them right
+    (of the 241 clusters recognised and rejected on this sheet, 124 were right anyway). It does not
+    help against a confusion at every size, as the slash is.
+  - **Where there is no text to find.** Of the 47 corpus files, 38 accept nothing from their first
+    page: the McMaster and Fowler sheets, `2120`, `Wing Triple` and others, all with real text. Of the
+    other nine, five are the sheets above, three are Repw sheets with real text and some of it
+    outlined (`repw617d`, `repw762d` and `repw810c` accept 3, 10 and 18), and one is
+    `MAURICIUS-A3.pdf`, a drawing over a full-page image, which accepts `AD` twice from shapes that
+    are not text: the one case found of OCR text from shapes that are not text.
+  - **Pairs.** None of the 326 TECS pairs compared has text drawn as shapes (every vector TECS sheet
+    has text), so there is no DXF or JWW of a drawing like this to compare with; the text layer of
+    `repw618j` and `TS.pdf` is the check, and the geometry of a paired drawing is unchanged.
+  - **Cost.** `repw618j` (15,430 small shapes, 1,957 clusters) takes 60 to 130 seconds with three
+    readings, `TS.pdf` (20 pages) 1 to 5 minutes, depending on the load of the machine; the first
+    Vision call after a boot takes about 30 seconds more.
 
 ### 3. Layers
 
@@ -197,6 +249,24 @@ radius fitted over the whole run.
   `ToUnicode` map (or, if composite, an empty one); one that has a map keeps it, gaps included.
   Where a `CIDToGIDMap` stream does not show the CIDs to be Unicode, a space the subset left out is
   U+FFFD. One corpus file reaches this path, so how far it generalises is not measured.
+- Text recovered by OCR (`PDF.Document.recoveringShapeText`, opt-in) is only as good as Vision,
+  whose output differs by OS version and machine (the figures here are from macOS 27.2). It can read
+  a character that looks like another as that one where the geometry cannot tell (`/` as `V` in
+  `L/R`, `&` as a dot, a character under a ruling line), and Vision reports a confidence of 1.0 for
+  nearly everything, so the confidence tells nothing: `.ocr` text is unchecked text. Any other ink
+  under a line (a ruling line through a word) reaches the recogniser with it. Not looked at:
+  clusters of fewer than two glyph pieces (a lone character cannot be checked), a line of two
+  glyphs at an angle that is not along or across the page (the principal axis needs three), shapes
+  over 64 page units, and pieces in a blob of more than 5,000 glyphs (hatching) or on a page so
+  dense that grouping them would take too long. Three or more characters that are all plain
+  vertical strokes (`I`, `l`, `1`, `|`, `!`) are refused, since a row of ticks reads that way, and
+  that refuses a value such as `111` with them. A gap wider than a glyph cuts a line
+  into words, each its own run; lines are not joined into blocks; a page's images are rendered under
+  the shapes (a drawing over a full-page image gave two accepted strings that are not text), and
+  superscripts and `1/2` come back as the recogniser writes them (`½`). An OCR run's `height` is
+  the ink above its baseline, not a font size, and the baseline is estimated from where most
+  glyphs stand. The first Vision call after a boot takes tens of seconds while the system loads its
+  model.
 - On tvOS PDFKit is not used. A run only PDFKit can read (the HiraginoSans runs on the Fowler
   sheets) has no text there, and `drawing()` counts it in `skipped["TEXT"]`; a run this reader only
   guessed (`asciiGuess`) or read with U+FFFD keeps that reading, which can be wrong text, not
@@ -230,5 +300,9 @@ binary for nothing the corpus needs.
    tvOS ([#3](https://github.com/SecondMouseAU/OCCTSwiftPDF/issues/3)), and the comparison's `unzip`
    reader is macOS only, so the package builds on all four; what is left is the wiring and a first
    tag to pin.
-6. Text drawn as shapes: OCR on the rendered area (Apple Vision), accepted only where it agrees
-   with the measured geometry. The first piece of the raster path.
+6. Done: text drawn as shapes is recovered by OCR on the rendered area (Apple Vision), accepted only
+   where it agrees with the measured geometry (`PDF.Document.recoveringShapeText`, opt-in; the
+   figures are in Results, section 2). It is the first piece of the raster path: its render and
+   recognise steps are what the scanned sheets will use. What it leaves: a check of each recognised
+   character against the ink it was read from (which would catch the look-alikes it passes), reading
+   a cluster from its own shapes without the other ink under it, and joining lines into blocks.
