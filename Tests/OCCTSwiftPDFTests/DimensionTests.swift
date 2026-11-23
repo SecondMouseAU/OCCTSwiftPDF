@@ -8,7 +8,7 @@ import Testing
 /// hand so that every piece and every value is known.
 @Suite("Dimensions")
 struct DimensionTests {
-    /// The number of dimensions a rebuilt value text names, by text.
+    /// The texts of the rebuilt dimensions.
     static func texts(_ recovery: PDF.DimensionRecovery) -> [String] {
         recovery.dimensions.compactMap(\.textOverride)
     }
@@ -271,17 +271,17 @@ struct DimensionTests {
     @Test("the gap that parts views is the one asked for, and one view is the whole sheet")
     func viewGap() throws {
         var sheet = DimensionSheet()
-        sheet.column(x: 20, y: 50, count: 6, scale: 2)
-        sheet.column(x: 130, y: 50, count: 6, scale: 2)
+        // Four dimensions a column, the columns 60 mm apart: further than two cells of 10 mm, and
+        // nearer than one of 150 mm, whichever way the cells fall.
+        sheet.column(x: 20, y: 50, count: 4, scale: 2)
+        sheet.column(x: 150, y: 50, count: 4, scale: 2)
         let page = try sheet.page()
-        // About 40 mm apart, by default cells of 5 mm: two views.
         #expect(page.recoveringDimensions().views.count == 2)
-        // Cells of 60 mm join pieces up to 60 mm apart at least; cells of 10 mm keep these apart.
-        #expect(page.recoveringDimensions(PDF.DimensionOptions(viewGap: 60)).views.count == 1)
+        #expect(page.recoveringDimensions(PDF.DimensionOptions(viewGap: 150)).views.count == 1)
         #expect(page.recoveringDimensions(PDF.DimensionOptions(viewGap: 10)).views.count == 2)
         let one = page.recoveringDimensions(PDF.DimensionOptions(separateViews: false))
         #expect(one.views.count == 1)
-        #expect(one.dimensions.count == 12)
+        #expect(one.dimensions.count == 8)
     }
 
     @Test(
@@ -308,17 +308,47 @@ struct DimensionTests {
             !recovery.warnings.contains { if case .scalesDisagree = $0 { true } else { false } })
     }
 
+    @Test("a circle or an arc is in the view and on the layer of the pieces it touches")
+    func circlesAndArcs() throws {
+        func text(_ at: Double) -> DXF.Entity {
+            .text(
+                at: DXF.Point(at, 0), height: 2.5, rotationDeg: 0, string: "10", layer: "A",
+                color: 7)
+        }
+        let drawing = DXF.Drawing(entities: [
+            .line(a: DXF.Point(0, 0), b: DXF.Point(20, 0), layer: "A", color: 7),
+            .circle(center: DXF.Point(10, 5), radius: 5, layer: "A", color: 7),
+            .arc(
+                center: DXF.Point(30, 0), radius: 10, startDeg: 90, endDeg: 180, layer: "A",
+                color: 7),
+            text(200),
+        ])
+        let views = PDF.Views(drawing, cell: 5)
+        // The line, the circle on it, and the arc that starts 10 mm away are one view; the text is
+        // another, and no entity is a view by itself.
+        #expect(views.of == [0, 0, 0, 1])
+        let moved = PDF.DimensionRecoverer.relayered(drawing, to: { "view \($0)" })
+        for (index, entity) in moved.entities.enumerated() {
+            switch entity {
+            case .circle(_, _, let layer, _), .arc(_, _, _, _, let layer, _):
+                #expect(layer == "view \(index)")
+            default:
+                break
+            }
+        }
+    }
+
     @Test("a segment too long for the grid does not stop the rebuild")
     func hugeCoordinates() throws {
+        // With arrowheads, so that the index of the pieces a tip is asked about is built too.
         var sheet = DimensionSheet()
-        sheet.column(x: 30, y: 60, count: 6, scale: 2)
-        // A line to 1e22 points, which `drawing()` reads, as lines, polylines and fills.
+        sheet.column(x: 30, y: 60, count: 6, scale: 2, extensionLines: false, arrowheads: true)
+        // Lines to 1e22 points, which `drawing()` reads.
         sheet.content += "0 0 m 10000000000000000000000 0 l S\n"
         sheet.content += "0 0 m 10000000000000000000000 10000000000000000000000 l S\n"
         let page = try sheet.page()
-        let recovery = page.recoveringDimensions()
-        #expect(recovery.dimensions.count == 6)
-        _ = page.workingDrawing(arrowheads: true)
+        #expect(try page.workingDrawing(arrowheads: true).counts.point == 12)
+        #expect(page.recoveringDimensions().dimensions.count == 6)
     }
 
     @Test("a comma is read as the drawing writes it when told, and by the geometry when not")

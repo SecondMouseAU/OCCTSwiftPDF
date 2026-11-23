@@ -65,11 +65,15 @@ import Foundation
         return scale >= 1 ? "1:" + shown(scale) : shown(1 / scale) + ":1"
     }
 
-    func unexplainedCount(_ recovery: PDF.DimensionRecovery) -> Int {
-        recovery.warnings.filter {
+    func unexplainedCount(_ warnings: [DXF.DimensionRebuild.Warning]) -> Int {
+        warnings.filter {
             if case .valueNotExplained = $0 { return true }
             return false
         }.count
+    }
+
+    func unexplainedCount(_ recovery: PDF.DimensionRecovery) -> Int {
+        unexplainedCount(recovery.warnings)
     }
 
     func dimensionLine(_ url: URL, _ flags: DimensionFlags) -> (

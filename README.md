@@ -70,11 +70,13 @@ swift run pdfprobe [--detail] <file-or-folder>...   # what each PDF is made of
 swift run pdfprobe compare <pdf> <dxf-or-zip>         # a PDF against the DXF of the same drawing
 swift run pdfprobe pairs <folder>                     # every <name>.pdf beside <name>_dxf.zip, or _jww.zip
 swift run pdfprobe debug-text <pdf> <text>            # where this reader and PDFKit put a text
-swift run pdfprobe dimensions [--detail] <file-or-folder>...   # dimensions, scale and evidence of each PDF
-swift run pdfprobe dimension-pairs <folder>           # the same, against the DXF or JWW beside each PDF
+swift run pdfprobe dimensions [flags] <file-or-folder>...   # dimensions, scale and evidence of each PDF
+swift run pdfprobe dimension-pairs [flags] <folder>   # the same, against the DXF or JWW beside each PDF
 ```
 
-`compare`, `pairs` and `dimension-pairs` take `--exclude-layer <name>` (repeatable) to leave a DXF layer out, such as
+`dimensions` and `dimension-pairs` take `--detail`, `--numbers thousands|decimal|plain`, `--scale N`,
+`--scale-range LOW HIGH`, `--tolerance MM`, `--view-gap MM`, `--no-views` and `--no-arrowheads`; they stop
+on a flag they do not understand. `compare`, `pairs` and `dimension-pairs` take `--exclude-layer <name>` (repeatable) to leave a DXF layer out, such as
 Jw_cad's auxiliary lines, which are never printed: the TECS figures in the experiment page come
 from `pdfprobe pairs --exclude-layer ADD_LINE <tecs-pairs folder>`. A zip must hold exactly one
 entry, a DXF or a JWW. A JWW (`<name>_jww.zip` or `.lzh`, used where the DXF is missing) is read by

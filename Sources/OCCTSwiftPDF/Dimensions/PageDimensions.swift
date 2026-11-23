@@ -242,6 +242,13 @@ extension PDF {
                     entities[index] = .line(a: a, b: b, layer: name, color: color)
                 case .point(let at, _, let color):
                     entities[index] = .point(at: at, layer: name, color: color)
+                case .circle(let center, let radius, _, let color):
+                    entities[index] = .circle(
+                        center: center, radius: radius, layer: name, color: color)
+                case .arc(let center, let radius, let start, let end, _, let color):
+                    entities[index] = .arc(
+                        center: center, radius: radius, startDeg: start, endDeg: end, layer: name,
+                        color: color)
                 case .polyline(let vertices, let closed, _, let color):
                     entities[index] = .polyline(
                         vertices: vertices, closed: closed, layer: name, color: color)

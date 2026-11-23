@@ -100,6 +100,18 @@ extension PDF {
                     return DXF.Point2(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
                 }
             }
+            func arc(_ center: DXF.Point, _ radius: Double, from start: Double, sweep: Double)
+                -> [DXF.Point2]
+            {
+                let length = abs(radius) * sweep * .pi / 180
+                guard length.isFinite else { return [] }
+                let n = Int(min(4_096, max(8, (length / step).rounded(.up))))
+                return (0...n).map {
+                    let angle = (start + sweep * Double($0) / Double(n)) * .pi / 180
+                    return DXF.Point2(
+                        center.x + radius * cos(angle), center.y + radius * sin(angle))
+                }
+            }
             func chain(_ points: [DXF.Point2], closed: Bool) -> [DXF.Point2] {
                 var out: [DXF.Point2] = []
                 for i in 0..<max(0, points.count - 1) { out += along(points[i], points[i + 1]) }
@@ -115,6 +127,12 @@ extension PDF {
                 return chain(vertices.map { DXF.Point2($0.point.x, $0.point.y) }, closed: closed)
             case .spline(let spline):
                 return chain(spline.controlPoints.map { DXF.Point2($0.x, $0.y) }, closed: false)
+            case .circle(let center, let radius, _, _):
+                return arc(center, radius, from: 0, sweep: 360)
+            case .arc(let center, let radius, let start, let end, _, _):
+                var sweep = (end - start).truncatingRemainder(dividingBy: 360)
+                if sweep <= 0 { sweep += 360 }
+                return arc(center, radius, from: start, sweep: sweep)
             case .text(let at, let height, let rotation, let string, _, _):
                 let radians = rotation * .pi / 180
                 let length = Double(string.count) * 0.6 * height

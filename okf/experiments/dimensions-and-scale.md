@@ -135,7 +135,8 @@ the sheet's scale in that view) was measured against not applying it on the TECS
 | it has 8 values and 85 percent of the voters | 2 | 310 | 59 |
 | it has 4 values and two thirds of the voters | 8 | 305 | 78 |
 
-(These runs had no scale range, so the first row has the 40 dimensions above in it.) Of the eight at
+(These runs had no scale range, so the first row has 25 of the 40 dimensions above in it; the other
+15 matched the reference's, at a scale that is wrong.) Of the eight at
 the lower bar, five were wrong (`c10`, `en56`, `es04`, `es05`, `tmf1`), one right (`hkloco1`, where 1:10
 against the sheet's 1:9.85 matched two more dimensions) and two changed no dimension (`i_futou`,
 `tr-pc1`); on a ninth (`ps11`) the sheet found no scale and a view found 1:20 on 4 values, which was

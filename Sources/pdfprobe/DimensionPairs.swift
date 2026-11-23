@@ -148,10 +148,7 @@ import Foundation
             viewsDisagree: recovery.views.contains { $0.alternative != nil },
             pdfDimensions: recovery.dimensions.count, referenceDimensions: truth.dimensions.count,
             match: match, pdfUnexplained: unexplainedCount(recovery),
-            referenceUnexplained: truth.warnings.filter {
-                if case .valueNotExplained = $0 { return true }
-                return false
-            }.count)
+            referenceUnexplained: unexplainedCount(truth.warnings))
         if let texts = flaggedTexts(reference) {
             var have: [String: Int] = [:]
             for dimension in recovery.dimensions { have[key(dimension), default: 0] += 1 }
