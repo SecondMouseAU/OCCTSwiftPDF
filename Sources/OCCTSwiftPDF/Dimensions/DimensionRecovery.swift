@@ -114,6 +114,9 @@ extension PDF {
         /// The scale of the sheet, the one that explains the most values over the whole page (the
         /// real value per millimetre on the paper, `80` for 1:80), and what supports it; or `nil`
         /// when no credible scale explains enough values.
+        ///
+        /// With a scale given in the options it is that scale and what supports it, which can be
+        /// nothing.
         public var sheet: DXF.DimensionRebuild.ScaleEstimate?
         /// The views that have value texts, in the order of their first piece on the page.
         public var views: [DimensionView]
@@ -136,6 +139,10 @@ extension PDF {
 
         /// `drawing` with the rebuilt dimensions added after its entities, each with its `rebuilt`
         /// set; see `DimensionRebuild.applied(to:)`.
+        ///
+        /// A dimension's `rebuilt.pieces` name entities of the page's `drawing()`, except an
+        /// arrowhead's tip: `drawing()` leaves the filled path out (`skipped["FILL"]`), so its
+        /// identity (`p1:op12:0`) is the path's and has no entity there.
         public func applied(to drawing: DXF.Drawing) -> DXF.Drawing {
             rebuild.applied(to: drawing)
         }

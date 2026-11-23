@@ -122,6 +122,15 @@ struct DimensionTests {
         let working = page.workingDrawing(arrowheads: true)
         #expect(working.counts.point == 0)
         #expect(page.recoveringDimensions().dimensions.isEmpty)
+        // A narrow triangle longer than an arrowhead may be is a shape of the drawing.
+        var big = DimensionSheet()
+        big.column(x: 30, y: 60, count: 6, scale: 2, extensionLines: false)
+        big.arrow(60, 140, pointing: 1)
+        big.content +=
+            "\(pt(30)) \(pt(150)) m \(pt(46)) \(pt(151.5)) l \(pt(46)) \(pt(148.5)) l f\n"
+        let long = try big.page().workingDrawing(arrowheads: true)
+        // The arrowhead at (60, 140) is not beside any piece, and counts; the 16 mm one does not.
+        #expect(long.counts.point == 1)
     }
 
     @Test("a triangle with a vertex on its base is an arrowhead, and its tip is the end")
@@ -396,6 +405,22 @@ struct DimensionTests {
         )
     }
 
+    @Test("a view's own scale needs most of the values that vote, not only enough of them")
+    func weakShare() throws {
+        var sheet = DimensionSheet()
+        sheet.column(x: 20, y: 50, count: 14, scale: 2)
+        // Six values at another scale, among four that nothing explains: 60 percent of the voters.
+        sheet.column(x: 130, y: 50, count: 6, scale: 5)
+        for index in 0..<4 {
+            let length = 20.0 + Double(index) * 3.7
+            sheet.horizontal(
+                130, 130 + length, y: 98 + Double(index) * 8, value: String(1_000 + index * 77))
+        }
+        let recovery = try sheet.page().recoveringDimensions()
+        #expect(abs((recovery.scale ?? 0) - 2) < 1e-9)
+        #expect(recovery.views.allSatisfy { $0.alternative == nil })
+    }
+
     @Test("a view whose own scale is a few percent from the sheet's is not a disagreement")
     func nearScale() throws {
         var sheet = DimensionSheet()
@@ -427,11 +452,15 @@ struct DimensionTests {
         // At 1:400 each 100 mm of paper is 40 m: outside 10:1 to 1:300.
         var sheet = DimensionSheet()
         sheet.column(x: 20, y: 50, count: 6, scale: 400)
+        sheet.horizontal(20, 60, y: 98, value: "77")
         let page = try sheet.page()
         let recovery = page.recoveringDimensions()
         #expect(recovery.dimensions.isEmpty)
         #expect(recovery.scale == nil)
-        #expect(Self.unexplained(recovery).count == 6)
+        #expect(Self.unexplained(recovery).count == 7)
+        // With no scale, no value is one that a scale left unexplained, and none contradicts one.
+        #expect(Self.reason(recovery, "77") == .noScale)
+        #expect(recovery.views.allSatisfy { $0.contradicting == 0 })
         // Said to be credible, it is used.
         let wide = page.recoveringDimensions(PDF.DimensionOptions(scaleRange: 0.1...1000))
         #expect(wide.dimensions.count == 6)

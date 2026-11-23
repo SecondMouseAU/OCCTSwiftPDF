@@ -19,6 +19,12 @@ import Foundation
 
         init(_ arguments: [String]) {
             var rest = arguments[...]
+            func number(_ flag: String) -> Double {
+                guard let text = rest.popFirst(), let value = Double(text) else {
+                    Self.fail("\(flag) needs a number")
+                }
+                return value
+            }
             while let next = rest.popFirst() {
                 switch next {
                 case "--numbers":
@@ -26,23 +32,28 @@ import Foundation
                     case "thousands": options.numbers = .commaSeparatesThousands
                     case "decimal": options.numbers = .commaIsDecimalMark
                     case "plain": options.numbers = .plain
-                    default: break
+                    default: Self.fail("--numbers is thousands, decimal or plain")
                     }
-                case "--scale": options.scale = rest.popFirst().flatMap(Double.init)
-                case "--tolerance": options.tolerance = rest.popFirst().flatMap(Double.init)
+                case "--scale": options.scale = number(next)
+                case "--tolerance": options.tolerance = number(next)
+                case "--view-gap": options.viewGap = number(next)
                 case "--scale-range":
-                    if let low = rest.popFirst().flatMap(Double.init),
-                        let high = rest.popFirst().flatMap(Double.init), low <= high
-                    {
-                        options.scaleRange = low...high
-                    }
+                    let (low, high) = (number(next), number(next))
+                    guard low <= high else { Self.fail("--scale-range needs LOW at most HIGH") }
+                    options.scaleRange = low...high
                 case "--no-views": options.separateViews = false
                 case "--no-arrowheads": options.arrowheads = false
-                case "--view-gap": options.viewGap = rest.popFirst().flatMap(Double.init)
                 case "--detail": detail = true
                 default: paths.append(next)
                 }
             }
+        }
+
+        /// Says what is wrong with a flag and stops: a measurement run must not quietly use the
+        /// default it was not asked for.
+        static func fail(_ message: String) -> Never {
+            FileHandle.standardError.write(Data("pdfprobe: \(message)\n".utf8))
+            exit(2)
         }
     }
 

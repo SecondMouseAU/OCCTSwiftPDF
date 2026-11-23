@@ -14,7 +14,7 @@ import SwiftDXF
 extension PDF.Page {
     /// The longest side an arrowhead may have, in millimetres on the paper.
     ///
-    /// SwiftDXF then takes only those no longer than twice the median value text height.
+    /// A longer triangle is a shape of the drawing, not the end of a dimension line.
     static let largestArrowhead = 10.0
 
     /// How near a piece that crosses the dimension line must pass to a tip for the end to be
@@ -133,6 +133,10 @@ extension PDF.Page {
     /// The arrowhead whose corners are `corners`: the tip is the corner between the two longest
     /// sides when they are within 15 percent of each other and the third, the base, is at most 0.8
     /// of them; otherwise `nil`.
+    ///
+    /// SwiftDXF's own `arrowTip` asks for a base under 0.6 of the longest side, which a fat dart is
+    /// not (a Fowler arrowhead is 0.63), and takes the middle of one as its end: see
+    /// `okf/experiments/dimensions-and-scale.md`.
     static func arrowhead(of corners: [DXF.Point]) -> Arrowhead? {
         guard corners.count == 3 else { return nil }
         let sides = (0..<3).map {

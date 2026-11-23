@@ -15,11 +15,12 @@ extension PDF.Page {
     /// Rebuilds the page's dimensions from its pieces, without any flag in the file that says which
     /// belong together, and infers the scale from the values against the drawn lengths.
     ///
-    /// For each text that states a number it finds the dimension line beside it, the ends that
+    /// For each text that states a number it finds the dimension line beside it and the ends that
     /// line spans (where an extension line meets it, or an arrowhead is, if nothing else ends it:
-    /// a filled triangle drawn with no stroke counts) and the diameter or radius of a circle, and
-    /// takes the scale that explains most of the values; see SwiftDXF's `rebuildingDimensions(_:)`,
-    /// which does that. Every pair of pieces is looked at on the whole sheet, whatever layers the
+    /// a filled triangle drawn with no stroke counts), and takes the scale that explains most of
+    /// the values; see SwiftDXF's `rebuildingDimensions(_:)`, which does that. The circle or arc of
+    /// a diameter or radius is looked for too, but `drawing()` gives a PDF's curves as splines
+    /// until arc recovery lands, so none is rebuilt from a PDF yet. Every pair of pieces is looked at on the whole sheet, whatever layers the
     /// file puts them on, and the scale is found for the sheet.
     ///
     /// A PDF has no layer groups to say where a scale might change, so the page is also split into
@@ -156,9 +157,18 @@ extension PDF {
                         alternative: alternative))
             }
             var all = out.flatMap(\.warnings)
-            // A disagreement is between two scales at least: a view's alone is only its alternative.
+            // A disagreement is between two scales at least: a view's alone is only its alternative,
+            // and two views at the same scale do not disagree.
             let scales = (estimate.map { [$0] } ?? []) + disagreeing
-            if scales.count >= 2 { all.append(.scalesDisagree(scales)) }
+            let distinct = scales.reduce(into: [DXF.DimensionRebuild.ScaleEstimate]()) {
+                kept, next in
+                if !kept.contains(where: {
+                    abs(next.scale / $0.scale - 1) <= ViewEvidence.minimumDifference
+                }) {
+                    kept.append(next)
+                }
+            }
+            if distinct.count >= 2 { all.append(.scalesDisagree(scales)) }
             return DimensionRecovery(sheet: estimate, views: out, warnings: all)
         }
 
@@ -172,10 +182,15 @@ extension PDF {
             }
         }
 
-        /// A rebuild whose scale is not believed: its dimensions are none, and each value it
-        /// explained is one that nothing explains.
+        /// A rebuild whose scale is not believed: its dimensions are none, and every value is one
+        /// that no scale explains.
         static func withoutScale(_ rebuild: DXF.DimensionRebuild) -> DXF.DimensionRebuild {
-            var warnings = rebuild.warnings
+            var warnings = rebuild.warnings.map { warning -> DXF.DimensionRebuild.Warning in
+                if case .valueNotExplained(let text, let identity, .noMatch) = warning {
+                    return .valueNotExplained(text: text, identity: identity, reason: .noScale)
+                }
+                return warning
+            }
             for dimension in rebuild.dimensions {
                 if let text = dimension.textOverride, let id = dimension.rebuilt?.pieces.first {
                     warnings.append(.valueNotExplained(text: text, identity: id, reason: .noScale))
