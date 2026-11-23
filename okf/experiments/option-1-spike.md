@@ -229,9 +229,9 @@ segments together, usually a circle's curves and its closing line.
 **Against the paired DXF or JWW, by coordinates** (`pdfprobe arc-pairs`, 326 pairs, a reference
 circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles overlapping):
 
-- 228,655 fits: 215,849 (94.4 percent) match a reference circle or arc, 7,831 are circles centred
+- 228,659 fits: 215,852 (94.4 percent) match a reference circle or arc, 7,831 are circles centred
   on a reference `POINT` (Jw_cad prints each point as a small circle: `Igata` has 161 `POINT`s
-  and 161 such circles, of the same 3 mm radius), 4,975 (2.2 percent) are neither, and 2,380 of
+  and 161 such circles, of the same 3 mm radius), 4,976 (2.2 percent) are neither, and 2,380 of
   those (1.0 percent of all) have no reference geometry within 0.1 mm along them. Nine files
   hold 90 percent of the 2,380; seven are in the pairs listed above as holding other versions or
   extents of the sheet (`ec33`, `ec34`, `dd20-1` and the wagon family), and `dt71` and `dmh17` have
@@ -245,7 +245,7 @@ circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles
   PDFWriter median 3.5: its circles are 0.03 to 0.05 mm smaller on the paper than the CAD's,
   whatever the fit, so what the file draws is not what the CAD drew. Fitting does not beat the
   writer; it stops adding error to it.
-- Not recovered: 152,360 of the 364,776 reference circles and arcs have no fit. In the two pairs
+- Not recovered: 152,357 of the 364,776 reference circles and arcs have no fit. In the two pairs
   looked at about four in five sweep under 45 degrees and the rest have a radius of 0.2 to 0.5
   mm on the paper. The 2120 (Jw_cad through Acrobat PDFWriter 3.0J) has none of its 1,909
   reference circles and arcs recovered: its arcs are runs of a few chords (4 to 6 in the ones
