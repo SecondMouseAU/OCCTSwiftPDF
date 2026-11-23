@@ -50,7 +50,7 @@ swiftlint lint --strict
 `--filter` matches the Swift function name (`invisible()`), not the `@Test("...")` display string.
 Where the corpus is present (it is on the maintainer's machine) the `CorpusTests` run as ordinary
 tests and fail like any other; they skip only where their files are absent. `pdfprobe` has more
-subcommands (`compare`, `pairs`, `debug-text`); see the README.
+subcommands (`compare`, `pairs`, `debug-text`, `ocr`); see the README.
 
 ## Architecture
 
@@ -86,7 +86,6 @@ The read path is a pipeline, and the stages only make sense together:
    only fill a gap.
 5. **`TextAssembly`** joins runs that continue one another along a baseline, because some writers
    (Jw_cad) show one character per `Tj`.
-
 6. **Shape text** (`ShapeText/`) is not part of `PDF.read`: it runs only when asked
    (`PDF.Document.recoveringShapeText(options:)`), and Vision is called nowhere else. For text a
    writer drew as shapes it finds lines of small filled or stroked subpaths from the geometry
@@ -105,8 +104,10 @@ millimetres); text rotation is corrected for the page rotation there as well. St
 lines, polylines and one degree-3 spline per Bezier curve, so arc recovery is left to SwiftDXF's
 `Entity.fitted(tolerance:)`. Filled-only paths, images, text with no characters and a frame drawn
 on the page edge are not drawn but counted in `skipped` by layer. Every entity gets a
-`DXF.Identity` whose locator is `p<page>:op<operatorIndex>[:<piece>]` and whose `via` lists the
-Form XObjects it came through.
+`DXF.Identity` whose locator is `p<page>:op<operatorIndex>[:<piece>]` (text recovered by OCR:
+`p<page>:op<n>:ocr<k>`) and whose `via` lists the Form XObjects it came through. The stroked
+shapes OCR text was drawn with are left out and counted in `skipped["OCR TEXT"]`, and the pieces
+after them keep their numbers.
 
 The comparison code (`Comparison*.swift`, `Similarity.swift`, `SegmentIndex.swift`,
 `Reference.swift`) is spike tooling, not part of the reader. It reads the DXF (or a zip holding one,

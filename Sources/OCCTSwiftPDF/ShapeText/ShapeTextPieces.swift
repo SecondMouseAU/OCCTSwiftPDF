@@ -1,8 +1,7 @@
 // ShapeTextPieces.swift
 // OCCTSwiftPDF
 //
-// The small painted subpaths of a page, grouped into glyph-sized pieces, with the grid and the
-// disjoint sets the grouping needs.
+// The small painted subpaths of a page, and their grouping into glyphs.
 
 import CoreGraphics
 import Foundation

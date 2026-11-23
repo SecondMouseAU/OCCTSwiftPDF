@@ -31,10 +31,15 @@ final class BoxGrid {
             work += columns.count * rows.count
             if exceeded { return }
             for x in columns {
-                for y in rows { buckets[PDF.SegmentIndex.key(x, y), default: []].append(index) }
+                for y in rows { buckets[Self.key(x, y), default: []].append(index) }
             }
         }
     }
+
+    /// A cell's key.
+    ///
+    /// As in `SegmentIndex`, which is spike tooling and so not shared with the reader's code.
+    private static func key(_ x: Int64, _ y: Int64) -> Int64 { x << 32 ^ (y & 0xFFFF_FFFF) }
 
     /// The cells from `low` to `high`; a coordinate that is not finite, or is a billion cells out,
     /// is taken to be on the grid's edge, so a hostile file cannot trap the conversion.

@@ -248,63 +248,72 @@ enum ShapeTextRegions {
 
     /// The region a line of glyphs makes: its ink box along `direction`, measured over the points
     /// of its pieces (so a line at an angle is not widened by its glyphs' own bounding boxes).
+    ///
+    /// A thin stroke that runs the length of several glyphs (a strike-through, an overline) is in
+    /// the line but is not a glyph: it is left out of the box, the glyph count and the shapes the
+    /// text is drawn with.
     static func region(
         _ line: [Int], direction d: CGPoint, glyphs: [ShapeGlyph], pieces: [ShapePiece],
         page: PDF.Page
     ) -> ShapeTextRegion {
+        /// One glyph, measured along the direction and across it.
+        struct Measured {
+            var along: (low: Double, high: Double) = (.infinity, -.infinity)
+            var across: (low: Double, high: Double) = (.infinity, -.infinity)
+            var shapes: [PDF.ShapeReference] = []
+            var paths: [Int] = []
+            var filled = false
+            var alongLength: Double { along.high - along.low }
+            var acrossLength: Double { across.high - across.low }
+        }
         let n = CGPoint(x: -d.y, y: d.x)
-        var u = (low: Double.infinity, high: -Double.infinity)
-        var v = (low: Double.infinity, high: -Double.infinity)
-        var paths: [Int] = []
-        var stroked = 0
-        // Each glyph's extent across the direction, as measured, before the box's start is known,
-        // its extent along it, and the shapes it is.
-        var extents: [(low: Double, high: Double)] = []
-        var lengths: [Double] = []
-        var glyphShapes: [[PDF.ShapeReference]] = []
+        var measured: [Measured] = []
         for index in line {
             let glyph = glyphs[index]
-            if !glyph.filled { stroked += 1 }
-            var own = (low: Double.infinity, high: -Double.infinity)
-            var along = (low: Double.infinity, high: -Double.infinity)
-            var references: [PDF.ShapeReference] = []
+            var own = Measured()
+            own.filled = glyph.filled
             for pieceIndex in glyph.pieces {
                 let piece = pieces[pieceIndex]
-                if !paths.contains(piece.path) { paths.append(piece.path) }
-                references.append(PDF.ShapeReference(path: piece.path, subpath: piece.subpath))
+                own.paths.append(piece.path)
+                own.shapes.append(PDF.ShapeReference(path: piece.path, subpath: piece.subpath))
                 let path = page.paths[piece.path]
                 let widen = path.paint == .fill ? 0 : path.lineWidth / 2
                 for point in points(of: path.subpaths[piece.subpath]) {
                     let pu = point.x * d.x + point.y * d.y
                     let pv = point.x * n.x + point.y * n.y
-                    u = (min(u.low, pu - widen), max(u.high, pu + widen))
-                    v = (min(v.low, pv - widen), max(v.high, pv + widen))
-                    own = (min(own.low, pv - widen), max(own.high, pv + widen))
-                    along = (min(along.low, pu - widen), max(along.high, pu + widen))
+                    own.along = (min(own.along.low, pu - widen), max(own.along.high, pu + widen))
+                    own.across = (min(own.across.low, pv - widen), max(own.across.high, pv + widen))
                 }
             }
-            extents.append(own)
-            lengths.append(along.high - along.low)
-            glyphShapes.append(references)
+            measured.append(own)
+        }
+        let sizes = measured.map { max($0.alongLength, $0.acrossLength) }.sorted()
+        let median = sizes.isEmpty ? 0 : sizes[sizes.count / 2]
+        let text = measured.filter {
+            !($0.alongLength > 3 * median && $0.acrossLength < 0.25 * $0.alongLength)
+        }
+        let kept = text.isEmpty ? measured : text
+
+        var u = (low: Double.infinity, high: -Double.infinity)
+        var v = (low: Double.infinity, high: -Double.infinity)
+        var paths: [Int] = []
+        var shapes: [PDF.ShapeReference] = []
+        for glyph in kept {
+            u = (min(u.low, glyph.along.low), max(u.high, glyph.along.high))
+            v = (min(v.low, glyph.across.low), max(v.high, glyph.across.high))
+            shapes += glyph.shapes
+            for path in glyph.paths where !paths.contains(path) { paths.append(path) }
         }
         paths.sort()
-        // A stroke that runs the length of several glyphs and is thin (a strike-through, an
-        // overline) is in the line but is not a glyph, and is not text.
-        let sizes = zip(lengths, extents).map { max($0, $1.high - $1.low) }.sorted()
-        let median = sizes.isEmpty ? 0 : sizes[sizes.count / 2]
-        var shapes: [PDF.ShapeReference] = []
-        for (index, references) in glyphShapes.enumerated() {
-            let across = extents[index].high - extents[index].low
-            if lengths[index] > 3 * median && across < 0.25 * lengths[index] { continue }
-            shapes += references
-        }
+        let stroked = kept.filter { !$0.filled }.count
         let angle = atan2(d.y, d.x) * 180 / .pi
         return ShapeTextRegion(
             direction: d,
             origin: CGPoint(x: d.x * u.low + n.x * v.low, y: d.y * u.low + n.y * v.low),
-            length: u.high - u.low, height: v.high - v.low, glyphs: line.count,
-            mostlyStroked: stroked * 2 > line.count, canReverse: abs(abs(angle) - 90) < 45,
-            paths: paths, spans: extents.map { ($0.low - v.low)...($0.high - v.low) },
+            length: u.high - u.low, height: v.high - v.low, glyphs: kept.count,
+            mostlyStroked: stroked * 2 > kept.count, canReverse: abs(abs(angle) - 90) < 45,
+            paths: paths,
+            spans: kept.map { ($0.across.low - v.low)...($0.across.high - v.low) },
             shapes: shapes)
     }
 

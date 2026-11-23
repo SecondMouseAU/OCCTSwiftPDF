@@ -150,14 +150,18 @@ struct ShapeTextRecoveryTests {
     func strikeThrough() throws {
         let text = OutlineText.drawn("10,439", at: Self.origin, stroke: true)
         let middle = Self.origin.y + 3.5
+        // The strike runs past the text by four units each side.
         let content =
             text.content
-            + "0.3 w \(text.ink.minX - 1) \(middle) m \(text.ink.maxX + 1) \(middle) l S\n"
+            + "0.3 w \(text.ink.minX - 4) \(middle) m \(text.ink.maxX + 4) \(middle) l S\n"
         let (_, recovery) = try Self.recover(content, recogniser: Self.visionLike("10,439"))
         let page = try #require(recovery.document.pages.first)
         let run = try #require(page.texts.first)
         let recovered = page.drawing()
         #expect(recovery.reports[1]?.accepted == 1)
+        // The run is where the digits are, not stretched to the strike.
+        #expect(abs(run.origin.x - text.ink.minX) < 0.2)
+        #expect(abs(run.width - text.ink.width) < 0.3)
         // The strike's subpath is not one the text was drawn with, and is drawn as a line.
         let subpaths = page.paths.reduce(0) { $0 + $1.subpaths.count }
         #expect(run.shapes.count == subpaths - 1)

@@ -172,9 +172,13 @@ extension PDF.Page {
                                 index, .rejected(.inconsistent), text: before.text,
                                 read: read[index])
                         }
-                    case (.rejected, let before?):
+                    case (.rejected(let reason, _), let before?):
+                        // An earlier reading passed, so a validation failure now is a
+                        // disagreement; a recogniser or render failure is reported as itself.
+                        let failed = reason == .recognitionFailed || reason == .notRendered
                         decide(
-                            index, .rejected(.inconsistent), text: before.text, read: read[index])
+                            index, .rejected(failed ? reason : .inconsistent), text: before.text,
+                            read: read[index])
                     case (.rejected(let reason, let text), nil):
                         decide(index, .rejected(reason), text: text, read: read[index])
                     }

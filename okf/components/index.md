@@ -101,7 +101,7 @@ timestamp: 2026-11-23
   4. **Validate** (`ShapeTextValidator.swift`): the recognised line is accepted only if its
      confidence, characters (a letter or digit, no replacement character, nothing outside the
      Unicode blocks a drawing's text is in, no Latin and Cyrillic in one word), box (intersection over union with the shapes' box), direction (within 8 degrees),
-     height (0.6 to 1.8 of the shapes'), count (a third to 1.3 of the glyph pieces) and length per
+     height (0.6 to 1.8 of the shapes'), count (a third, or a sixth for strokes, to 1.3 of the glyph pieces and one more) and length per
      character (0.2 to 1.8 of its height) fit the shapes, and every reading gives the same
      characters.
 
