@@ -360,10 +360,12 @@ import Foundation
     default:
         let detail = arguments.contains("--detail")
         let paths = arguments.filter { $0 != "--detail" }
-        guard !paths.isEmpty else {
+        guard !paths.isEmpty, !["dimensions", "dimension-pairs"].contains(arguments.first) else {
             print(
                 "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | "
-                    + "pairs <folder> | debug-text <pdf> <text>; --exclude-layer <name> for compare and pairs"
+                    + "pairs <folder> | debug-text <pdf> <text> | "
+                    + "dimensions [flags] <file-or-folder>... | dimension-pairs [flags] <folder>; "
+                    + "--exclude-layer <name> for compare, pairs and dimension-pairs"
             )
             exit(2)
         }

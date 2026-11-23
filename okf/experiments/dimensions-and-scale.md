@@ -161,7 +161,7 @@ dart (a Fowler arrowhead is 3.6 by 2.4 points, not narrow enough to be an arrow 
 `Watergauge` gained 33 dimensions at 1:6.72 measuring 0.4 to 1.3 mm.
 
 So a tip is the corner between the two long sides of a narrow triangle, and is added only where no
-piece that crosses the dimension line passes within 0.5 mm of it. With that, the results on all 47 PDFs
+piece meets the dimension line within 0.5 mm of it (a tick that stops short does not). With that, the results on all 47 PDFs
 are identical to using no arrowheads: most tips are beside another piece, and the few that are not
 changed no dimension. That arrowheads end a dimension line that nothing else ends is shown on
 hand-built sheets only (`DimensionTests.arrowheads`); no corpus file has one.

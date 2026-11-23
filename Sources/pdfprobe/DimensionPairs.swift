@@ -139,15 +139,9 @@ import Foundation
         let recovery = page.recoveringDimensions(flags.options)
         // The reference is read the way Jw_cad writes numbers, and at its own (full) size.
         let truth = ref.rebuildingDimensions(.init(numbers: .commaSeparatesThousands))
-        let turn = fit.rotationDeg * .pi / 180
-        func place(_ p: DXF.Point2) -> DXF.Point2 {
-            DXF.Point2(
-                fit.scale * (cos(turn) * p.x - sin(turn) * p.y) + fit.translation.x,
-                fit.scale * (sin(turn) * p.x + cos(turn) * p.y) + fit.translation.y)
-        }
         let match = matchDimensions(
             recovery.dimensions, truth.dimensions, tolerance: 0.5, known: 1 / fit.scale,
-            detail: flags.detail, place: place)
+            detail: flags.detail, place: fit.place)
         var row = PairRow(
             stem: pdf.deletingPathExtension().lastPathComponent, known: 1 / fit.scale,
             found: recovery.scale,

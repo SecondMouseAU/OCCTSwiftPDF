@@ -513,17 +513,36 @@ struct DimensionTests {
         #expect(recovery.scale == nil)
     }
 
-    @Test("the drawing is not scaled: it stays in millimetres on the paper")
+    @Test(
+        "nothing is scaled: the dimensions are in millimetres on the paper, the scale beside them")
     func notScaled() throws {
         var sheet = DimensionSheet()
         sheet.column(x: 30, y: 60, count: 6, scale: 2)
         let page = try sheet.page()
-        let before = page.drawing()
-        _ = page.recoveringDimensions()
-        let after = page.drawing()
-        #expect(before.entities.count == after.entities.count)
-        let a = before.bounds
-        let b = after.bounds
-        #expect(a?.min.x == b?.min.x && a?.max.x == b?.max.x)
+        let recovery = page.recoveringDimensions()
+        #expect(recovery.dimensions.count == 6)
+        let paper = page.cropBox.width * 25.4 / 72
+        for dimension in recovery.dimensions {
+            // At 1:2 a value of 100 is 50 mm long on the paper, and its points are on the paper.
+            let value = try #require(Double(dimension.textOverride ?? ""))
+            let drawn = try #require(dimension.measurement)
+            #expect(abs(drawn * 2 - value) < 0.5)
+            for point in [dimension.defPoint2, dimension.defPoint3].compactMap({ $0 }) {
+                #expect(point.x >= 0 && point.x <= paper)
+            }
+        }
+    }
+
+    @Test("a tick that stops short of the dimension line does not end it, and the arrowhead does")
+    func tickShortOfTheLine() throws {
+        var sheet = DimensionSheet()
+        sheet.column(x: 30, y: 60, count: 6, scale: 2, extensionLines: false, arrowheads: true)
+        // A short tick 0.3 mm beyond each left tip, above the line and not reaching it.
+        for index in 0..<6 {
+            sheet.line(29.7, 60 + Double(index) * 8 + 0.3, 29.7, 60 + Double(index) * 8 + 2.1)
+        }
+        let page = try sheet.page()
+        #expect(try page.workingDrawing(arrowheads: true).counts.point == 12)
+        #expect(page.recoveringDimensions().dimensions.count == 6)
     }
 }

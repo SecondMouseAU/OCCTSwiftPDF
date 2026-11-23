@@ -21,6 +21,8 @@ extension PDF {
         /// Where the reference's origin lies on the paper, in millimetres, after the scale and the
         /// rotation: a reference point `p` is at `scale * R(rotationDeg) * p + translation`.
         public var translation: DXF.Point2
+        /// The fit as it was made, which ``place(_:)`` applies.
+        var similarity: Similarity
         /// Root mean square distance of the kept anchors after the text fit, in paper millimetres.
         public var anchorResidual: Double
         /// Root mean square distance of the matched geometry after the fit is refined on it.
@@ -44,6 +46,9 @@ extension PDF {
         /// The PDF drawing's samples farther than `tolerance` from the reference's geometry, by
         /// layer and entity type (`"0 SPLINE"`), to tell what the reference does not have.
         public var pdfUncovered: [String: Int]
+
+        /// A reference point on the paper: `point` through the fit (scale, rotation, translation).
+        public func place(_ point: DXF.Point2) -> DXF.Point2 { similarity.apply(point) }
     }
 
     /// Compare `drawing` (from a PDF page, in paper millimetres) with `reference` (the same sheet
@@ -126,7 +131,7 @@ extension PDF {
         return Comparison(
             anchors: pairs.count, anchorsUsed: used.count, scale: fit.scale,
             rotationDeg: fit.rotation * 180 / .pi, translation: DXF.Point2(fit.tx, fit.ty),
-            anchorResidual: residual,
+            similarity: fit, anchorResidual: residual,
             geometryResidual: refinedResidual,
             referenceCovered: fraction(refDistances, tolerance),
             pdfCovered: fraction(pdfDistances, tolerance),

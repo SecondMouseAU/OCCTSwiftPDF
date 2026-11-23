@@ -25,7 +25,8 @@ extension PDF {
         /// A scale to use instead of inferring one.
         ///
         /// The real value per millimetre on the paper, `80` for a sheet at 1:80. Anything but a
-        /// positive number is none. Views are not asked for scales of their own then.
+        /// positive number is none. It is used as it is, whatever `scaleRange` says, and views are
+        /// not asked for scales of their own.
         public var scale: Double?
         /// The scales that count as credible for a sheet of paper.
         ///
@@ -88,8 +89,9 @@ extension PDF {
         public var scale: Double?
         /// The value texts of the view that ``scale`` explains, each a dimension of the view.
         public var supporting: Int
-        /// The value texts of the view that have a dimension line beside them but that ``scale``
-        /// does not explain.
+        /// The value texts of the view that ``scale`` does not explain, whether or not a dimension
+        /// line is beside them: a note or a quantity counts too, so this is more than the sheet's
+        /// own count of those that have a dimension line beside them.
         public var contradicting: Int
         /// The dimensions rebuilt in the view, in the order of their value texts.
         public var dimensions: [DXF.Dimension]
@@ -116,11 +118,11 @@ extension PDF {
         /// when no credible scale explains enough values.
         ///
         /// With a scale given in the options it is that scale and what supports it, which can be
-        /// nothing.
+        /// nothing, or `nil` where no value text has a dimension line beside it.
         public var sheet: DXF.DimensionRebuild.ScaleEstimate?
         /// The views that have value texts, in the order of their first piece on the page.
         public var views: [DimensionView]
-        /// Every warning of every view, then, when a view's own values favour another scale,
+        /// Every warning of every view, then, when the sheet and the views favour more than one scale,
         /// `scalesDisagree` with the sheet's and each such view's (none is averaged).
         public var warnings: [DXF.DimensionRebuild.Warning]
 

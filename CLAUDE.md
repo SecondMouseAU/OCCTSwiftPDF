@@ -106,7 +106,8 @@ numbers (`pdfprobe dimension-pairs`): on the TECS sheets a scale taken from a vi
 was wrong more often than right, and so was every scale above 1:300.
 
 The comparison code (`Comparison*.swift`, `Similarity.swift`, `SegmentIndex.swift`,
-`Reference.swift`) is spike tooling, not part of the reader. It reads the DXF (or a zip holding one,
+`Reference.swift`) is spike tooling, not part of the reader (`SegmentIndex` is also used by the
+dimension rebuild, to ask whether a piece passes near an arrowhead). It reads the DXF (or a zip holding one,
 through `/usr/bin/unzip`) of the same drawing, fits a similarity transform from the texts that occur
 once in each drawing (robust, with a fixed-seed sampler so results repeat, then refined on the
 geometry), and reports how much of each drawing lies within a tolerance of the other. `pdfprobe` and

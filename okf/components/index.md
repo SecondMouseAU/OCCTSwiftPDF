@@ -66,7 +66,7 @@ timestamp: 2026-11-23
   nothing about scale and SwiftDXF looks for a dimension's pieces on the layer of its text. A scale
   outside `scaleRange` is not used. `Arrowheads.swift` adds the tip of each arrowhead, a filled
   triangle that is a path's only subpaths and is narrow like an arrow, as a point (SwiftDXF's mark
-  at the end of a dimension line), and only where no piece that crosses the line passes near the
+  at the end of a dimension line), and only where no piece meets the line near the
   tip: an arrowhead beside an extension line says nothing new, and extra marks gave the rebuild
   more spans to explain a value by chance. `Views.swift` splits the drawing into views by 8-connected
   cells of twice the median text height, so views are told apart by a gap of one to two cells.

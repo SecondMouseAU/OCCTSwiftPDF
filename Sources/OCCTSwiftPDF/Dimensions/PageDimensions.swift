@@ -20,8 +20,9 @@ extension PDF.Page {
     /// a filled triangle drawn with no stroke counts), and takes the scale that explains most of
     /// the values; see SwiftDXF's `rebuildingDimensions(_:)`, which does that. The circle or arc of
     /// a diameter or radius is looked for too, but `drawing()` gives a PDF's curves as splines
-    /// until arc recovery lands, so none is rebuilt from a PDF yet. Every pair of pieces is looked at on the whole sheet, whatever layers the
-    /// file puts them on, and the scale is found for the sheet.
+    /// until arc recovery lands, so none is rebuilt from a PDF yet. Every pair of pieces is looked
+    /// at on the whole sheet, whatever layers the file puts them on, and the scale is found for
+    /// the sheet.
     ///
     /// A PDF has no layer groups to say where a scale might change, so the page is also split into
     /// views, pieces that lie together apart from the others (`DimensionOptions.viewGap`), and each
@@ -117,13 +118,27 @@ extension PDF {
 
             var out: [DimensionView] = []
             var disagreeing: [DXF.DimensionRebuild.ScaleEstimate] = []
+            // What each view holds, found in one pass.
+            var dimensionsOf: [Int: [DXF.Dimension]] = [:]
+            for dimension in sheet.dimensions {
+                guard let v = view(of: dimension) else { continue }
+                dimensionsOf[v, default: []].append(
+                    Self.restoringLayer(dimension, from: working, textAt))
+            }
+            var warningsOf: [Int: [DXF.DimensionRebuild.Warning]] = [:]
+            for warning in sheet.warnings {
+                guard let v = Self.identity(of: warning).flatMap({ view(of: $0) }) else { continue }
+                warningsOf[v, default: []].append(warning)
+            }
+            var alternativesOf: [Int: [DXF.Dimension]] = [:]
+            for dimension in own?.dimensions ?? [] {
+                guard let v = view(of: dimension) else { continue }
+                alternativesOf[v, default: []].append(
+                    Self.restoringLayer(dimension, from: working, textAt))
+            }
             for v in 0..<views.count {
-                let dimensions = sheet.dimensions.filter { view(of: $0) == v }.map {
-                    Self.restoringLayer($0, from: working, textAt)
-                }
-                let warnings = sheet.warnings.filter {
-                    Self.identity(of: $0).flatMap { view(of: $0) } == v
-                }
+                let dimensions = dimensionsOf[v] ?? []
+                let warnings = warningsOf[v] ?? []
                 guard !dimensions.isEmpty || !warnings.isEmpty else { continue }
                 let contradicting = warnings.filter {
                     if case .valueNotExplained(_, _, .noMatch) = $0 { return true }
@@ -137,10 +152,8 @@ extension PDF {
                         abs(found.scale / $0.scale - 1) > ViewEvidence.minimumDifference
                     }) ?? true
                 {
-                    let instead = (own?.dimensions ?? []).filter { view(of: $0) == v }.map {
-                        Self.restoringLayer($0, from: working, textAt)
-                    }
-                    alternative = DimensionAlternative(scale: found, dimensions: instead)
+                    alternative = DimensionAlternative(
+                        scale: found, dimensions: alternativesOf[v] ?? [])
                     disagreeing.append(
                         DXF.DimensionRebuild.ScaleEstimate(
                             group: name, scale: found.scale, supporting: found.supporting,

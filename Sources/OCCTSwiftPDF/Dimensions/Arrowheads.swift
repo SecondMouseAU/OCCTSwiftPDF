@@ -17,7 +17,7 @@ extension PDF.Page {
     /// A longer triangle is a shape of the drawing, not the end of a dimension line.
     static let largestArrowhead = 10.0
 
-    /// How near a piece that crosses the dimension line must pass to a tip for the end to be
+    /// How near the tip a piece must meet the dimension line for the end to be
     /// marked already, in millimetres on the paper.
     static let arrowheadSupport = 0.5
 
@@ -38,7 +38,7 @@ extension PDF.Page {
     /// writers draw has one on its base) dropped. The tip is the corner between its two longer,
     /// nearly equal sides; a triangle that is not narrow like an arrow has none and is left out.
     ///
-    /// A tip is added only where no piece that crosses its line passes near it. Where an extension
+    /// A tip is added only where no piece meets its line near it. Where an extension
     /// line, or an edge of the part, already ends the dimension line, the arrowhead says nothing
     /// new, and an extra mark there only gives the rebuild more spans to explain a value by chance.
     func workingDrawing(arrowheads: Bool) -> DXF.Drawing {
@@ -186,15 +186,26 @@ extension PDF.Page {
         return PDF.SegmentIndex(pieces, cell: 5)
     }
 
-    /// Whether a piece that crosses the arrowhead's line (its angle to the way the arrowhead points
-    /// at least about 17 degrees: the dimension line itself runs that way) passes near the tip.
+    /// Whether a piece meets the arrowhead's line near the tip: its angle to the way the arrowhead
+    /// points at least about 17 degrees (the dimension line itself runs that way), reaching the
+    /// line, and meeting it within `arrowheadSupport` of the tip.
+    ///
+    /// A piece that passes near the tip without reaching the line, such as a tick that stops short
+    /// of it, does not end the dimension line, as SwiftDXF takes it.
     static func isMarked(_ arrowhead: Arrowhead, by pieces: PDF.SegmentIndex) -> Bool {
-        pieces.passes(near: arrowhead.tip, within: arrowheadSupport) { a, b in
+        let (tip, d) = (arrowhead.tip, arrowhead.direction)
+        func across(_ p: DXF.Point2) -> Double { (p.x - tip.x) * d.y - (p.y - tip.y) * d.x }
+        func along(_ p: DXF.Point2) -> Double { (p.x - tip.x) * d.x + (p.y - tip.y) * d.y }
+        return pieces.passes(near: tip, within: arrowheadSupport) { a, b in
             let length = a.distance(to: b)
             guard length > 1e-9 else { return false }
             let ux = (b.x - a.x) / length
             let uy = (b.y - a.y) / length
-            return abs(ux * arrowhead.direction.y - uy * arrowhead.direction.x) >= 0.3
+            guard abs(ux * d.y - uy * d.x) >= 0.3 else { return false }
+            let (ca, cb) = (across(a), across(b))
+            guard ca * cb <= 0 || min(abs(ca), abs(cb)) <= 0.05 else { return false }
+            let meets = ca == cb ? along(a) : along(a) + (along(b) - along(a)) * ca / (ca - cb)
+            return abs(meets) <= arrowheadSupport
         }
     }
 }
