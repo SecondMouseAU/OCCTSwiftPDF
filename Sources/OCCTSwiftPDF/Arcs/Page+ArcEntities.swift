@@ -14,22 +14,20 @@ extension PDF.Page {
         if arc.isCircle {
             return .circle(center: centre, radius: arc.circle.radius, layer: layer, color: colour)
         }
-        let counterclockwise = arc.sweep >= 0
+        let span = arc.counterclockwiseDeg
         return .arc(
-            center: centre, radius: arc.circle.radius,
-            startDeg: counterclockwise ? arc.firstDeg : arc.lastDeg,
-            endDeg: counterclockwise ? arc.lastDeg : arc.firstDeg, layer: layer, color: colour)
+            center: centre, radius: arc.circle.radius, startDeg: span.start, endDeg: span.end,
+            layer: layer, color: colour)
     }
 
     static func fit(of placed: ArcPlan.Placed, entityIndex: Int) -> PDF.ArcFit {
         let arc = placed.arc
-        let counterclockwise = arc.sweep >= 0
+        let span = arc.counterclockwiseDeg
         return PDF.ArcFit(
             entityIndex: entityIndex, shape: arc.isCircle ? .circle : .arc,
             input: arc.curves == 0 ? .lines : (arc.lines == 0 ? .curves : .mixed),
             center: DXF.Point(arc.circle.centre.x, arc.circle.centre.y), radius: arc.circle.radius,
-            startDeg: arc.isCircle ? 0 : (counterclockwise ? arc.firstDeg : arc.lastDeg),
-            endDeg: arc.isCircle ? 360 : (counterclockwise ? arc.lastDeg : arc.firstDeg),
+            startDeg: arc.isCircle ? 0 : span.start, endDeg: arc.isCircle ? 360 : span.end,
             maxResidual: arc.maxResidual, rmsResidual: arc.rmsResidual, stepRatio: arc.stepRatio,
             segments: placed.segments, sources: placed.sources, lineWidth: placed.lineWidth)
     }

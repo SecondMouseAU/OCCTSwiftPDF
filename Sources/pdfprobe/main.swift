@@ -338,18 +338,27 @@ import Foundation
         let detail = rest.contains("--detail")
         rest.removeAll { $0 == "--detail" }
         var bound = 0.5
-        if let at = rest.firstIndex(of: "--bound"), at + 1 < rest.count,
-            let value = Double(rest[at + 1])
-        {
+        if let at = rest.firstIndex(of: "--bound") {
+            guard at + 1 < rest.count, let value = Double(rest[at + 1]) else {
+                print("--bound needs a number")
+                exit(2)
+            }
             bound = value
             rest.removeSubrange(at...(at + 1))
         }
         var table: String?
-        if let at = rest.firstIndex(of: "--table"), at + 1 < rest.count {
+        if let at = rest.firstIndex(of: "--table") {
+            guard at + 1 < rest.count else {
+                print("--table needs a file name")
+                exit(2)
+            }
             table = rest[at + 1]
             rest.removeSubrange(at...(at + 1))
         }
-        guard let folder = rest.first else { exit(2) }
+        guard let folder = rest.first else {
+            print("arc-pairs needs a folder")
+            exit(2)
+        }
         let results = arcPairs(
             URL(fileURLWithPath: folder), options, excluded: excludedLayers, detail: detail,
             bound: bound, table: table)

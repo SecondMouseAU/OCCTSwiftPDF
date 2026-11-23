@@ -513,4 +513,43 @@ struct ArcRecoveryTests {
         loose.lineTolerance = 0.01
         #expect(ArcRecovery.recover(chords, loose).count == 1)
     }
+
+    @Test("a circle of more than 4096 chords is found, and quickly")
+    func manyChords() throws {
+        let chords = ArcShapes.flattened(centre: Self.centre, radius: 300, segments: 6_000)
+        let count = SearchCount()
+        let found = ArcRecovery.recover(chords, Self.options, count: count)
+        let circle = try #require(found.first)
+        #expect(found.count == 1 && circle.isCircle && circle.range == 0..<6_000)
+        #expect(count.fits < 100, "\(count.fits) fits")
+    }
+
+    @Test("a long run that fits but is only part of a curve is stepped over, not searched again")
+    func longRunSteppedOver() {
+        // 3,000 chords of 0.02 degrees along an ellipse that is round to 0.003 mm over far more
+        // than the 300 elements tried here: from any start the run fits to the end of what is
+        // tried and is carried on past, so it is no arc, and the search steps over it.
+        let chords = ArcShapes.ellipse(
+            centre: Self.centre, a: 300, b: 299.9, from: 0, sweep: 60, segments: 3_000)
+        let count = SearchCount()
+        #expect(ArcRecovery.recover(chords, Self.options, count: count, maximumRun: 300).isEmpty)
+        // One search a start would be 3,000 searches of about a dozen fits each.
+        #expect(count.fits < 400, "\(count.fits) fits")
+    }
+
+    @Test("chords of two arcs with different steps are not one circle when joined")
+    func joinedStepsDiffer() {
+        let coarse = ArcShapes.flattened(
+            centre: Self.centre, radius: 20, from: 0, sweep: 120, segments: 8)
+        let fine = ArcShapes.flattened(
+            centre: Self.centre, radius: 20, from: 120, sweep: 120, segments: 16)
+        let arcs = Self.arcs([coarse, fine])
+        #expect(arcs.count == 2)
+        #expect(ArcJoining.join(arcs, keys: ["", ""], Self.options).isEmpty)
+        // The same step in both: joined.
+        let same = ArcShapes.flattened(
+            centre: Self.centre, radius: 20, from: 120, sweep: 120, segments: 8)
+        #expect(
+            ArcJoining.join(Self.arcs([coarse, same]), keys: ["", ""], Self.options).count == 1)
+    }
 }

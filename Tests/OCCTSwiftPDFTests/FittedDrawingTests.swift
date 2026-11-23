@@ -295,4 +295,18 @@ struct FittedDrawingTests {
         #expect(fitted.drawing.entities.count == 4 && fitted.drawing.counts.circle == 1)
         #expect(fitted.drawing.identities.count == 4)
     }
+
+    @Test("the pieces of a path after a recovered circle are numbered from where it left off")
+    func pieceNumbers() throws {
+        let circle = ArcShapes.bezierArc(centre: Self.centre, radius: 40, curves: 4)
+        // One path: the circle's four curves, then a line.
+        let content = Self.operators(circle) + " 5 5 m 60 60 l S"
+        let page = try Self.page(content)
+        let plain = page.drawing()
+        let fitted = page.fittedDrawing().drawing
+        #expect(plain.entities.count == 5 && fitted.entities.count == 2)
+        #expect(plain.identity(ofEntityAt: 4).id.hasSuffix(":4"))
+        #expect(fitted.identity(ofEntityAt: 0).id.hasSuffix(":0:FITTED"))
+        #expect(fitted.identity(ofEntityAt: 1).id.hasSuffix(":1"))
+    }
 }

@@ -123,10 +123,20 @@ enum ArcJoining {
         let (worst, squares) = ArcRecovery.residuals(of: points, and: middles, about: circle)
         guard worst <= tolerance else { return nil }
         let (total, steps) = ArcRecovery.walk(points, about: circle)
-        let backwards = 2 * tolerance / circle.radius
+        let backwards = ArcRecovery.backwardsBound(tolerance: tolerance, radius: circle.radius)
         guard total > 0, !steps.contains(where: { $0 < -backwards }),
-            total <= 2 * .pi + (1 * .pi / 180)
+            total <= 2 * .pi + ArcRecovery.overdraw
         else { return nil }
+        // Chords only: the joined run must be cut in steps like any other run of chords.
+        var stepRatio = arcs.map(\.stepRatio).max() ?? 1
+        if curves == 0 {
+            let sizes = steps.map { abs($0) }.filter { $0 > 1e-12 }
+            guard let largest = sizes.max(), let smallest = sizes.min(),
+                largest <= options.maximumLineStepDeg * .pi / 180 + 1e-9
+            else { return nil }
+            stepRatio = largest / smallest
+            guard stepRatio <= options.maximumStepRatio else { return nil }
+        }
         let closes = ArcRecovery.closed(
             first: points[0], last: points[points.count - 1], sweep: total, tolerance)
         return RecoveredArc(
@@ -134,7 +144,6 @@ enum ArcJoining {
             startAngle: atan2(points[0].y - circle.centre.y, points[0].x - circle.centre.x),
             sweep: total, isCircle: closes, maxResidual: worst,
             rmsResidual: (squares / Double(points.count)).squareRoot(), curves: curves,
-            lines: lines, stepRatio: arcs.map(\.stepRatio).max() ?? 1, points: points,
-            chordMiddles: middles)
+            lines: lines, stepRatio: stepRatio, points: points, chordMiddles: middles)
     }
 }

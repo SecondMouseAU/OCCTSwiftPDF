@@ -114,6 +114,12 @@ struct RecoveredArc: Equatable, Sendable {
     var firstDeg: Double { Self.degrees(startAngle) }
     var lastDeg: Double { Self.degrees(startAngle + sweep) }
 
+    /// Where the arc starts and ends going counterclockwise, as a DXF `ARC` has it, whichever way
+    /// the run was drawn.
+    var counterclockwiseDeg: (start: Double, end: Double) {
+        sweep >= 0 ? (firstDeg, lastDeg) : (lastDeg, firstDeg)
+    }
+
     private static func degrees(_ radians: Double) -> Double {
         let d = (radians * 180 / .pi).truncatingRemainder(dividingBy: 360)
         return d < 0 ? d + 360 : d
@@ -126,6 +132,15 @@ final class SearchCount {
 }
 
 enum ArcRecovery {
+    /// A run may go this far past a full turn (1 degree) and still be one circle.
+    static let overdraw = 1 * Double.pi / 180
+
+    /// How far back along the circle a point of a run may fall behind the one before it, in
+    /// radians: the position noise of two points at the tolerance.
+    static func backwardsBound(tolerance: Double, radius: Double) -> Double {
+        2 * tolerance / radius
+    }
+
     /// The tolerance a run is held to: that of chords for a run of chords only, and the larger of
     /// the absolute and the relative one for a run with curves.
     static func tolerance(
@@ -169,7 +184,7 @@ enum ArcRecovery {
     /// that a circle drawn in pieces is found from pieces that are each short.
     static func recover(
         _ elements: [ArcElement], _ options: PDF.ArcFitting, curveSweepDeg: Double? = nil,
-        count: SearchCount? = nil
+        count: SearchCount? = nil, maximumRun: Int = ArcRecovery.defaultMaximumRun
     ) -> [RecoveredArc] {
         let curveCount = elements.filter(\.isCurve).count
         guard elements.count >= 1, curveCount > 0 || elements.count >= options.minimumLineSegments
@@ -178,33 +193,32 @@ enum ArcRecovery {
         var found: [RecoveredArc] = []
         var first = 0
         while first < elements.count {
-            if let best = longest(
+            let (best, skip) = longest(
                 from: first, elements, samples, options, curveSweepDeg: curveSweepDeg,
-                count: count)
-            {
+                count: count, maximumRun: maximumRun)
+            if let best {
                 found.append(best)
                 first = best.range.upperBound
             } else {
-                first += 1
+                first += skip
             }
         }
         return found
     }
 
-    /// The longest run from `first` that one circle fits and that is taken as an arc, or `nil`.
+    /// The longest run from `first` that one circle fits and that is taken as an arc, or `nil`
+    /// and how many elements to step over before looking again.
     ///
-    /// A run that fits has nearly every shorter run from the same start fitting too, so the
-    /// longest is found by doubling the length until a run does not fit and then halving the
-    /// gap, which takes a handful of fits where trying every length would take one for each
-    /// element: a finely flattened ellipse of a few hundred chords fits over most of its length
-    /// from every start. (Nearly: a run is held to a tighter tolerance while it is chords only,
-    /// so a run that starts with many chords and goes on to curves can pass as a whole and fail as
-    /// a prefix, and is missed.) The longest run is taken if it is an arc, and otherwise a few
-    /// shorter ones are tried.
+    /// The longest is found by doubling the length until a run does not fit and then halving the
+    /// gap, as a run that fits has nearly every shorter run from the same start fitting too (a
+    /// run of chords is held to a tighter tolerance than one with curves, so one that starts
+    /// with many chords and goes on to curves can be missed). It is taken if it is an arc, and
+    /// otherwise a few shorter ones are tried. A run that fits all the way to the most elements
+    /// tried and is not an arc is stepped over whole, not one element at a time.
     private static func longest(
         from first: Int, _ elements: [ArcElement], _ samples: [[SIMD2<Double>]],
-        _ options: PDF.ArcFitting, curveSweepDeg: Double?, count: SearchCount?
-    ) -> RecoveredArc? {
+        _ options: PDF.ArcFitting, curveSweepDeg: Double?, count: SearchCount?, maximumRun: Int
+    ) -> (RecoveredArc?, skip: Int) {
         let limit = min(elements.count, first + maximumRun)
         // A run of straight segments is tested from the fewest an arc may have: a few points of a
         // finely flattened arc are too close to straight for their circle to mean anything.
@@ -255,16 +269,16 @@ enum ArcRecovery {
             if let arc = arcs[candidate], accepts(arc, options, curveSweepDeg: curveSweepDeg),
                 !carriesOn(elements, arc)
             {
-                return arc
+                return (arc, 0)
             }
             candidate -= 1
             tried += 1
         }
-        return nil
+        return (nil, good >= limit - first && good > 1 ? good : 1)
     }
 
     /// The most elements one run is tried over, which bounds the work on a long polyline.
-    private static let maximumRun = 4_096
+    static let defaultMaximumRun = 65_536
 
     private static func accepts(
         _ arc: RecoveredArc, _ options: PDF.ArcFitting, curveSweepDeg: Double?
@@ -336,12 +350,12 @@ enum ArcRecovery {
         guard worst <= tolerance else { return .infeasible }
 
         // Walk the points round the centre: the run must go one way, and not more than once round.
-        let backwards = 2 * tolerance / circle.radius
+        let backwards = backwardsBound(tolerance: tolerance, radius: circle.radius)
         let (total, deltas) = walk(points, about: circle)
         let startAngle = atan2(points[0].y - circle.centre.y, points[0].x - circle.centre.x)
         let direction: Double = total >= 0 ? 1 : -1
         if deltas.contains(where: { $0 * direction < -backwards }) { return .infeasible }
-        if abs(total) > 2 * .pi + (1 * .pi / 180) { return .infeasible }
+        if abs(total) > 2 * .pi + overdraw { return .infeasible }
         // A straight segment is one step (the first delta is the start's own), a curve's samples
         // are several.
         var cursor = 0

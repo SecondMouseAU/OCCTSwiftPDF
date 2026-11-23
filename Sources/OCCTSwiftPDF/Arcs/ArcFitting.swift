@@ -11,47 +11,24 @@ extension PDF {
     /// circle or arc.
     ///
     /// A run is accepted only if one circle, fitted over the whole run, passes within the
-    /// tolerance of every vertex and of points sampled along every curve. A drawing from a writer
-    /// that flattens or approximates circles fits well inside the defaults; a polygon, an ellipse,
-    /// a spiral or a freehand curve does not, and the other limits keep a short run, or a gentle
-    /// curve, from being taken for an arc. A run of lines that the polyline carries on past, in
-    /// the same curve, is never taken: that is a piece of a longer curve.
+    /// tolerance of every vertex, of points sampled along every curve and of the middle of every
+    /// chord in a run that has curves. The other limits keep polygons, ellipses, spirals and
+    /// freehand curves from being taken for arcs; see the experiment page.
     public struct ArcFitting: Sendable, Equatable {
-        /// The largest distance a fitted point may be from the circle for a run with Bezier curves
-        /// in it, in millimetres on the paper.
-        ///
-        /// Writers round coordinates and approximate circles by curves, so this allows for that.
+        /// The largest distance of a point of a run with curves from the circle, in millimetres
+        /// on the paper.
         public var tolerance: Double
         /// The same as a fraction of the radius, used where it gives more than ``tolerance``.
-        ///
-        /// A circle drawn as four Bezier curves strays from a true circle by about 0.03 percent of
-        /// its radius, which is more than ``tolerance`` once the circle is big.
         public var relativeTolerance: Double
-        /// The largest distance a fitted point may be from the circle for a run of straight
-        /// segments only, in millimetres on the paper.
-        ///
-        /// A flattened circle has no approximation to allow for: its corners are on the circle to
-        /// within the writer's rounding. The pieces of a freehand curve, a spiral or an ellipse
-        /// are locally round to a hundredth of a millimetre and no better, so this is tighter than
-        /// ``tolerance``.
+        /// The same for a run of chords only, in millimetres on the paper.
         public var lineTolerance: Double
         /// The smallest sweep an arc may have, in degrees.
-        ///
-        /// A shorter piece says too little about its radius.
         public var minimumSweepDeg: Double
-        /// The largest angle one straight segment may subtend at the circle's centre, in degrees.
-        ///
-        /// A square, a hexagon and an octagon have their corners on a circle but are not one: the
-        /// segments of a flattened circle are short.
+        /// The largest angle one chord may subtend at the circle's centre, in degrees.
         public var maximumLineStepDeg: Double
-        /// The fewest straight segments a run with no curves may have.
-        ///
-        /// Any three points lie on a circle, so a run of lines needs enough of them to test.
+        /// The fewest chords a run with no curves may have.
         public var minimumLineSegments: Int
-        /// The largest sweep of one segment of a run of lines over the smallest.
-        ///
-        /// A writer that flattens a circle cuts it into equal steps; a piece of a freehand curve is
-        /// not cut so.
+        /// The largest sweep of one chord of a run of chords over the smallest.
         public var maximumStepRatio: Double
         /// The smallest radius accepted, in millimetres on the paper.
         public var minimumRadius: Double
@@ -116,15 +93,15 @@ extension PDF {
         public var endDeg: Double
         /// The largest distance of the fitted points from the circle, in millimetres on the paper.
         ///
-        /// The points are the vertices, and samples along curves. Straight segments are fitted by
-        /// their ends, so the distance of a chord's middle from the circle is not in this.
+        /// The points are the vertices and samples along curves, and, for a run with curves, the
+        /// middles of its chords. The middle of a chord of a run of chords only is not counted:
+        /// such a run is a polygon on the circle.
         public var maxResidual: Double
-        /// The root mean square of the same distances, in millimetres on the paper.
+        /// The root mean square of the distances of the vertices and curve samples, in
+        /// millimetres on the paper.
         public var rmsResidual: Double
-        /// The largest sweep of one segment over the smallest.
-        ///
-        /// A writer that flattens or splits a circle cuts it into equal steps, so this is near 1
-        /// for a circle it drew.
+        /// The largest sweep of one segment over the smallest, near 1 for a circle cut in equal
+        /// steps.
         public var stepRatio: Double
         /// The number of segments (lines and curves) the run replaced.
         public var segments: Int

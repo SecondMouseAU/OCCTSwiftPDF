@@ -48,9 +48,11 @@ extension PDF.Page {
     ///
     /// This is ``drawing()`` with the curves and polylines of a circle recovered. A run is taken
     /// only when one circle, fitted over the whole run, passes within the tolerances of `fitting`
-    /// of all of it, and everything else is as ``drawing()`` has it. Each circle or arc has a
-    /// ``PDF/ArcFit`` with its radius, centre and residual, tagged `FITTED`, and its identity's
-    /// locator ends in `:FITTED`.
+    /// of all of it, and everything else is as ``drawing()`` has it, except that the pieces of a
+    /// path after a recovered run are numbered from where it left off (a circle of four curves is
+    /// one piece, so a line after it is `:1`, not `:4`). Each circle or arc has a ``PDF/ArcFit``
+    /// with its radius, centre and residual, tagged `FITTED`, and its identity's locator ends in
+    /// `:FITTED`.
     public func fittedDrawing(_ fitting: PDF.ArcFitting = PDF.ArcFitting()) -> PDF.FittedDrawing {
         build(fitting: fitting)
     }
