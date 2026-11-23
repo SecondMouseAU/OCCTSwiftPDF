@@ -102,11 +102,11 @@ on one sheet that nothing decodes:
 
   | Sheet | How the text is drawn | Clusters | Accepted | Rejected, and why | Checked against |
   |---|---|---|---|---|---|
-  | `Repw604s` | Acrobat PDFWriter 3.02, filled outlines, no text layer | 308 | 175 | 133: no text 79, readings disagree 17, position 15, direction 6, ambiguous 6, glyph count 4, characters 4, confidence 2 | 52 accepted strings checked by eye against the page rendered by `pdftocairo`: about one in six wrong |
-  | `repw618j` | same writer, strokes, invisible text layer | 1,957 | 1,114 | 843: no text 539, readings disagree 183, direction 27, confidence 26, position 26, glyph count 16, characters 15, ambiguous 11 | the text layer, below |
+  | `Repw604s` | Acrobat PDFWriter 3.02, filled outlines, no text layer | 308 | 176 | 132: no text 79, readings disagree 17, position 14, direction 6, ambiguous 6, glyph count 4, characters 4, confidence 2 | 52 accepted strings checked by eye against the page rendered by `pdftocairo`: about one in six wrong |
+  | `repw618j` | same writer, strokes, invisible text layer | 1,957 | 1,114 | 843: no text 537, readings disagree 184, position 28, direction 27, confidence 26, glyph count 16, characters 14, ambiguous 11 | the text layer, below |
   | `TS.pdf`, 20 pages | MicroStation through Adobe PDF Library, outlines, invisible text layer | 3,657 | 2,314 | 1,343: no text 730, position 216, readings disagree 165, ambiguous 124, direction 63, characters 19, confidence 17, glyph count 8, height 1 | the text layer, below |
-  | `a3012183-...` | Microsoft Print to PDF, outlines | 203 | 123 | 80: no text 36, readings disagree 21, position 10, ambiguous 6, direction 4, confidence 2, characters 1 | no text layer; 16 of 16 sampled right |
-  | `Pandrol...` | AutoCAD plot, SHX strokes | 200 | 97 | 103: no text 72, position 10, readings disagree 7, direction 7, ambiguous 3, characters 2, confidence 1, already read 1 | no text layer; 15 of 16 sampled right (`RAL` for `RAIL`) |
+  | `a3012183-...` | Microsoft Print to PDF, outlines | 203 | 123 | 80: no text 36, readings disagree 22, position 9, ambiguous 6, direction 3, confidence 2, characters 1, glyph count 1 | no text layer; 16 of 16 sampled right |
+  | `Pandrol...` | AutoCAD plot, SHX strokes | 200 | 98 | 102: no text 72, position 9, readings disagree 7, direction 7, ambiguous 3, characters 2, confidence 1, already read 1 | no text layer; 15 of 16 sampled right (`RAL` for `RAIL`) |
 
   A cluster is one line of at least two glyph pieces; "too small" clusters (a single piece) are
   counted apart and not looked at (556 on `repw618j`).
@@ -125,7 +125,7 @@ on one sheet that nothing decodes:
   - **What three readings buy.** In an earlier build, on `repw618j` one reading (40 pixels high)
     accepted 1,247 clusters over text, 121 of them (9.7 percent) different; the three agreeing readings accepted 1,070, 31
     (2.9 percent) different, and lost about 14 percent of the accepted number, some of them right
-    (of the 240 clusters recognised and rejected on this sheet, 124 were right anyway). It does not
+    (of the 241 clusters recognised and rejected on this sheet, 124 were right anyway). It does not
     help against a confusion at every size, as the slash is.
   - **Where there is no text to find.** Of the 47 corpus files, 38 accept nothing from their first
     page: the McMaster and Fowler sheets, `2120`, `Wing Triple` and others, all with real text. Of the
