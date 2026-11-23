@@ -85,7 +85,9 @@ enum ShapeTextValidator {
         }
 
         guard line.confidence >= options.minimumConfidence else { return reject(.lowConfidence) }
-        guard plausibleCharacters(text) else { return reject(.characters) }
+        guard plausibleCharacters(text, extraBlocks: options.additionalCharacterBlocks) else {
+            return reject(.characters)
+        }
         guard intersectionOverUnion(box, line.box) >= options.minimumOverlap else {
             return reject(.position)
         }
@@ -118,13 +120,15 @@ enum ShapeTextValidator {
     /// ``plausibleBlocks`` (a recogniser that cannot tell a glyph reads it as a Thai or an Arabic
     /// one, say), and no word that mixes Latin and Cyrillic letters (a look-alike for a Latin one:
     /// `А`, `І`).
-    static func plausibleCharacters(_ text: String) -> Bool {
+    static func plausibleCharacters(
+        _ text: String, extraBlocks: [ClosedRange<UInt32>] = []
+    ) -> Bool {
         guard !text.isEmpty, text.contains(where: { $0.isLetter || $0.isNumber }) else {
             return false
         }
         let clean = text.unicodeScalars.allSatisfy { scalar in
             scalar != "\u{FFFD}" && !CharacterSet.controlCharacters.contains(scalar)
-                && plausibleBlocks.contains { $0.contains(scalar.value) }
+                && (plausibleBlocks + extraBlocks).contains { $0.contains(scalar.value) }
         }
         return clean && !text.split(whereSeparator: \.isWhitespace).contains(where: mixesScripts)
     }

@@ -2,7 +2,7 @@
 // OCCTSwiftPDF
 //
 // What recovering text drawn as shapes (filled outlines, strokes) is allowed to accept, in one
-// place: every tolerance the validation uses is here, with its default.
+// place: the tolerances to change are here, with their defaults.
 
 import Foundation
 
@@ -10,9 +10,12 @@ extension PDF {
     /// How text drawn as shapes is recovered by OCR, and how closely the result must agree with
     /// the geometry to be accepted.
     ///
-    /// A wrong string is worse than no string, so the defaults are strict. Every tolerance is
+    /// A wrong string is worse than no string, so the defaults are strict. The tolerances here are
     /// applied to a recognised line and the cluster of shapes it was found for, both measured in
-    /// the line's own frame (along the reading direction, and across it).
+    /// the line's own frame (along the reading direction, and across it). The plausibility rules
+    /// that are not options (how many characters a count of shapes may draw, which Unicode blocks
+    /// a drawing's text is in beyond ``additionalCharacterBlocks``) are in
+    /// `ShapeTextValidator`.
     public struct ShapeTextOptions: Sendable {
         /// What to do where the page already has text over the shapes.
         public enum ExistingText: Sendable {
@@ -74,13 +77,21 @@ extension PDF {
 
         /// The heights, in pixels, a cluster is rendered at, one reading each.
         ///
-        /// Default 40, 64 and 96. A cluster is accepted only if every reading is accepted and they
-        /// give the same characters, so a misreading that depends on the size (a look-alike at one
-        /// size) is caught, and one that does not (a slash read as a `V` at every size) is not. A
-        /// cluster a reading rejects is not read again. One height reads each cluster once, at a
-        /// third of the cost, and lets more wrong strings through
-        /// (`okf/experiments/option-1-spike.md` has the figures).
+        /// Default 40, 64 and 96; an empty array reads once, at 40. A cluster is accepted only if
+        /// every reading is accepted and they give the same characters, so a misreading that
+        /// depends on the size (a look-alike at one size) is caught, and one that does not (a
+        /// slash read as a `V` at every size) is not. A cluster a reading rejects is not read
+        /// again. One height reads each cluster once, at a third of the cost, and lets more wrong
+        /// strings through (`okf/experiments/option-1-spike.md` has the figures).
         public var readingPixels: [Double] = [40, 64, 96]
+
+        /// Unicode scalar ranges allowed in a recognised string beyond the blocks a drawing's text
+        /// is in (Latin, Greek, Cyrillic, punctuation and the symbols of a drawing).
+        ///
+        /// Default none, so text in another script (Japanese, say) is rejected as
+        /// ``ShapeTextRejection/characters``; `0x3000...0x9FFF` allows Japanese and Chinese.
+        /// Whether Vision reads it depends on its languages, which are left at its default.
+        public var additionalCharacterBlocks: [ClosedRange<UInt32>] = []
 
         public init() {}
     }

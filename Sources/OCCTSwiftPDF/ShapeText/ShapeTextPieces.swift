@@ -86,8 +86,11 @@ enum ShapeTextPieces {
 
     /// Pieces grouped into glyphs: a filled piece inside the box of a filled piece up to eight
     /// times its area (the hole of an "O", "e" or "8") joins it.
-    static func glyphs(from pieces: [ShapePiece]) -> [ShapeGlyph] {
-        let grid = BoxGrid(boxes: pieces.map(\.box), cell: cell(for: pieces.map(\.size)))
+    ///
+    /// `nil` where the grouping took more than `limit` units of work (see ``BoxGrid``).
+    static func glyphs(from pieces: [ShapePiece], limit: Int = Int.max) -> [ShapeGlyph]? {
+        let grid = BoxGrid(
+            boxes: pieces.map(\.box), cell: cell(for: pieces.map(\.size)), limit: limit)
         var sets = DisjointSets(count: pieces.count)
         for (outer, piece) in pieces.enumerated() where piece.filled {
             let slack = 0.02 * piece.size
@@ -102,6 +105,7 @@ enum ShapeTextPieces {
                 if area <= 8 * innerArea { sets.union(outer, inner) }
             }
         }
+        guard !grid.exceeded else { return nil }
         var members: [Int: [Int]] = [:]
         for index in pieces.indices { members[sets.find(index), default: []].append(index) }
         return members.keys.sorted().map { root in

@@ -107,6 +107,28 @@ struct ShapeTextGeometryTests {
         #expect(found.shapes == 2)
     }
 
+    @Test("shapes so many over one another that grouping them takes too long are left alone")
+    func workLimit() throws {
+        // Four hundred squares 40 units across, each over its neighbours.
+        var content = "0.3 w\n"
+        for row in 0..<20 {
+            for column in 0..<20 {
+                content += "\(20 + 3 * column) \(20 + 3 * row) 40 40 re S\n"
+            }
+        }
+        let document = try ShapeTextFixtures.document(content)
+        let page = try #require(document.pages.first)
+        let options = PDF.ShapeTextOptions()
+        let free = ShapeTextRegions.find(in: page, options: options)
+        #expect(free.shapes == 400)
+        #expect(free.shapesInDenseBlobs == 0)
+        // Given too little work to group them, they are counted with the dense blobs.
+        let limited = ShapeTextRegions.find(in: page, options: options, workLimit: 20_000)
+        #expect(limited.shapes == 400)
+        #expect(limited.shapesInDenseBlobs == 400)
+        #expect(limited.regions.isEmpty)
+    }
+
     @Test("a dense field of short strokes is left alone")
     func denseBlob() throws {
         var content = "0.2 w\n"

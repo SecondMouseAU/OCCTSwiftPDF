@@ -319,6 +319,49 @@ struct ShapeTextRecoveryTests {
         #expect(recovery.reports[1]?.recognitionError == "no model")
     }
 
+    @Test(
+        "shapes over the size limit are not pieces, and a cluster of too few glyphs is not looked at"
+    )
+    func sizeAndGlyphLimits() throws {
+        let text = OutlineText.drawn("10,439", at: Self.origin)
+        var small = PDF.ShapeTextOptions()
+        small.maximumShapeSize = 5
+        let recogniser = Self.visionLike("10,439")
+        let (_, tiny) = try Self.recover(text.content, recogniser: recogniser, options: small)
+        #expect((tiny.reports[1]?.shapes ?? 99) < 6)
+        #expect(tiny.reports[1]?.regions == 0)
+        var many = PDF.ShapeTextOptions()
+        many.minimumGlyphs = 7
+        let (_, few) = try Self.recover(text.content, recogniser: recogniser, options: many)
+        #expect(few.reports[1]?.regions == 0)
+        #expect(few.reports[1]?.tooSmall == 1)
+        #expect(recogniser.calls == 0)
+    }
+
+    @Test("an empty list of reading sizes reads once")
+    func noReadingSizes() throws {
+        let text = OutlineText.drawn("10,439", at: Self.origin)
+        var options = PDF.ShapeTextOptions()
+        options.readingPixels = []
+        let recogniser = Self.visionLike("10,439")
+        let (_, recovery) = try Self.recover(text.content, recogniser: recogniser, options: options)
+        #expect(recovery.reports[1]?.accepted == 1)
+        #expect(recogniser.calls == 1)
+    }
+
+    @Test("a document already recovered is not recovered again: its OCR text is text the page has")
+    func recoveredTwice() throws {
+        let text = OutlineText.drawn("10,439", at: Self.origin)
+        let (_, first) = try Self.recover(text.content, recogniser: Self.visionLike("10,439"))
+        #expect(first.reports[1]?.accepted == 1)
+        let recogniser = Self.visionLike("10,439")
+        let second = try first.document.recoveringShapeText(
+            options: .init(), recogniser: recogniser)
+        #expect(second.reports[1]?.rejected == [.alreadyRead: 1])
+        #expect(recogniser.calls == 0)
+        #expect(second.document.pages.first?.texts.count == 1)
+    }
+
     @Test("clusters over the budget are counted and not recognised")
     func budget() throws {
         let first = OutlineText.drawn("BALISE", at: Self.origin)

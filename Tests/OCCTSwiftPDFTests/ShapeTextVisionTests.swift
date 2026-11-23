@@ -107,6 +107,21 @@ import Testing
         }
 
         @Test(
+            "the page-level call recovers a page from the file's own page",
+            .enabled(if: VisionAvailability.reads, "Vision does not read the fixture here"))
+        func pageLevel() throws {
+            let text = OutlineText.drawn("R25 THK", at: CGPoint(x: 300, y: 300))
+            let document = try ShapeTextFixtures.document(text.content)
+            let page = try #require(document.pages.first)
+            let recovered = try page.recoveringShapeText(
+                from: try ShapeTextFixtures.cgPage(document))
+            #expect(recovered.report.accepted == 1)
+            #expect(Self.characters(recovered.page.texts.first?.text) == "R25THK")
+            // The page it was called on is not changed.
+            #expect(page.texts.isEmpty)
+        }
+
+        @Test(
             "small text is rendered large enough to read",
             .enabled(if: VisionAvailability.reads, "Vision does not read the fixture here"))
         func small() throws {

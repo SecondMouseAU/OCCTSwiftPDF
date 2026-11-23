@@ -67,6 +67,15 @@ struct ShapeTextValidatorTests {
         #expect(Self.rejection(Self.verdict([Self.line(text)])) == .characters)
     }
 
+    @Test("another script is refused unless its block is allowed")
+    func extraBlocks() {
+        let japanese = Self.line("\u{65E5}\u{672C}\u{8A9E}")
+        #expect(Self.rejection(Self.verdict([japanese])) == .characters)
+        var options = PDF.ShapeTextOptions()
+        options.additionalCharacterBlocks = [0x3000...0x9FFF]
+        #expect(Self.rejection(Self.verdict([japanese], options: options)) == nil)
+    }
+
     @Test("a word wholly in Cyrillic, or Greek letters beside Latin ones, is not a look-alike")
     func scripts() {
         // Cyrillic throughout is a Russian drawing; Greek letters are used in engineering.

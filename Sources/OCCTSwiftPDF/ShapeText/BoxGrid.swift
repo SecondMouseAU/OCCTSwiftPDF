@@ -12,15 +12,26 @@ final class BoxGrid {
     private var buckets: [Int64: [Int]] = [:]
     private var stamp: [UInt32]
     private var query: UInt32 = 0
+    private let limit: Int
+    /// The cells boxes were put in and the boxes looked at in queries, so far.
+    private(set) var work = 0
+    /// More work than the limit was done, and the grid is no longer complete or searched.
+    var exceeded: Bool { work > limit }
 
-    init(boxes: [CGRect], cell: Double) {
+    /// A grid of `boxes` in cells of side `cell`, which stops (see ``exceeded``) after `limit`
+    /// units of work: many large boxes over small cells, or many boxes over one another, make
+    /// the work grow faster than the boxes do.
+    init(boxes: [CGRect], cell: Double, limit: Int = Int.max) {
         self.cell = cell
+        self.limit = limit
         stamp = Array(repeating: 0, count: boxes.count)
         for (index, box) in boxes.enumerated() {
-            for x in range(box.minX, box.maxX) {
-                for y in range(box.minY, box.maxY) {
-                    buckets[Self.key(x, y), default: []].append(index)
-                }
+            let columns = range(box.minX, box.maxX)
+            let rows = range(box.minY, box.maxY)
+            work += columns.count * rows.count
+            if exceeded { return }
+            for x in columns {
+                for y in rows { buckets[Self.key(x, y), default: []].append(index) }
             }
         }
     }
@@ -40,10 +51,14 @@ final class BoxGrid {
     /// Calls `body` once for each box that touches a cell `rect` touches, which can be a box
     /// that does not itself reach `rect`.
     func forEach(near rect: CGRect, _ body: (Int) -> Void) {
+        guard !exceeded else { return }
         query &+= 1
         for x in range(rect.minX, rect.maxX) {
             for y in range(rect.minY, rect.maxY) {
-                for index in buckets[Self.key(x, y)] ?? [] where stamp[index] != query {
+                let bucket = buckets[Self.key(x, y)] ?? []
+                work += bucket.count + 1
+                if exceeded { return }
+                for index in bucket where stamp[index] != query {
                     stamp[index] = query
                     body(index)
                 }

@@ -27,13 +27,25 @@ enum ShapeTextRegions {
     /// the larger one's size.
     static let linkGap = 0.6
 
-    static func find(in page: PDF.Page, options: PDF.ShapeTextOptions) -> Found {
+    /// The most work (see ``BoxGrid``) grouping a page's shapes may take, in each of its two steps.
+    static let workLimit = 40_000_000
+
+    static func find(
+        in page: PDF.Page, options: PDF.ShapeTextOptions, workLimit: Int = workLimit
+    ) -> Found {
         var found = Found()
         let pieces = ShapeTextPieces.pieces(in: page.paths, maximumSize: options.maximumShapeSize)
         found.shapes = pieces.count
         guard pieces.count >= options.minimumGlyphs else { return found }
-        let glyphs = ShapeTextPieces.glyphs(from: pieces)
-        for blob in blobs(of: glyphs) {
+        // Shapes so many, or so many over one another, that grouping them would take too long are
+        // counted with the dense blobs and not looked at.
+        guard let glyphs = ShapeTextPieces.glyphs(from: pieces, limit: workLimit),
+            let groups = blobs(of: glyphs, limit: workLimit)
+        else {
+            found.shapesInDenseBlobs = pieces.count
+            return found
+        }
+        for blob in groups {
             guard blob.count <= maximumBlobGlyphs else {
                 found.shapesInDenseBlobs += blob.reduce(0) { $0 + glyphs[$1].pieces.count }
                 continue
@@ -55,10 +67,12 @@ enum ShapeTextRegions {
         return found
     }
 
-    /// The glyphs grouped by nearness, each group in order of its first glyph.
-    static func blobs(of glyphs: [ShapeGlyph]) -> [[Int]] {
+    /// The glyphs grouped by nearness, each group in order of its first glyph, or `nil` where the
+    /// grouping took more than `limit` units of work.
+    static func blobs(of glyphs: [ShapeGlyph], limit: Int = Int.max) -> [[Int]]? {
         let grid = BoxGrid(
-            boxes: glyphs.map(\.box), cell: ShapeTextPieces.cell(for: glyphs.map(\.size)))
+            boxes: glyphs.map(\.box), cell: ShapeTextPieces.cell(for: glyphs.map(\.size)),
+            limit: limit)
         var sets = DisjointSets(count: glyphs.count)
         for (index, glyph) in glyphs.enumerated() {
             let reach = linkGap * glyph.size
@@ -70,6 +84,7 @@ enum ShapeTextRegions {
                 if gap(glyph.box, b.box) <= reach { sets.union(index, other) }
             }
         }
+        guard !grid.exceeded else { return nil }
         var groups: [Int: [Int]] = [:]
         for index in glyphs.indices { groups[sets.find(index), default: []].append(index) }
         return groups.keys.sorted().map { groups[$0] ?? [] }

@@ -58,7 +58,7 @@ filled or stroked shapes, recognises each, and keeps the result only if its posi
 height agree with the shapes and its characters are plausible for their number. Accepted text is
 `.ocr` (never read from the file), and a wrong string is worse than none, so everything else is
 counted in the report with its reason. OCR can still confuse look-alike characters that the
-geometry cannot tell apart (`/` for `V`, `S` for `$`); `okf/experiments/option-1-spike.md` has the
+geometry cannot tell apart (`/` read as `V`, `&` as a dot); `okf/experiments/option-1-spike.md` has the
 measured rate.
 
 ## Command line

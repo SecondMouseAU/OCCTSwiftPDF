@@ -4,7 +4,7 @@ cluster: kernel
 visibility: public
 status: experimental
 language: Swift
-summary: Reader for vector PDF drawings into the SwiftDXF drawing model, read by OCCTSwiftIO like the DXF, DWG and JWW readers; Apple's CoreGraphics PDF scanner and PDFKit, no third-party PDF library.
+summary: Reader for vector PDF drawings into the SwiftDXF drawing model, read by OCCTSwiftIO like the DXF, DWG and JWW readers; Apple's CoreGraphics PDF scanner, PDFKit and (opt-in OCR of text drawn as shapes) Vision, no third-party PDF library.
 products: []
 depends_on: [SwiftDXF, SwiftJWW]
 maintainer: gsdali
