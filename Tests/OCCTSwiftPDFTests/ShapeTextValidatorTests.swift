@@ -67,6 +67,13 @@ struct ShapeTextValidatorTests {
         #expect(Self.rejection(Self.verdict([Self.line(text)])) == .characters)
     }
 
+    @Test("a few strokes among other characters are text, and two strokes are a value")
+    func strokes() {
+        #expect(Self.rejection(Self.verdict([Self.line("11")])) == nil)
+        #expect(Self.rejection(Self.verdict([Self.line("ID1")])) == nil)
+        #expect(Self.rejection(Self.verdict([Self.line("I1,5")])) == nil)
+    }
+
     @Test("another script is refused unless its block is allowed")
     func extraBlocks() {
         let japanese = Self.line("\u{65E5}\u{672C}\u{8A9E}")

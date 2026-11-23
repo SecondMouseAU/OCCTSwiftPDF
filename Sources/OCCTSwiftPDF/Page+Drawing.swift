@@ -42,8 +42,10 @@ extension PDF.Page {
     /// Text recovered from shapes by OCR (``PDF/TextDecoding/ocr``, only on a page from
     /// ``PDF/Document/recoveringShapeText(options:)``) is drawn like any other, and its entity's
     /// identity ends in `:ocr` and its place among the OCR text (`p1:op5:ocr0`), so a consumer can
-    /// tell it from text read from the file. The filled shapes it came from are still counted in
-    /// `skipped["FILL"]`.
+    /// tell it from text read from the file (the number depends on which text was accepted, so it
+    /// is not stable across recognisers). The filled shapes the text came from are still counted
+    /// in `skipped["FILL"]`; the stroked ones are not drawn either, since they are the text now,
+    /// and are counted in `skipped["OCR TEXT"]`.
     public func drawing() -> DXF.Drawing {
         let transform = toPaper
         var entities: [DXF.Entity] = []
@@ -82,7 +84,13 @@ extension PDF.Page {
                     blocks: source.forms.map { String($0.split(separator: "#").first ?? "") }))
         }
 
-        for path in paths {
+        // The subpaths of shapes that text recovered by OCR was drawn with: they are the text now.
+        var consumed: [Int: Set<Int>] = [:]
+        for text in texts where text.decoding == .ocr {
+            for shape in text.shapes { consumed[shape.path, default: []].insert(shape.subpath) }
+        }
+
+        for (pathIndex, path) in paths.enumerated() {
             let layer = layerName(path.layer)
             guard path.paint != .fill else {
                 skip("FILL", layer)
@@ -94,7 +102,11 @@ extension PDF.Page {
                 add(entity, path.source, piece: piece)
                 piece += 1
             }
-            for subpath in path.subpaths {
+            for (subpathIndex, subpath) in path.subpaths.enumerated() {
+                if consumed[pathIndex]?.contains(subpathIndex) == true {
+                    skip("OCR TEXT", layer)
+                    continue
+                }
                 if isPageBorder(subpath) {
                     skip("PAGE BORDER", layer)
                     continue

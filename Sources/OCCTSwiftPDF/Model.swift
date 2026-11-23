@@ -187,6 +187,24 @@ extension PDF {
         /// of the glyphs stand (a comma or a `g` hangs below it), ``height`` is the shapes' height
         /// above it, not a font size, and ``quad`` is that box along the line.
         public var confidence: Double?
+        /// The subpaths of the shapes a run recovered by OCR was drawn with; empty for text read
+        /// from the file.
+        ///
+        /// ``PDF/Page/drawing()`` leaves out the stroked ones, since they are the text now.
+        public var shapes: [ShapeReference] = []
+    }
+
+    /// One subpath of one painted path of a page: where to find a shape in ``Page/paths``.
+    public struct ShapeReference: Hashable, Sendable {
+        /// The index into ``Page/paths``.
+        public var path: Int
+        /// The index into that path's ``Path/subpaths``.
+        public var subpath: Int
+
+        public init(path: Int, subpath: Int) {
+            self.path = path
+            self.subpath = subpath
+        }
     }
 
     /// An image placed on the page.

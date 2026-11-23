@@ -289,6 +289,7 @@ extension PDF.Page {
             pdfKitText: nil, origin: quad[0], rotationDeg: region.angleDegrees, height: height,
             width: region.length, quad: quad, fontName: "", fontSubtype: "", isInvisible: false,
             layer: region.paths.first.flatMap { paths[$0].layer },
-            source: first, parts: Array(sources.dropFirst()), confidence: confidence)
+            source: first, parts: Array(sources.dropFirst()), confidence: confidence,
+            shapes: region.shapes)
     }
 }

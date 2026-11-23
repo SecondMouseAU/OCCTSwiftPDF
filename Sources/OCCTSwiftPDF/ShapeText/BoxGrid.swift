@@ -21,7 +21,7 @@ final class BoxGrid {
     /// A grid of `boxes` in cells of side `cell`, which stops (see ``exceeded``) after `limit`
     /// units of work: many large boxes over small cells, or many boxes over one another, make
     /// the work grow faster than the boxes do.
-    init(boxes: [CGRect], cell: Double, limit: Int = Int.max) {
+    init(boxes: [CGRect], cell: Double, limit: Int = 100_000_000) {
         self.cell = cell
         self.limit = limit
         stamp = Array(repeating: 0, count: boxes.count)
@@ -31,12 +31,10 @@ final class BoxGrid {
             work += columns.count * rows.count
             if exceeded { return }
             for x in columns {
-                for y in rows { buckets[Self.key(x, y), default: []].append(index) }
+                for y in rows { buckets[PDF.SegmentIndex.key(x, y), default: []].append(index) }
             }
         }
     }
-
-    private static func key(_ x: Int64, _ y: Int64) -> Int64 { x << 32 ^ (y & 0xFFFF_FFFF) }
 
     /// The cells from `low` to `high`; a coordinate that is not finite, or is a billion cells out,
     /// is taken to be on the grid's edge, so a hostile file cannot trap the conversion.
@@ -55,7 +53,7 @@ final class BoxGrid {
         query &+= 1
         for x in range(rect.minX, rect.maxX) {
             for y in range(rect.minY, rect.maxY) {
-                let bucket = buckets[Self.key(x, y)] ?? []
+                let bucket = buckets[PDF.SegmentIndex.key(x, y)] ?? []
                 work += bucket.count + 1
                 if exceeded { return }
                 for index in bucket where stamp[index] != query {

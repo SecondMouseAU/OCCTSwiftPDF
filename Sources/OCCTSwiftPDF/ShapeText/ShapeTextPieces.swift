@@ -88,7 +88,7 @@ enum ShapeTextPieces {
     /// times its area (the hole of an "O", "e" or "8") joins it.
     ///
     /// `nil` where the grouping took more than `limit` units of work (see ``BoxGrid``).
-    static func glyphs(from pieces: [ShapePiece], limit: Int = Int.max) -> [ShapeGlyph]? {
+    static func glyphs(from pieces: [ShapePiece], limit: Int = 100_000_000) -> [ShapeGlyph]? {
         let grid = BoxGrid(
             boxes: pieces.map(\.box), cell: cell(for: pieces.map(\.size)), limit: limit)
         var sets = DisjointSets(count: pieces.count)

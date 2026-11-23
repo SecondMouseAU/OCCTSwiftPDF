@@ -69,7 +69,7 @@ enum ShapeTextRegions {
 
     /// The glyphs grouped by nearness, each group in order of its first glyph, or `nil` where the
     /// grouping took more than `limit` units of work.
-    static func blobs(of glyphs: [ShapeGlyph], limit: Int = Int.max) -> [[Int]]? {
+    static func blobs(of glyphs: [ShapeGlyph], limit: Int = 100_000_000) -> [[Int]]? {
         let grid = BoxGrid(
             boxes: glyphs.map(\.box), cell: ShapeTextPieces.cell(for: glyphs.map(\.size)),
             limit: limit)
@@ -256,6 +256,7 @@ enum ShapeTextRegions {
         var u = (low: Double.infinity, high: -Double.infinity)
         var v = (low: Double.infinity, high: -Double.infinity)
         var paths: [Int] = []
+        var shapes: [PDF.ShapeReference] = []
         var stroked = 0
         // Each glyph's extent across the direction, as measured, before the box's start is known.
         var extents: [(low: Double, high: Double)] = []
@@ -266,6 +267,7 @@ enum ShapeTextRegions {
             for pieceIndex in glyph.pieces {
                 let piece = pieces[pieceIndex]
                 if !paths.contains(piece.path) { paths.append(piece.path) }
+                shapes.append(PDF.ShapeReference(path: piece.path, subpath: piece.subpath))
                 let path = page.paths[piece.path]
                 let widen = path.paint == .fill ? 0 : path.lineWidth / 2
                 for point in points(of: path.subpaths[piece.subpath]) {
@@ -285,7 +287,8 @@ enum ShapeTextRegions {
             origin: CGPoint(x: d.x * u.low + n.x * v.low, y: d.y * u.low + n.y * v.low),
             length: u.high - u.low, height: v.high - v.low, glyphs: line.count,
             mostlyStroked: stroked * 2 > line.count, canReverse: abs(abs(angle) - 90) < 45,
-            paths: paths, spans: extents.map { ($0.low - v.low)...($0.high - v.low) })
+            paths: paths, spans: extents.map { ($0.low - v.low)...($0.high - v.low) },
+            shapes: shapes)
     }
 
     /// Every point of a subpath, control points included.

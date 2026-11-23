@@ -13,10 +13,10 @@ struct ShapeTextRecoveryTests {
 
     static func recover(
         _ content: String, recogniser: some TextRecogniser, options: PDF.ShapeTextOptions = .init(),
-        resources: String = "<< >>", mediaBox: String = "[0 0 612 792]"
+        resources: String = "<< >>", mediaBox: String = "[0 0 612 792]", rotate: Int = 0
     ) throws -> (document: PDF.Document, recovery: PDF.ShapeTextRecovery) {
         let document = try ShapeTextFixtures.document(
-            content, resources: resources, mediaBox: mediaBox)
+            content, resources: resources, mediaBox: mediaBox, rotate: rotate)
         let recovery = try document.recoveringShapeText(options: options, recogniser: recogniser)
         return (document, recovery)
     }
@@ -95,6 +95,7 @@ struct ShapeTextRecoveryTests {
         // Recovered: the text, and the outlines still counted as skipped.
         #expect(recovered.counts.text == 1)
         #expect(recovered.skipped["FILL"] == 6)
+        #expect(recovered.skipped["OCR TEXT"] == nil)
         let entity = try #require(recovered.entities.first)
         if case .text(_, _, _, let string, _, _) = entity {
             #expect(string == "10,439")
@@ -106,7 +107,7 @@ struct ShapeTextRecoveryTests {
         #expect(identity.locator.hasPrefix("p1:op"))
     }
 
-    @Test("text with a page that is offset and has its own crop box is placed all the same")
+    @Test("text on a page whose media box is offset from the origin is placed all the same")
     func offsetPage() throws {
         let text = OutlineText.drawn("SCALE 1:50", at: CGPoint(x: 150, y: 150))
         let (_, recovery) = try Self.recover(
@@ -116,6 +117,54 @@ struct ShapeTextRecoveryTests {
         let run = try #require(recovery.document.pages.first?.texts.first)
         #expect(abs(run.origin.x - text.ink.minX) < 0.1)
         #expect(abs(run.origin.y - 150) < 0.15)
+    }
+
+    @Test(
+        "text on a page with a crop box inside its media box, turned or not, is placed all the same",
+        arguments: [0, 90])
+    func cropBoxPage(rotate: Int) throws {
+        let text = OutlineText.drawn("SCALE 1:50", at: CGPoint(x: 200, y: 200))
+        let (_, recovery) = try Self.recover(
+            text.content, recogniser: Self.visionLike("SCALE 1:50"),
+            mediaBox: "[100 100 400 300] /CropBox [150 150 350 250]", rotate: rotate)
+        let report = try #require(recovery.reports[1])
+        #expect(report.accepted == 1)
+        let run = try #require(recovery.document.pages.first?.texts.first)
+        // Page coordinates are the file's own, whatever the crop box and the turn.
+        #expect(abs(run.origin.x - text.ink.minX) < 0.1)
+        #expect(abs(run.origin.y - 200) < 0.15)
+    }
+
+    @Test("a row of ticks read as a run of I is refused, not taken for text")
+    func ticks() throws {
+        var content = "0.4 w\n"
+        for tick in 0..<12 { content += "\(100 + 4 * tick) 100 m \(100 + 4 * tick) 106 l S\n" }
+        let (_, recovery) = try Self.recover(
+            content, recogniser: Self.visionLike("IIIIIIIIIIII"))
+        let report = try #require(recovery.reports[1])
+        #expect(report.regions == 1)
+        #expect(report.rejected == [.characters: 1])
+    }
+
+    @Test("on a recovered page the stroked shapes are the text, and are not drawn again")
+    func strokedNotDrawnTwice() throws {
+        let text = OutlineText.drawn("10,439", at: Self.origin, stroke: true)
+        let (document, recovery) = try Self.recover(
+            text.content, recogniser: Self.visionLike("10,439"))
+        let before = try #require(document.pages.first)
+        let page = try #require(recovery.document.pages.first)
+        let plain = before.drawing()
+        let recovered = page.drawing()
+        // As read: the glyph strokes are lines, polylines and splines, and there is no text.
+        #expect(plain.counts.text == 0)
+        #expect(plain.counts.line + plain.counts.polyline + plain.counts.spline > 0)
+        // Recovered: the text alone, and the strokes it was drawn with counted as skipped.
+        #expect(recovered.counts.text == 1)
+        #expect(recovered.counts.line + recovered.counts.polyline + recovered.counts.spline == 0)
+        #expect(recovered.entities.count == 1)
+        let subpaths = page.paths.reduce(0) { $0 + $1.subpaths.count }
+        #expect(recovered.skipped["OCR TEXT"] == subpaths)
+        #expect(page.texts.first?.shapes.count == subpaths)
     }
 
     @Test("text turned a quarter turn is read along its own direction")
@@ -215,7 +264,7 @@ struct ShapeTextRecoveryTests {
     }
 
     /// Reads `texts` in turn, one for each time it is asked, at the confidence it is given.
-    final class Sequence: TextRecogniser {
+    final class Scripted: TextRecogniser {
         let ink = InkRecogniser("")
         var texts: [String]
         var confidences: [Double]
@@ -239,7 +288,7 @@ struct ShapeTextRecoveryTests {
     @Test("a cluster is read at each size, and accepted if every reading agrees")
     func readingsAgree() throws {
         let text = OutlineText.drawn("10,439", at: Self.origin)
-        let recogniser = Sequence(["10,439"], confidences: [1, 0.7, 0.9])
+        let recogniser = Scripted(["10,439"], confidences: [1, 0.7, 0.9])
         let (_, recovery) = try Self.recover(text.content, recogniser: recogniser)
         #expect(recogniser.calls == 3)
         #expect(recovery.reports[1]?.accepted == 1)
@@ -248,7 +297,7 @@ struct ShapeTextRecoveryTests {
         // One reading is one call.
         var once = PDF.ShapeTextOptions()
         once.readingPixels = [40]
-        let single = Sequence(["10,439"])
+        let single = Scripted(["10,439"])
         _ = try Self.recover(text.content, recogniser: single, options: once)
         #expect(single.calls == 1)
     }
@@ -258,14 +307,14 @@ struct ShapeTextRecoveryTests {
         let text = OutlineText.drawn("10,439", at: Self.origin)
         // The second reading sees another character, as a look-alike at one size would give.
         let (_, recovery) = try Self.recover(
-            text.content, recogniser: Sequence(["10,439", "10,430", "10,439"]))
+            text.content, recogniser: Scripted(["10,439", "10,430", "10,439"]))
         let report = try #require(recovery.reports[1])
         #expect(report.rejected == [.inconsistent: 1])
         #expect(report.decisions.first?.recognised == "10,439")
         #expect(recovery.document.pages.first?.texts.isEmpty == true)
         // The same characters with other spacing agree.
         let (_, spaced) = try Self.recover(
-            text.content, recogniser: Sequence(["10,439", "10, 439", "10,439"]))
+            text.content, recogniser: Scripted(["10,439", "10, 439", "10,439"]))
         #expect(spaced.reports[1]?.accepted == 1)
     }
 
@@ -273,7 +322,7 @@ struct ShapeTextRecoveryTests {
     func laterReadingRejects() throws {
         let text = OutlineText.drawn("10,439", at: Self.origin)
         let (_, recovery) = try Self.recover(
-            text.content, recogniser: Sequence(["10,439", "10,439", "---"]))
+            text.content, recogniser: Scripted(["10,439", "10,439", "---"]))
         #expect(recovery.reports[1]?.rejected == [.inconsistent: 1])
     }
 

@@ -22,7 +22,11 @@
                 case "--compare": compare = true
                 case "--detail": detail = true
                 case "--pages" where index + 1 < arguments.count:
-                    pages = Int(arguments[index + 1]) ?? 1
+                    guard let count = Int(arguments[index + 1]), count > 0 else {
+                        print("pdfprobe ocr: --pages takes a number of pages, from 1")
+                        exit(2)
+                    }
+                    pages = count
                     index += 1
                 default: paths.append(arguments[index])
                 }
@@ -66,7 +70,6 @@
                 if report.shapesInDenseBlobs > 0 {
                     line += "\tdense-blob shapes \(report.shapesInDenseBlobs)"
                 }
-                line += String(format: "\t%.1f s", seconds)
                 print(line)
                 guard
                     let recovered = recovery.document.pages.first(where: {
@@ -76,6 +79,7 @@
                 if options.existingText == .compare { compareWithRead(report, page: recovered) }
                 if detail { list(report) }
             }
+            print(String(format: "%@\trecovered in %.1f s", name, seconds))
         }
 
         static func normalised(_ text: String) -> String { text.filter { !$0.isWhitespace } }

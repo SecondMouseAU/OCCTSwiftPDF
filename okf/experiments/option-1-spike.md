@@ -255,8 +255,12 @@ radius fitted over the whole run.
   `L/R`, `&` as a dot, a character under a ruling line), and Vision reports a confidence of 1.0 for
   nearly everything, so the confidence tells nothing: `.ocr` text is unchecked text. Any other ink
   under a line (a ruling line through a word) reaches the recogniser with it. Not looked at:
-  clusters of fewer than two glyph pieces (a lone character cannot be checked), shapes over 64 page
-  units, and pieces in a blob of more than 5,000 (hatching). A gap wider than a glyph cuts a line
+  clusters of fewer than two glyph pieces (a lone character cannot be checked), a line of two
+  glyphs at an angle that is not along or across the page (the principal axis needs three), shapes
+  over 64 page units, and pieces in a blob of more than 5,000 glyphs (hatching) or on a page so
+  dense that grouping them would take too long. Three or more characters that are all plain
+  vertical strokes (`I`, `l`, `1`, `|`, `!`) are refused, since a row of ticks reads that way, and
+  that refuses a value such as `111` with them. A gap wider than a glyph cuts a line
   into words, each its own run; lines are not joined into blocks; a page's images are rendered under
   the shapes (a drawing over a full-page image gave two accepted strings that are not text), and
   superscripts and `1/2` come back as the recogniser writes them (`½`). An OCR run's `height` is

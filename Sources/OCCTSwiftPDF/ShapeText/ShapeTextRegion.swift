@@ -32,6 +32,8 @@ struct ShapeTextRegion {
     var paths: [Int]
     /// Each glyph's extent across the reading direction, in the frame (0 is the box's bottom).
     var spans: [ClosedRange<Double>] = []
+    /// The subpaths its pieces are, in `Page.paths`.
+    var shapes: [PDF.ShapeReference] = []
 
     /// The unit vector across the reading direction.
     var across: CGPoint { CGPoint(x: -direction.y, y: direction.x) }

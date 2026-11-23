@@ -43,8 +43,9 @@ timestamp: 2026-11-23
     `ShapeTextReport` for each page: the clusters of shapes found, how many were accepted, and the
     rest by rejection reason (`ShapeTextRejection`), with a `ShapeTextDecision` for each cluster.
     `ShapeTextOptions` holds every tolerance. `drawing()` draws the OCR text with an identity ending
-    in `:ocr` and its place among the OCR text (`p1:op5:ocr0`); the shapes it came from stay in
-    `skipped["FILL"]`. `PDF.read` and `drawing()` on a page not recovered are unchanged.
+    in `:ocr` and its place among the OCR text (`p1:op5:ocr0`); the filled shapes it came from stay in
+    `skipped["FILL"]` and the stroked ones (`TextRun.shapes` says which) are not drawn and are
+    counted in `skipped["OCR TEXT"]`, since they are the text now. `PDF.read` and `drawing()` on a page not recovered are unchanged.
   - `PDF.readReference(at:)` (spike tooling, macOS only) reads the drawing to compare with from a
     DXF, or from a zip holding exactly one entry, a DXF, through `/usr/bin/unzip`.
   - `PDF.compare(_:with:tolerance:)` (spike tooling) places a reference drawing of the same sheet

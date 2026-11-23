@@ -144,6 +144,9 @@ import Testing
             let document = try ShapeTextFixtures.document(content)
             let recovery = try document.recoveringShapeText()
             let report = try #require(recovery.reports[1])
+            // The ticks are a cluster that was looked at (the validator's own rule for a run of
+            // strokes is tested without Vision, in `ticks()`).
+            #expect(report.regions > 0)
             #expect(report.accepted + report.rejectedCount == report.regions)
             // Whatever Vision makes of ticks, it is not accepted as text over a row of them.
             let accepted = report.decisions.filter { $0.outcome == .accepted }

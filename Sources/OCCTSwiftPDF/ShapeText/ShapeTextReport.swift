@@ -24,8 +24,9 @@ extension PDF {
         case lowConfidence
         /// The recognised characters are implausible: none is a letter or a digit, or one is a
         /// replacement or control character, one is outside the Unicode blocks a drawing's text
-        /// is in (``ShapeTextOptions/additionalCharacterBlocks`` adds some), or a word mixes Latin
-        /// and Cyrillic letters.
+        /// is in (``ShapeTextOptions/additionalCharacterBlocks`` adds some), a word mixes Latin
+        /// and Cyrillic letters, or there are three or more characters and all are plain vertical
+        /// strokes (`I`, `l`, `1`, `|`, `!`: a row of ticks).
         case characters
         /// The recogniser found text, but not where the shapes are: its box overlaps theirs by
         /// less than ``ShapeTextOptions/minimumOverlap``.
@@ -58,8 +59,11 @@ extension PDF {
 
     /// One cluster of shapes, with what was recognised in it and whether that was accepted.
     public struct ShapeTextDecision: Sendable {
-        /// The cluster's box along its line, in page coordinates: baseline start, baseline end,
+        /// The cluster's ink box along its line, in page coordinates: bottom start, bottom end,
         /// top end, top start.
+        ///
+        /// Its bottom is the lowest ink (a comma or a descender), not the baseline; an accepted
+        /// run's own box (``TextRun/quad``) starts at the baseline.
         public var quad: [CGPoint]
         /// The number of glyph-sized pieces (a letter's outer and inner outlines count once).
         public var glyphs: Int
@@ -70,8 +74,12 @@ extension PDF {
         public var confidence: Double?
         /// Whether the cluster was accepted, or rejected and why.
         public var outcome: ShapeTextOutcome
-        /// The text the page already had there, where ``ShapeTextOptions/existingText`` is
-        /// ``ShapeTextOptions/ExistingText/compare`` and a run covers the cluster.
+        /// The text the page already had there, where a run covers the cluster.
+        ///
+        /// Set whatever ``ShapeTextOptions/existingText`` is: for ``ShapeTextOptions/ExistingText/skip``
+        /// the cluster is rejected as ``ShapeTextRejection/alreadyRead`` and this says what it was
+        /// read as; for ``ShapeTextOptions/ExistingText/compare`` it is what the recognised text
+        /// is compared with.
         public var readText: String?
     }
 
@@ -86,7 +94,7 @@ extension PDF {
         public var shapes: Int
         /// The shapes left out because they are too dense to look at.
         ///
-        /// They sit in a blob of more than 5,000 pieces (a hatch, a dense symbol), or the page has
+        /// They sit in a blob of more than 5,000 glyphs (a hatch, a dense symbol), or the page has
         /// so many, or so many over one another, that grouping them would take too long.
         public var shapesInDenseBlobs: Int
         /// The clusters of shapes, each one line of at least ``ShapeTextOptions/minimumGlyphs``

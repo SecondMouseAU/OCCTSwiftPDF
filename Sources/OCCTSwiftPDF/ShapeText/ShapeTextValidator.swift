@@ -130,7 +130,18 @@ enum ShapeTextValidator {
             scalar != "\u{FFFD}" && !CharacterSet.controlCharacters.contains(scalar)
                 && (plausibleBlocks + extraBlocks).contains { $0.contains(scalar.value) }
         }
-        return clean && !text.split(whereSeparator: \.isWhitespace).contains(where: mixesScripts)
+        return clean && !isStrokeRun(text)
+            && !text.split(whereSeparator: \.isWhitespace).contains(where: mixesScripts)
+    }
+
+    /// Three or more characters that are all a plain vertical stroke (`I`, `l`, `1`, `|`, `!`).
+    ///
+    /// That is a row of ticks, or a hatch, which a recogniser reads as a run of `I`, far more
+    /// often than it is text. A value such as `111` is refused with them: no text is the safe
+    /// answer.
+    static func isStrokeRun(_ text: String) -> Bool {
+        let characters = text.filter { !$0.isWhitespace }
+        return characters.count >= 3 && characters.allSatisfy { "Il1|!".contains($0) }
     }
 
     /// Whether a word has both Cyrillic letters and other letters.
