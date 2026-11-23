@@ -169,7 +169,7 @@ enum ArcRecovery {
         // A run of straight segments is tested from the fewest an arc may have: a few points of a
         // finely flattened arc are too close to straight for their circle to mean anything.
         var length = 1
-        let wanted = options.minimumLineSegments
+        let wanted = max(1, options.minimumLineSegments)
         if first + wanted <= limit, !elements[first..<(first + wanted)].contains(where: \.isCurve) {
             length = wanted
         }
@@ -245,7 +245,8 @@ enum ArcRecovery {
     /// and so is the polyline's whole run of them, but an arc ends where the polyline does, at a
     /// corner, or on a line that leaves it tangent (which turns by half a step, not a whole one).
     private static func carriesOn(_ elements: [ArcElement], _ arc: RecoveredArc) -> Bool {
-        guard arc.curves == 0, arc.lines > 0 else { return false }
+        // A whole circle that the polyline goes on round is still a circle.
+        guard arc.curves == 0, arc.lines > 0, !arc.isCircle else { return false }
         let direction: Double = arc.sweep >= 0 ? 1 : -1
         let step = abs(arc.sweep) / Double(arc.lines)
         func turn(_ a: SIMD2<Double>, _ b: SIMD2<Double>) -> Double {

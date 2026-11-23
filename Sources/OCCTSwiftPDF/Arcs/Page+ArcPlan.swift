@@ -14,7 +14,7 @@ extension PDF.Page {
             var arc: RecoveredArc
             /// The operators that drew it, in order along the run, each once.
             var sources: [PDF.Source]
-            /// The first stroke's width, in millimetres on the paper.
+            /// The width of the stroke drawn first, in millimetres on the paper.
             var lineWidth: Double
             /// The segments (lines and curves) it replaces.
             var segments: Int
@@ -101,10 +101,15 @@ extension PDF.Page {
                     plan.owner[candidate.path][candidate.subpath][index] = id
                 }
             }
+            // The width is that of the stroke drawn first, which is also where the entity goes.
+            let firstDrawn = run.members.min {
+                (candidates[$0].path, candidates[$0].subpath)
+                    < (candidates[$1].path, candidates[$1].subpath)
+            }
+            let width = firstDrawn.map { paths[candidates[$0].path].lineWidth } ?? 0
             plan.arcs.append(
                 ArcPlan.Placed(
-                    arc: run.arc, sources: sources,
-                    lineWidth: paths[candidates[run.members[0]].path].lineWidth * 25.4 / 72,
+                    arc: run.arc, sources: sources, lineWidth: width * 25.4 / 72,
                     segments: segments))
         }
         return plan

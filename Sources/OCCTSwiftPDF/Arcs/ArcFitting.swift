@@ -130,7 +130,8 @@ extension PDF {
         public var segments: Int
         /// The operators that drew them, in order, each once.
         public var sources: [Source]
-        /// The width the path was stroked with, in millimetres on the paper.
+        /// The width the path was stroked with, in millimetres on the paper: that of the stroke drawn
+        /// first, where a circle was drawn in several.
         public var lineWidth: Double
 
         /// The sweep in degrees: 360 for a circle.

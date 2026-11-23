@@ -370,4 +370,100 @@ struct ArcRecoveryTests {
         #expect(abs(arc.arc.sweep * 180 / .pi - 270) < 0.1)
         #expect(abs(arc.arc.firstDeg - 180) < 0.1)
     }
+
+    // MARK: Options and limits
+
+    @Test("a run that doubles back on its circle is cut where it turns")
+    func backwards() {
+        // 25 chords of 8 degrees forward, then 3 of 8 degrees back along the same circle.
+        var chords = ArcShapes.flattened(
+            centre: Self.centre, radius: 20, from: 0, sweep: 200, segments: 25)
+        let back = ArcShapes.flattened(
+            centre: Self.centre, radius: 20, from: 200, sweep: -24, segments: 3)
+        chords.append(contentsOf: back)
+        let found = Self.recover(chords)
+        #expect(found.count == 1 && found.first?.range == 0..<25)
+    }
+
+    @Test("a circle drawn twice over is two circles, not one of 720 degrees")
+    func twoLaps() {
+        let lap = ArcShapes.flattened(centre: Self.centre, radius: 20, segments: 36)
+        let found = Self.recover(lap + lap)
+        #expect(found.count == 2 && found.allSatisfy(\.isCircle))
+    }
+
+    @Test("chords of unequal steps are an arc only if the option allows the spread")
+    func stepRatio() {
+        // Steps alternate 4 and 8 degrees: on one circle, but cut as no flattener cuts it.
+        var chords: [ArcElement] = []
+        var angle = 0.0
+        for index in 0..<14 {
+            let step = index % 2 == 0 ? 4.0 : 8.0
+            chords.append(
+                .line(
+                    ArcShapes.point(Self.centre, 20, angle),
+                    ArcShapes.point(Self.centre, 20, angle + step)))
+            angle += step
+        }
+        #expect(Self.recover(chords).isEmpty)
+        var loose = Self.options
+        loose.maximumStepRatio = 2.5
+        #expect(ArcRecovery.recover(chords, loose).count == 1)
+    }
+
+    @Test("a big circle of four curves is out of round by more than the absolute tolerance")
+    func relativeTolerance() throws {
+        // 0.03 percent of 100 mm is 0.03 mm, three times the 0.01 mm tolerance.
+        let big = ArcShapes.bezierArc(centre: Self.centre, radius: 100, curves: 4)
+        let found = Self.recover(big)
+        let circle = try #require(found.first)
+        #expect(found.count == 1 && circle.isCircle)
+        #expect(circle.maxResidual > Self.options.tolerance)
+        var strict = Self.options
+        strict.relativeTolerance = 0
+        #expect(ArcRecovery.recover(big, strict).isEmpty)
+    }
+
+    @Test("a circle smaller than the least radius, or an arc bigger than the most, is left alone")
+    func radiusLimits() {
+        let tiny = ArcShapes.bezierArc(centre: Self.centre, radius: 0.02, curves: 4)
+        #expect(Self.recover(tiny).isEmpty)
+        var small = Self.options
+        small.minimumRadius = 0.01
+        #expect(ArcRecovery.recover(tiny, small).count == 1)
+        let huge = ArcShapes.bezierArc(
+            centre: Self.centre, radius: 3_000, from: 0, sweep: 90, curves: 1)
+        #expect(Self.recover(huge).isEmpty)
+        var large = Self.options
+        large.maximumRadius = 5_000
+        #expect(ArcRecovery.recover(huge, large).count == 1)
+    }
+
+    @Test("a least of no chords or fewer does not hang or trap")
+    func nonsenseOptions() {
+        let chords = ArcShapes.flattened(
+            centre: Self.centre, radius: 20, from: 0, sweep: 120, segments: 12)
+        for least in [0, -3] {
+            var options = Self.options
+            options.minimumLineSegments = least
+            #expect(ArcRecovery.recover(chords, options).count == 1)
+        }
+    }
+
+    @Test("two arcs of one circle with a gap between them are not joined")
+    func gapBetweenArcs() {
+        let first = ArcShapes.bezierArc(
+            centre: Self.centre, radius: 20, from: 0, sweep: 90, curves: 1)
+        // 0.3 mm on from where the first ends (0.86 degrees at 20 mm): near, but not meeting.
+        let second = ArcShapes.bezierArc(
+            centre: Self.centre, radius: 20, from: 90.86, sweep: 90, curves: 1)
+        let arcs = Self.arcs([first, second])
+        #expect(arcs.count == 2)
+        #expect(ArcJoining.join(arcs, keys: ["", ""], Self.options).isEmpty)
+        // Made to meet, the same two are one arc.
+        let meeting = ArcShapes.bezierArc(
+            centre: Self.centre, radius: 20, from: 90, sweep: 90, curves: 1)
+        #expect(
+            ArcJoining.join(Self.arcs([first, meeting]), keys: ["", ""], Self.options).count == 1)
+    }
 }

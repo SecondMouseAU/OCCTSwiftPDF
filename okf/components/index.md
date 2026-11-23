@@ -106,8 +106,9 @@ timestamp: 2026-11-23
 - **`pdfprobe`** (executable): `pdfprobe [--detail] <file-or-folder>...` reports what each PDF is
   made of; `pdfprobe arcs [--detail] <file-or-folder>...` counts the circles and arcs recovered
   per producer (`--tolerance`, `--line-tolerance`, `--relative`, `--min-sweep`, `--max-step`,
-  `--min-lines` and `--max-ratio` set the options); `pdfprobe arc-pairs [--detail] [--table <file>]
-  <folder>` compares them with the circles and arcs of each PDF's DXF or JWW by coordinates
+  `--min-lines`, `--max-ratio`, `--min-radius` and `--max-radius` set the options);
+  `pdfprobe arc-pairs [--detail] [--bound <mm>] [--table <file>] <folder>` compares them with the
+  circles and arcs of each PDF's DXF or JWW by coordinates
   (`PDFPROBE_PLACEMENTS=<file>` keeps the placements between runs); `pdfprobe digest` prints a
   hash of each page's `drawing()`, to show that a change left it alone;
   `pdfprobe compare <pdf> <dxf-or-zip>` and `pdfprobe pairs <folder>` compare PDFs with

@@ -3,7 +3,8 @@
 //
 // A least-squares circle through points: an algebraic start (Kasa) refined by Gauss-Newton on the
 // geometric distance, so the radius is the one that minimises the distance of the points from the
-// circle, not a biased one.
+// circle, not a biased one. (OCCTReconstruct has a Kasa fit of its own; this package links only
+// SwiftDXF and Apple's frameworks, and the refinement is what a short arc needs.)
 
 import Foundation
 

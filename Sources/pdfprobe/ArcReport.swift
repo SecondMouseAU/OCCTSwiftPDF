@@ -9,6 +9,35 @@
     import OCCTSwiftPDF
     import SwiftDXF
 
+    /// The arc recovery options from `--tolerance`, `--relative`, `--line-tolerance`,
+    /// `--min-sweep`, `--max-step`, `--min-lines`, `--max-ratio`, `--min-radius` and
+    /// `--max-radius`, and what is left of the arguments.
+    ///
+    /// A flag whose value is not a number ends the run with a message.
+    func arcOptions(_ raw: [String]) -> (options: PDF.ArcFitting, rest: [String]) {
+        var options = PDF.ArcFitting()
+        var rest = raw
+        func take(_ flag: String) -> Double? {
+            guard let at = rest.firstIndex(of: flag) else { return nil }
+            guard at + 1 < rest.count, let value = Double(rest[at + 1]) else {
+                print("\(flag) needs a number")
+                exit(2)
+            }
+            rest.removeSubrange(at...(at + 1))
+            return value
+        }
+        if let value = take("--tolerance") { options.tolerance = value }
+        if let value = take("--relative") { options.relativeTolerance = value }
+        if let value = take("--line-tolerance") { options.lineTolerance = value }
+        if let value = take("--min-sweep") { options.minimumSweepDeg = value }
+        if let value = take("--max-step") { options.maximumLineStepDeg = value }
+        if let value = take("--min-lines") { options.minimumLineSegments = Int(value) }
+        if let value = take("--max-ratio") { options.maximumStepRatio = value }
+        if let value = take("--min-radius") { options.minimumRadius = value }
+        if let value = take("--max-radius") { options.maximumRadius = value }
+        return (options, rest)
+    }
+
     /// What recovery found in one file.
     struct ArcFileResult {
         var name: String

@@ -63,7 +63,8 @@ swift run pdfprobe digest <file-or-folder>...         # a hash of each page's dr
 ```
 
 `arcs` and `arc-pairs` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
-`--line-tolerance`, `--min-sweep`, `--max-step`, `--min-lines` and `--max-ratio`; `arc-pairs` also
+`--line-tolerance`, `--min-sweep`, `--max-step`, `--min-lines`, `--max-ratio`, `--min-radius` and
+`--max-radius`; `arc-pairs` also
 `--bound <mm>` (how near a reference circle must be, on the paper, to match) and `--table <file>`
 (one row per fit), and `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements between runs.
 

@@ -86,7 +86,8 @@ extension PDF {
     /// placed on the paper.
     ///
     /// A fit matches the reference circle or arc whose centre and radius are nearest, if both are
-    /// within `bound` millimetres on the paper and, where both are arcs, the angles overlap.
+    /// within `bound` millimetres on the paper and, where both are arcs, the angles overlap. The
+    /// matching is not one to one: a reference arc that two fits share is matched by both.
     public static func compareArcs(
         _ fitted: FittedDrawing, with reference: DXF.Drawing, placedBy location: Placement,
         within bound: Double = 0.5

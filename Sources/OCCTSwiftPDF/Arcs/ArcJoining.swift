@@ -37,8 +37,9 @@ enum ArcJoining {
                 ? options.lineTolerance
                 : max(options.tolerance, options.relativeTolerance * arc.circle.radius)
         }
-        // Start points by key and cell, so each end looks only at the starts near it.
-        let cell = 0.5
+        // Start points by key and cell, so each end looks only at the starts near it: a cell is
+        // wider than the slack of any arc, and the ends look in the cells round their own.
+        let cell = max(0.5, arcs.map { 2 * tolerance($0) }.max() ?? 0)
         func cellOf(_ p: SIMD2<Double>) -> [Int] {
             [Int((p.x / cell).rounded(.down)), Int((p.y / cell).rounded(.down))]
         }

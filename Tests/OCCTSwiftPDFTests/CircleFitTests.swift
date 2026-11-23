@@ -58,4 +58,28 @@ struct CircleFitTests {
         #expect(Circle.fitting(Array(line.prefix(2))) == nil)
         #expect(Circle.fitting([]) == nil)
     }
+
+    @Test("the fit is the geometric optimum: the squared distances are at a minimum")
+    func geometricOptimum() throws {
+        // A 60 degree arc of a 50 mm circle with 0.05 mm of radial noise in a fixed pattern: the
+        // algebraic start is biased here, and the refinement is what puts it right.
+        var points = Self.points(centre: SIMD2(3, 4), radius: 50, from: 100, sweep: 60, count: 12)
+        for index in points.indices {
+            let sign = index % 3 == 0 ? 1.0 : -1.0
+            let out = (points[index] - SIMD2(3, 4)) / 50
+            points[index] += sign * 0.05 * out
+        }
+        let circle = try #require(Circle.fitting(points))
+        // The gradient of the summed squared distances with respect to centre and radius.
+        var gradient = SIMD3<Double>(0, 0, 0)
+        for point in points {
+            let offset = point - circle.centre
+            let distance = (offset.x * offset.x + offset.y * offset.y).squareRoot()
+            let residual = distance - circle.radius
+            gradient.x += residual * (-offset.x / distance)
+            gradient.y += residual * (-offset.y / distance)
+            gradient.z += -residual
+        }
+        #expect(abs(gradient.x) < 1e-6 && abs(gradient.y) < 1e-6 && abs(gradient.z) < 1e-6)
+    }
 }
