@@ -200,16 +200,16 @@ subpaths and strokes and fitted again. The numbers came from the corpus, not fro
   rounded rectangle is four lines and four arcs of the corner radius, never one circle.
 
 **Recovered, over the corpus** (`pdfprobe arcs`; 589 of the 590 PDFs open, 430 have at least one
-circle or arc; 69,254 circles and 205,956 arcs):
+circle or arc; 69,254 circles and 206,084 arcs):
 
 | Producer | files (with fits) | circles | arcs | from curves / lines / mixed | median residual (mm) |
 |---|---|---|---|---|---|
-| Acrobat Distiller | 314 (177) | 49892 | 142820 | 149483 / 0 / 43229 | 0.0022 |
+| Acrobat Distiller | 314 (177) | 49892 | 142822 | 149483 / 0 / 43231 | 0.0022 |
 | Acrobat PDFWriter | 175 (169) | 5367 | 22897 | 22896 / 1 / 5367 | 0.0028 |
 | Adobe PDF Library | 7 (4) | 2046 | 9398 | 11031 / 0 / 413 | 0.0044 |
 | Aspose.PDF for .NET | 1 (1) | 1 | 0 | 0 / 1 / 0 | 0.0002 |
 | GPL Ghostscript | 2 (2) | 0 | 447 | 387 / 0 / 60 | 0.0033 |
-| JUST PDF | 2 (2) | 1910 | 3384 | 4897 / 0 / 397 | 0.0029 |
+| JUST PDF | 2 (2) | 1910 | 3386 | 4899 / 0 / 397 | 0.0029 |
 | MicroArts PDF Exchange Project | 35 (35) | 6844 | 19407 | 26251 / 0 / 0 | 0.0001 |
 | Microsoft: Print To PDF | 1 (1) | 12 | 119 | 131 / 0 / 0 | 0.0045 |
 | Microsoft PowerPoint | 7 (3) | 146 | 490 | 608 / 0 / 28 | 0.0028 |
@@ -217,7 +217,7 @@ circle or arc; 69,254 circles and 205,956 arcs):
 | ODA PDF Export | 1 (1) | 3 | 0 | 3 / 0 / 0 | 0.0003 |
 | Online2PDF.com | 1 (1) | 0 | 4 | 4 / 0 / 0 | 0.0012 |
 | PDF-XChange Viewer [Version: | 1 (1) | 0 | 236 | 198 / 0 / 38 | 0.0028 |
-| iText | 3 (3) | 1691 | 5163 | 0 / 6854 / 0 | 0.0002 |
+| iText | 3 (3) | 1691 | 5287 | 0 / 6978 / 0 | 0.0002 |
 | macOS Version | 1 (1) | 27 | 58 | 0 / 85 / 0 | 0.0002 |
 | Quartz PDFContext (macOS) | 27 (27) | 1311 | 1377 | 2600 / 0 / 88 | 0.0002 |
 | pdfplot12.hdi | 1 (1) | 4 | 150 | 154 / 0 / 0 | 0.0001 |
@@ -229,7 +229,7 @@ segments together, usually a circle's curves and its closing line.
 **Against the paired DXF or JWW, by coordinates** (`pdfprobe arc-pairs`, 326 pairs, a reference
 circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles overlapping):
 
-- 228,657 fits: 215,850 (94.4 percent) match a reference circle or arc, 7,831 are circles centred
+- 228,659 fits: 215,852 (94.4 percent) match a reference circle or arc, 7,831 are circles centred
   on a reference `POINT` (Jw_cad prints each point as a small circle: `Igata` has 161 `POINT`s
   and 161 such circles, of the same 3 mm radius), 4,976 (2.2 percent) are neither, and 2,380 of
   those (1.0 percent of all) have no reference geometry within 0.1 mm along them. Nine files
@@ -245,18 +245,18 @@ circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles
   PDFWriter median 3.5: its circles are 0.03 to 0.05 mm smaller on the paper than the CAD's,
   whatever the fit, so what the file draws is not what the CAD drew. Fitting does not beat the
   writer; it stops adding error to it.
-- Not recovered: 152,359 of the 364,776 reference circles and arcs have no fit. In the two pairs
+- Not recovered: 152,357 of the 364,776 reference circles and arcs have no fit. In the two pairs
   looked at about four in five sweep under 45 degrees and the rest have a radius of 0.2 to 0.5
   mm on the paper. The 2120 (Jw_cad through Acrobat PDFWriter 3.0J) has none of its 1,909
   reference circles and arcs recovered: its arcs are runs of a few chords (4 to 6 in the ones
   looked at), too few to take. No flattened circle was found in any TECS pair, so how well chords
   are recovered is measured only by unit tests and by the corpus's exact flatteners (iText: 1,691
-  circles, 5,163 arcs), which have no reference.
+  circles, 5,287 arcs), which have no reference.
 - Joining matters for DraftingCAD through Quartz (the Fowler sheets), which draws each circle as
   two half circles in two strokes with different pens. Over the 47 files of `PDFs/` the circles
   went from 3,203 (runs inside one subpath only) to 3,284 with joining and the rule that a circle
   drawn a little past its start is still a circle (Quartz 1,293 to 1,311, iText 1,631 to 1,691).
-  Arcs that still meet on one circle but were not joined (678 pairs over the corpus, mostly the
+  Arcs that still meet on one circle but were not joined (690 pairs over the corpus, mostly the
   strokes of text drawn as shapes) have more than one neighbour, another layer or colour, or no
   circle that fits them all.
 
