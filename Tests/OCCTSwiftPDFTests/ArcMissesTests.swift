@@ -313,13 +313,17 @@ struct ArcMissesTests {
         let page = try FittedDrawingTests.page("10 10 m 100 10 l S")
         let reference = DXF.Drawing(entities: [
             .arc(
-                center: DXF.Point(0, 0), radius: 1e12, startDeg: 0, endDeg: 90, layer: "0",
+                center: DXF.Point(0, 0), radius: 1e19, startDeg: 0, endDeg: 90, layer: "0",
                 color: 7),
             .circle(center: DXF.Point(1e300, 1e300), radius: 5, layer: "0", color: 7),
         ])
         let found = Self.missed(page, reference)
-        #expect(found.count <= 2)
-        for miss in found { #expect(miss.covered == 0 && miss.curves == 0 && miss.lines == 0) }
+        // Both are missed, and nothing of the page lies on either.
+        #expect(found.count == 2)
+        for miss in found {
+            #expect(miss.covered == 0 && miss.curves == 0 && miss.lines == 0)
+            #expect(miss.support < 0.1)
+        }
     }
 
     @Test("a reference arc the page does not draw has no support")

@@ -11,13 +11,15 @@
 //   pdfprobe arc-pairs [--detail] [--bound <mm>] [--table <file>] <folder>
 //                                               the same against the circles and arcs of each
 //                                               PDF's paired DXF or JWW, by coordinates
-//   pdfprobe arc-misses [--misses <file>] [--fits <file>] <folder>
+//   pdfprobe arc-misses [--bound <mm>] [--misses <file>] [--fits <file>] <folder>
+//   pdfprobe arc-misses --look <pdf name> --refs <n,...> <folder>
 //                                               the reference arcs no fit matched, and the fits,
-//                                               with what the page has along and at their ends
+//                                               with what the page has along and at their ends;
+//                                               or the geometry round the arcs numbered
 //   pdfprobe digest <file-or-folder>...         a hash of each page's `drawing()`, to see that a
 //                                               change to the reader left it alone
 //
-// `arcs` and `arc-pairs` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
+// `arcs`, `arc-pairs` and `arc-misses` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
 // `--line-tolerance`, `--min-sweep`, `--min-curve-sweep`, `--max-step`, `--min-lines`,
 // `--max-ratio`, `--min-radius` and `--max-radius`.
 // `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements of `arc-pairs` between runs.
@@ -381,7 +383,13 @@ import Foundation
         misses = take("--misses")
         fits = take("--fits")
         var look: (file: String, refs: Set<Int>)?
-        if let file = take("--look"), let refs = take("--refs") {
+        let lookFile = take("--look")
+        let lookRefs = take("--refs")
+        if lookFile != nil || lookRefs != nil {
+            guard let file = lookFile, let refs = lookRefs else {
+                print("--look <pdf name> and --refs <n,...> go together")
+                exit(2)
+            }
             look = (file, Set(refs.split(separator: ",").compactMap { Int($0) }))
         }
         guard let folder = rest.first else {

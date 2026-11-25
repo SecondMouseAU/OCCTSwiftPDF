@@ -264,8 +264,9 @@ bound given as 0.5 mm below is `arc-pairs`' default):
   PDFWriter median 3.5: its circles are 0.03 to 0.05 mm smaller on the paper than the CAD's,
   whatever the fit, so what the file draws is not what the CAD drew. Fitting does not beat the
   writer; it stops adding error to it.
-- Not recovered: 134,127 of the 364,776 reference circles and arcs have no fit (150,839 before the
-  curve floor was lowered), looked at in the next section. The 2120 (Jw_cad through Acrobat
+- Not recovered: 139,020 of the 364,776 reference circles and arcs have no fit within 0.15 mm
+  (152,357 before the curve floor was lowered); within 0.5 mm, the bound the next section uses,
+  134,127 (150,839 before). The 2120 (Jw_cad through Acrobat
   PDFWriter 3.0J) has none of its 1,909 reference circles and arcs recovered: its arcs are runs of
   3 to 10 chords whose vertices lie 0.03 mm off the circle, the writer's 0.1 point grid, on
   circles of 0.2 to 0.5 mm radius on the paper, so no circle fits them within the tolerance. No
@@ -291,8 +292,8 @@ TECS and `PDFs/` and are options (`PDF.ArcFitting`), not measured on other write
 ### Arcs not recovered, remeasured
 
 `pdfprobe arc-misses` (2026-11-25) writes a row for each reference circle or arc no fit matched,
-placed on the paper by the placement `arc-pairs` found, with what the page draws along it and at
-its ends (`--look <pdf> --refs <n,...>` prints the geometry round chosen ones), and a row for each
+placed on the paper by the placement `arc-pairs` found and matched within 0.5 mm (its default
+bound), with what the page draws along it and at its ends (`--look <pdf> --refs <n,...>` prints the geometry round chosen ones), and a row for each
 fit. `Scripts/arc-misses-summary.py misses <before.tsv> <after.tsv>` and `bands <fits.tsv>` make the
 tables below from them. Over the 326 pairs, 150,839 of the 364,776 had no fit before the curve
 floor was lowered, and 134,127 after:
@@ -301,10 +302,10 @@ floor was lowered, and 134,127 after:
 |---|---|---|---|
 | nothing (not printed, or another version of the sheet) | 20,182 | 20,075 | 11,593 |
 | curves that lie on the circle | 32,669 | 20,883 | 19,347 |
-| 8 or more chords that lie on it | 12,923 | 12,921 | 10,141 |
-| fewer than 8 chords | 24,342 | 24,280 | 7,459 |
-| curves and chords | 2,163 | 1,715 | 1,325 |
-| geometry along it, not wholly on the circle | 58,560 | 54,253 | 11,579 |
+| 8 or more chords that lie on it | 12,920 | 12,918 | 10,138 |
+| fewer than 8 chords | 24,341 | 24,279 | 7,458 |
+| curves and chords | 2,168 | 1,720 | 1,330 |
+| geometry along it, not wholly on the circle | 58,559 | 54,252 | 11,578 |
 
 The noise floor is a paper radius of 20 steps of the writer's coordinate grid: 0.035 mm for Acrobat
 PDFWriter, which rounds to 0.1 point, and 0.021 mm for Distiller; MicroArts and the other writers
@@ -319,9 +320,9 @@ are taken to have none. At the floor one grid step is 5 percent of the radius. W
   `_0-1_`.
 - That leaves 61,444 above the floor, of which 11,593 are not drawn. The other 49,851: 19,347 are
   curves, 15,913 of them too short for the floor (7,433 at 15 to 25 degrees, 8,480 under 15) and
-  3,434 of 25 degrees or more that the fitter rejects (not looked into); 10,141 are 8 or more
+  3,434 of 25 degrees or more that the fitter rejects (not looked into); 10,138 are 8 or more
   chords on the circle that the fitter rejects (cause not found; a looser step ratio and tolerance
-  take some of them); 7,459 are fewer than 8 chords; 1,325 are curves and chords; and 11,579 are
+  take some of them); 7,458 are fewer than 8 chords; 1,330 are curves and chords; and 11,578 are
   arcs the page draws as part of longer pieces or off the circle (not looked into).
 
 What was tried and set aside, against the reference by the same matching (bound 0.5 mm):

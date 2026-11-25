@@ -66,6 +66,13 @@ timestamp: 2026-11-26
     points as small circles); the fits with no reference circle or arc; the reference's that no
     fit matched; and for each fit the fraction of its length within 0.1 mm of any reference
     geometry.
+  - `PDF.missedArcs(on:comparison:reference:placedBy:join:)` and `PDF.fitContacts(_:on:join:)`
+    (spike tooling) say why a reference arc went unrecovered. A `PDF.MissedArc` has the arc's
+    radius and sweep, the fraction of it within 0.1 mm of the page's drawing (`support`), the
+    fraction of its sweep covered by pieces that lie on its circle (`covered`) with how many are
+    curves and how many straight segments, and the contacts (`PDF.EndContacts`: how many of its
+    two ends meet another piece within `join`, and how many of those leave in its own direction)
+    in the reference and on the page. `fitContacts` gives the same contacts for each fit.
 - **Interpreter** (`Interpreter/PageInterpreter.swift`): runs a page's content stream through
   `CGPDFScanner`, keeping the graphics state stack, the current path, the text state, marked
   content (`BDC /OC` and a Form XObject's `/OC` become layers) and Form XObjects (followed with
@@ -116,9 +123,10 @@ timestamp: 2026-11-26
   `pdfprobe arc-pairs [--detail] [--bound <mm>] [--table <file>] <folder>` compares them with the
   circles and arcs of each PDF's DXF or JWW by coordinates
   (`PDFPROBE_PLACEMENTS=<file>` keeps the placements between runs); `pdfprobe arc-misses
-  [--misses <file>] [--fits <file>] <folder>` writes a row for each reference arc no fit matched,
-  and for each fit, with what the page has along and at the ends of it (it reads the placements
-  `arc-pairs` kept, and `--look <pdf> --refs <n,...>` prints the geometry round chosen arcs);
+  [--bound <mm>] [--misses <file>] [--fits <file>] <folder>` writes a row for each reference arc
+  no fit matched, and for each fit, with what the page has along and at the ends of it (it takes
+  the options of `arcs`, uses the placements `arc-pairs` kept and makes the missing ones, and
+  `--look <pdf> --refs <n,...>` prints the geometry round chosen arcs instead);
   `pdfprobe digest` prints a
   hash of each page's `drawing()`, to show that a change left it alone;
   `pdfprobe compare <pdf> <dxf-or-zip>` and `pdfprobe pairs <folder>` compare PDFs with

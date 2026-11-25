@@ -167,6 +167,8 @@ extension PDF {
         startDeg: Double, sweepDeg: Double, isCircle: Bool
     ) -> (covered: Double, curves: Int, lines: Int, widest: Double, longestRun: Int) {
         let box = arcBox(centre: centre, radius: radius, startDeg: startDeg, sweepDeg: sweepDeg)
+        // As far off the circle as a fit allows (0.0004 of the radius, where that is more).
+        let onTolerance: Double = max(0.05, 0.0004 * radius)
         var intervals: [(Double, Double)] = []
         var curves = 0
         var lines = 0
@@ -186,7 +188,8 @@ extension PDF {
                     atan2(q.y - centre.y, q.x - centre.x) * 180 / Double.pi - startDeg)
                 if offset > 359 { offset -= 360 }
                 offsets.append(offset)
-                usable.append(abs(d - radius) <= 0.05 && (isCircle || offset <= sweepDeg + 1))
+                usable.append(
+                    abs(d - radius) <= onTolerance && (isCircle || offset <= sweepDeg + 1))
             }
             // Each segment lies on the circle when both ends do and, for a straight one, its
             // middle is where a chord of that sweep puts it.
@@ -203,7 +206,7 @@ extension PDF {
                     let b = piece.points[i + 1]
                     let mid = DXF.Point2((a.x + b.x) / 2, (a.y + b.y) / 2)
                     let expected: Double = radius * cos(abs(delta) * Double.pi / 360)
-                    on = abs(mid.distance(to: centre) - expected) <= 0.05
+                    on = abs(mid.distance(to: centre) - expected) <= onTolerance
                 }
                 onSegment.append(on)
                 sweeps.append(abs(delta))
@@ -254,7 +257,8 @@ extension PDF {
     ///
     /// `comparison` says which they are. `join` is how near another piece's end must be to count as
     /// meeting the arc's end. A piece is counted along an arc where its vertices are within 0.05 mm
-    /// of the circle and inside the span (a whole circle's span is the circle).
+    /// (0.0004 of the radius, where that is more) of the circle and inside the span; a whole
+    /// circle's span is the circle.
     public static func missedArcs(
         on page: Page, comparison: ArcComparison, reference: DXF.Drawing,
         placedBy location: Placement, join: Double = 0.2

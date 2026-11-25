@@ -35,14 +35,10 @@ extension PDF {
 
         /// The cell `value` is in, or `nil` where it is not finite or too far out to count cells.
         static func index(_ value: Double, cell: Double) -> Int? {
-            let floor: Double = (value / cell).rounded(.down)
-            guard floor.isFinite, abs(floor) < 1e9 else { return nil }
-            return Int(floor)
+            SegmentIndex.cellIndex(value, cell: cell).map { Int($0) }
         }
 
-        static func key(_ x: Int, _ y: Int) -> Int64 {
-            Int64(x) &* 4_000_000_007 &+ Int64(y)
-        }
+        static func key(_ x: Int, _ y: Int) -> Int64 { SegmentIndex.key(Int64(x), Int64(y)) }
 
         /// The ends within `radius` of `p`.
         func near(_ p: DXF.Point2, within radius: Double) -> [PieceEnd] {

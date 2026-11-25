@@ -199,7 +199,8 @@ extension PDF {
     ) -> Double {
         let length: Double = sweepDeg * Double.pi / 180 * radius
         guard length.isFinite else { return 0 }
-        let count = max(8, min(2_000, Int((length / 0.1).rounded(.up))))
+        // The count is capped as a number before it is an Int: a reference's radius is not capped.
+        let count = Int(max(8, min(2_000, (length / 0.1).rounded(.up))))
         var near = 0
         for step in 0..<count {
             let along: Double = (Double(step) + 0.5) / Double(count)

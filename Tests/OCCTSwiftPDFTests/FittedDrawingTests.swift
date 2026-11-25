@@ -258,8 +258,8 @@ struct FittedDrawingTests {
         #expect(fitted.fits.first?.shape == .circle && fitted.fits.first?.input == .mixed)
     }
 
-    @Test("a circle of twelve curves in twelve strokes is one circle, though each piece is short")
-    func twelveStrokes() throws {
+    @Test("a circle of sixteen curves in sixteen strokes is one circle, though each piece is short")
+    func sixteenStrokes() throws {
         var content = ""
         let pieces = ArcShapes.bezierArc(centre: Self.centre, radius: 50, curves: 16)
         for piece in pieces { content += Self.operators([piece]) + " S " }

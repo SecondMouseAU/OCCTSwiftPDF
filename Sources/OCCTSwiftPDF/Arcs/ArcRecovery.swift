@@ -179,9 +179,10 @@ enum ArcRecovery {
     /// The arcs in `elements`, from the left, each the longest run that one circle fits, with the
     /// elements none of them took left as they are.
     ///
-    /// A run with curves in it needs only `curveSweepDeg` of sweep, which is the minimum by
-    /// default: a caller that will join arcs sets it lower and applies the minimum afterwards, so
-    /// that a circle drawn in pieces is found from pieces that are each short.
+    /// A run with curves in it needs only `curveSweepDeg` of sweep. Where that is not given, a run
+    /// of curves only needs the options' curve floor and a run with chords the general minimum: a
+    /// caller that will join arcs sets it lower and applies the minimum afterwards, so that a
+    /// circle drawn in pieces is found from pieces that are each short.
     static func recover(
         _ elements: [ArcElement], _ options: PDF.ArcFitting, curveSweepDeg: Double? = nil,
         count: SearchCount? = nil, maximumRun: Int = ArcRecovery.defaultMaximumRun

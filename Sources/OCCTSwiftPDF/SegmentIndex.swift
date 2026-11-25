@@ -46,7 +46,10 @@ extension PDF {
 
         /// The cell a coordinate falls in, or `nil` for a coordinate that is not finite or is too
         /// far out for the grid (beyond a billion cells from the origin).
-        func cellIndex(_ value: Double) -> Int64? {
+        func cellIndex(_ value: Double) -> Int64? { Self.cellIndex(value, cell: cell) }
+
+        /// The cell of size `cell` a coordinate falls in; see ``cellIndex(_:)``.
+        static func cellIndex(_ value: Double, cell: Double) -> Int64? {
             let index = (value / cell).rounded(.down)
             guard index.isFinite, abs(index) < 1e9 else { return nil }
             return Int64(index)
