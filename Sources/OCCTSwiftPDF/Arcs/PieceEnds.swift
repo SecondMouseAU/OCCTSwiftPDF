@@ -159,8 +159,9 @@ extension PDF {
             var touched = false
             var smooth = false
             for end in index.near(point, within: join) {
+                // As far off the circle as a fit allows (0.0004 of the radius, where that is more).
                 let off: Double = abs(end.far.distance(to: centre) - radius)
-                if off <= 0.05 { continue }
+                if off <= max(0.05, 0.0004 * radius) { continue }
                 touched = true
                 let dot: Double = end.direction.x * outward.x + end.direction.y * outward.y
                 if dot >= cosLimit { smooth = true }

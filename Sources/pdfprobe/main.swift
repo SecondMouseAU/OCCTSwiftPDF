@@ -22,9 +22,11 @@
 // `arcs`, `arc-pairs` and `arc-misses` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
 // `--line-tolerance`, `--min-sweep`, `--min-curve-sweep`, `--max-step`, `--min-lines`,
 // `--max-ratio`, `--min-radius` and `--max-radius`.
-// `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements of `arc-pairs` between runs.
+// `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements of `arc-pairs` and `arc-misses`
+// between runs.
 //
-// `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
+// `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison (`compare`, `pairs`,
+// `arc-pairs` and `arc-misses`), such as Jw_cad's
 // auxiliary lines (`ADD_LINE` in the TECS DXFs), which are never printed.
 //
 // macOS only: it reads PDFs through PDFKit as well and runs `/usr/bin/unzip`. Where there is no
@@ -454,8 +456,8 @@ import Foundation
                     + "pairs <folder> | digest <file-or-folder>... | "
                     + "arcs [--detail] <file-or-folder>... | arc-pairs [--detail] <folder> | "
                     + "arc-misses <folder> | debug-text <pdf> <text>; "
-                    + "--exclude-layer <name> for compare, pairs and "
-                    + "arc-pairs"
+                    + "--exclude-layer <name> for compare, pairs, arc-pairs and "
+                    + "arc-misses"
             )
             exit(2)
         }

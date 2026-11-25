@@ -333,6 +333,48 @@ struct FittedDrawingTests {
         #expect(both.count == 1 && both.first?.input == .mixed)
     }
 
+    /// An ellipse of semi-axes `a` and `b` (page units) as `curves` Bezier curves, a circle's
+    /// scaled, the way a writer draws one.
+    static func ellipse(_ a: Double, _ b: Double, curves: Int) -> [ArcElement] {
+        func scaled(_ p: P) -> P { P(centre.x + p.x * a, centre.y + p.y * b) }
+        return ArcShapes.bezierArc(centre: P(0, 0), radius: 1, curves: curves).map { element in
+            switch element {
+            case .line(let from, let to):
+                return .line(scaled(from), scaled(to))
+            case .curve(let from, let first, let second, let to):
+                return .curve(scaled(from), scaled(first), scaled(second), scaled(to))
+            }
+        }
+    }
+
+    @Test("a nearly round ellipse of curves is cut into arcs that stay within the tolerance")
+    func roundEllipse() throws {
+        // A 150 by 140 ellipse in twelve curves is round enough, in pieces of 25 degrees or more,
+        // for circles to fit them: several arcs of different radii, not one circle. They stay on
+        // the curve, but their radii are not the ellipse's. With the curve floor at 45 degrees
+        // there are fewer pieces.
+        let content = Self.operators(Self.ellipse(150, 140, curves: 12)) + " S"
+        let fitted = try Self.page(content).fittedDrawing()
+        #expect(!fitted.fits.isEmpty)
+        for fit in fitted.fits {
+            #expect(fit.shape == .arc && fit.sweepDeg >= 25)
+            // The fit passes within the tolerance of the curve it replaced.
+            #expect(fit.maxResidual <= max(0.01, 0.0004 * fit.radius) + 1e-9)
+        }
+        let radii = Set(fitted.fits.map { ($0.radius * 100).rounded() })
+        #expect(radii.count > 1)
+        var old = PDF.ArcFitting()
+        old.minimumCurveSweepDeg = 45
+        let before = try Self.page(content).fittedDrawing(old)
+        #expect(before.fits.count < fitted.fits.count)
+
+        // An eccentric one, three to one, is not taken in 90 degree pieces either.
+        let flat = try Self.page(
+            Self.operators(Self.ellipse(150, 50, curves: 4)) + " S"
+        ).fittedDrawing()
+        #expect(flat.fits.isEmpty)
+    }
+
     @Test("a fit says where its entity is among the others, and the others keep their places")
     func entityIndex() throws {
         let circle = ArcShapes.bezierArc(centre: Self.centre, radius: 40, curves: 4)

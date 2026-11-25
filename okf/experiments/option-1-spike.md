@@ -281,7 +281,11 @@ bound given as 0.5 mm below is `arc-pairs`' default):
   strokes of text drawn as shapes) have more than one neighbour, another layer or colour, or no
   circle that fits them all.
 
-Not done: elliptical arcs and ellipses are not recovered (they stay splines); a circle drawn as
+Not done: elliptical arcs and ellipses are not recovered (they stay splines), though an ellipse
+that is nearly round is cut into circular arcs where it is round to the tolerance in pieces of 25
+degrees or more (a 150 by 140 ellipse of twelve curves gives several arcs of different radii, each
+within the tolerance of the curve, where the 45 degree floor gave fewer; three to one gives none);
+a circle drawn as
 two strokes of different layers or colours is not joined; a flattened arc with an odd chord at an
 end is taken without that chord, which stays a line; a run that starts with many chords and goes
 on to curves, or a circle of curves and finely flattened chords, is missed or cut at the chords; a
@@ -301,15 +305,16 @@ floor was lowered, and 134,127 after:
 | What the page has along the arc | before | after | above the noise floor, after |
 |---|---|---|---|
 | nothing (not printed, or another version of the sheet) | 20,182 | 20,075 | 11,593 |
-| curves that lie on the circle | 32,669 | 20,883 | 19,347 |
+| curves that lie on the circle | 32,659 | 20,873 | 19,337 |
 | 8 or more chords that lie on it | 12,920 | 12,918 | 10,138 |
-| fewer than 8 chords | 24,341 | 24,279 | 7,458 |
-| curves and chords | 2,168 | 1,720 | 1,330 |
+| fewer than 8 chords | 24,340 | 24,278 | 7,457 |
+| curves and chords | 2,179 | 1,731 | 1,341 |
 | geometry along it, not wholly on the circle | 58,559 | 54,252 | 11,578 |
 
-The noise floor is a paper radius of 20 steps of the writer's coordinate grid: 0.035 mm for Acrobat
-PDFWriter, which rounds to 0.1 point, and 0.021 mm for Distiller; MicroArts and the other writers
-are taken to have none. At the floor one grid step is 5 percent of the radius. What it showed:
+The noise floor is a paper radius of 20 steps of the writer's coordinate grid: 0.71 mm for Acrobat
+PDFWriter, whose grid step is 0.035 mm (it rounds to 0.1 point), and 0.42 mm for Distiller (step
+0.021 mm); MicroArts and the other writers are taken to have none. At the floor one grid step is 5
+percent of the radius. What it showed:
 
 - Under 45 degrees is 41 percent of the 150,839 (62,245), not four in five.
 - More than half are below the noise floor (72,683 of the 134,127 after). The arcs Acrobat PDFWriter missed
@@ -318,11 +323,11 @@ are taken to have none. At the floor one grid step is 5 percent of the radius. W
 - 20,075 are not drawn by the page, in few files (`dt71`, `es05`, `ec23`, `rinjikus` and `c5000x`
   hold almost half of the 20,182 before), on reference layers such as `_0-5____6`, `_0-a_` and
   `_0-1_`.
-- That leaves 61,444 above the floor, of which 11,593 are not drawn. The other 49,851: 19,347 are
-  curves, 15,913 of them too short for the floor (7,433 at 15 to 25 degrees, 8,480 under 15) and
+- That leaves 61,444 above the floor, of which 11,593 are not drawn. The other 49,851: 19,337 are
+  curves, 15,903 of them too short for the floor (7,432 at 15 to 25 degrees, 8,471 under 15) and
   3,434 of 25 degrees or more that the fitter rejects (not looked into); 10,138 are 8 or more
   chords on the circle that the fitter rejects (cause not found; a looser step ratio and tolerance
-  take some of them); 7,458 are fewer than 8 chords; 1,330 are curves and chords; and 11,578 are
+  take some of them); 7,457 are fewer than 8 chords; 1,341 are curves and chords; and 11,578 are
   arcs the page draws as part of longer pieces or off the circle (not looked into).
 
 What was tried and set aside, against the reference by the same matching (bound 0.5 mm):

@@ -52,8 +52,9 @@
             let comparison = PDF.compareArcs(
                 fitted, with: reference, placedBy: placement, within: bound)
             if let look {
+                let drawing = page.drawing()
                 for round in comparison.unmatchedReference where look.refs.contains(round.index) {
-                    lookAround(page, round)
+                    lookAround(drawing, round)
                 }
                 continue
             }
@@ -110,7 +111,7 @@
     /// What the page's drawing has along the circle or arc `round`: each piece with a vertex
     /// within 0.3 mm of the circle, with its vertices' distances from the circle and positions
     /// along the span.
-    func lookAround(_ page: PDF.Page, _ round: PDF.ReferenceRound) {
+    func lookAround(_ drawing: DXF.Drawing, _ round: PDF.ReferenceRound) {
         let cx = round.center.x
         let cy = round.center.y
         let r = round.radius
@@ -124,7 +125,7 @@
             String(
                 format: "ref %d: centre (%.3f, %.3f) r %.4f from %.2f sweep %.2f", round.index, cx,
                 cy, r, start, sweep))
-        for (index, entity) in page.drawing().entities.enumerated() {
+        for (index, entity) in drawing.entities.enumerated() {
             var points: [(Double, Double)] = []
             var kind = ""
             switch entity {

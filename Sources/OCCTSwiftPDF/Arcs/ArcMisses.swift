@@ -176,8 +176,9 @@ extension PDF {
         var longestRun = 0
         for position in candidates {
             let piece = pieces[position]
-            guard piece.maxX >= box.minX - 0.2, piece.minX <= box.maxX + 0.2,
-                piece.maxY >= box.minY - 0.2, piece.minY <= box.maxY + 0.2
+            let margin: Double = onTolerance + 0.2
+            guard piece.maxX >= box.minX - margin, piece.minX <= box.maxX + margin,
+                piece.maxY >= box.minY - margin, piece.minY <= box.maxY + margin
             else { continue }
             // Each vertex: on the circle, and where in the span.
             var offsets: [Double] = []

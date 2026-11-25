@@ -123,8 +123,9 @@ struct ArcMissesTests {
         let found = Self.missed(page, reference)
         try #require(found.count == 1)
         let miss = found[0]
-        #expect(miss.curves == 0 && miss.lines >= 4)
-        #expect(miss.longestRun >= 4)
+        // The four chords are on the circle; the two lines beside them are not.
+        #expect(miss.curves == 0 && miss.lines == 4)
+        #expect(miss.longestRun == 4)
         #expect(miss.covered > 0.9)
         #expect(miss.pdfContacts.tangent == 2)
     }
@@ -156,6 +157,28 @@ struct ArcMissesTests {
         try #require(found.count == 1)
         #expect(found[0].isCircle && found[0].sweepDeg == 360 && found[0].support < 0.1)
         #expect(found[0].referenceContacts == PDF.EndContacts(met: 0, tangent: 0))
+    }
+
+    @Test("a whole circle the page draws, that no fit matched, is covered by its curves")
+    func coveredCircle() throws {
+        let drawn = ArcShapes.bezierArc(centre: Self.centre, radius: Self.radius, curves: 4)
+        let page = try FittedDrawingTests.page(FittedDrawingTests.operators(drawn) + " S")
+        // The comparison says the reference circle went unmatched, as one the fitter turned down
+        // would be.
+        let circle = PDF.ReferenceRound(
+            index: 0,
+            center: DXF.Point(
+                Self.centre.x * Self.millimetres, Self.centre.y * Self.millimetres),
+            radius: Self.radius * Self.millimetres, spanDeg: nil)
+        let comparison = PDF.ArcComparison(
+            matches: [], pointMarkers: [], unmatchedFits: [], referenceCount: 1, support: [],
+            unmatchedReference: [circle], bound: 0.5)
+        let found = PDF.missedArcs(
+            on: page, comparison: comparison, reference: DXF.Drawing(), placedBy: Self.placement)
+        try #require(found.count == 1)
+        #expect(found[0].isCircle && found[0].curves == 4 && found[0].lines == 0)
+        #expect(found[0].covered > 0.99 && found[0].support > 0.95)
+        #expect(abs(found[0].widestPiece - 90) < 1)
     }
 
     @Test("an arc across 0 degrees that the page draws as a short curve is covered")
