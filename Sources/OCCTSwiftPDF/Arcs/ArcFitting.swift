@@ -23,7 +23,20 @@ extension PDF {
         /// The same for a run of chords only, in millimetres on the paper.
         public var lineTolerance: Double
         /// The smallest sweep an arc may have, in degrees.
+        ///
+        /// It holds for a run of straight chords, and for one that has both chords and curves.
         public var minimumSweepDeg: Double
+        /// The smallest sweep an arc of Bezier curves only may have, in degrees.
+        ///
+        /// Curves are held to less than chords, because a circle's curves are exact and a short
+        /// arc of them is rarely a piece of something else: against the paired drawings, 96
+        /// percent of the arcs of curves from 25 degrees lie within 0.5 mm of a reference arc,
+        /// where arcs of chords under 45 degrees do in under 60. The arc is the right one, but
+        /// its radius is rough where the writer's coordinates are on a coarse grid: for Acrobat
+        /// Distiller (0.021 mm) the median radius error is 0.07 mm on the paper at 25 to 45
+        /// degrees and 0.01 at 60 to 90. It is never larger than ``minimumSweepDeg``, which a
+        /// smaller value there lowers as well.
+        public var minimumCurveSweepDeg: Double
         /// The largest angle one chord may subtend at the circle's centre, in degrees.
         public var maximumLineStepDeg: Double
         /// The fewest chords a run with no curves may have.
@@ -38,20 +51,25 @@ extension PDF {
         public init(
             tolerance: Double = 0.01, relativeTolerance: Double = 0.0004,
             lineTolerance: Double = 0.003, minimumSweepDeg: Double = 45,
-            maximumLineStepDeg: Double = 24, minimumLineSegments: Int = 8,
-            maximumStepRatio: Double = 1.5, minimumRadius: Double = 0.05,
-            maximumRadius: Double = 2_000
+            minimumCurveSweepDeg: Double = 25, maximumLineStepDeg: Double = 24,
+            minimumLineSegments: Int = 8, maximumStepRatio: Double = 1.5,
+            minimumRadius: Double = 0.05, maximumRadius: Double = 2_000
         ) {
             self.tolerance = tolerance
             self.relativeTolerance = relativeTolerance
             self.lineTolerance = lineTolerance
             self.minimumSweepDeg = minimumSweepDeg
+            self.minimumCurveSweepDeg = minimumCurveSweepDeg
             self.maximumLineStepDeg = maximumLineStepDeg
             self.minimumLineSegments = minimumLineSegments
             self.maximumStepRatio = maximumStepRatio
             self.minimumRadius = minimumRadius
             self.maximumRadius = maximumRadius
         }
+
+        /// The smallest sweep, in degrees, of an arc of curves only: ``minimumCurveSweepDeg``, or
+        /// ``minimumSweepDeg`` where that is smaller.
+        var curveFloorDeg: Double { min(minimumCurveSweepDeg, minimumSweepDeg) }
     }
 
     /// A circle or arc recovered from a run of curves or of short lines, with how well it fits.

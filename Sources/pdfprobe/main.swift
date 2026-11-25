@@ -11,12 +11,15 @@
 //   pdfprobe arc-pairs [--detail] [--bound <mm>] [--table <file>] <folder>
 //                                               the same against the circles and arcs of each
 //                                               PDF's paired DXF or JWW, by coordinates
+//   pdfprobe arc-misses [--misses <file>] [--fits <file>] <folder>
+//                                               the reference arcs no fit matched, and the fits,
+//                                               with what the page has along and at their ends
 //   pdfprobe digest <file-or-folder>...         a hash of each page's `drawing()`, to see that a
 //                                               change to the reader left it alone
 //
 // `arcs` and `arc-pairs` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
-// `--line-tolerance`, `--min-sweep`, `--max-step`, `--min-lines`, `--max-ratio`,
-// `--min-radius` and `--max-radius`.
+// `--line-tolerance`, `--min-sweep`, `--min-curve-sweep`, `--max-step`, `--min-lines`,
+// `--max-ratio`, `--min-radius` and `--max-radius`.
 // `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements of `arc-pairs` between runs.
 //
 // `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
@@ -363,6 +366,31 @@ import Foundation
             URL(fileURLWithPath: folder), options, excluded: excludedLayers, detail: detail,
             bound: bound, table: table)
         printArcPairSummary(results)
+    case "arc-misses" where arguments.count >= 2:
+        var (options, rest) = arcOptions(Array(arguments.dropFirst()))
+        var bound = 0.5
+        var misses: String?
+        var fits: String?
+        func take(_ flag: String) -> String? {
+            guard let at = rest.firstIndex(of: flag), at + 1 < rest.count else { return nil }
+            let value = rest[at + 1]
+            rest.removeSubrange(at...(at + 1))
+            return value
+        }
+        if let value = take("--bound"), let number = Double(value) { bound = number }
+        misses = take("--misses")
+        fits = take("--fits")
+        var look: (file: String, refs: Set<Int>)?
+        if let file = take("--look"), let refs = take("--refs") {
+            look = (file, Set(refs.split(separator: ",").compactMap { Int($0) }))
+        }
+        guard let folder = rest.first else {
+            print("arc-misses needs a folder")
+            exit(2)
+        }
+        arcMisses(
+            URL(fileURLWithPath: folder), options, excluded: excludedLayers, bound: bound,
+            missesPath: misses, fitsPath: fits, look: look)
     case "digest" where arguments.count >= 2:
         for url in pdfs(in: Array(arguments.dropFirst())) { digest(url) }
     case "debug-text" where arguments.count == 3:
@@ -417,7 +445,7 @@ import Foundation
                 "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | "
                     + "pairs <folder> | digest <file-or-folder>... | "
                     + "arcs [--detail] <file-or-folder>... | arc-pairs [--detail] <folder> | "
-                    + "debug-text <pdf> <text>; --exclude-layer <name> for compare, pairs and "
+                    + "arc-misses <folder> | debug-text <pdf> <text>; --exclude-layer <name> for compare, pairs and "
                     + "arc-pairs"
             )
             exit(2)

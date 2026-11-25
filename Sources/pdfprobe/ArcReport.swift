@@ -10,8 +10,8 @@
     import SwiftDXF
 
     /// The arc recovery options from `--tolerance`, `--relative`, `--line-tolerance`,
-    /// `--min-sweep`, `--max-step`, `--min-lines`, `--max-ratio`, `--min-radius` and
-    /// `--max-radius`, and what is left of the arguments.
+    /// `--min-sweep`, `--min-curve-sweep`, `--max-step`, `--min-lines`, `--max-ratio`,
+    /// `--min-radius` and `--max-radius`, and what is left of the arguments.
     ///
     /// A flag whose value is not a number ends the run with a message.
     func arcOptions(_ raw: [String]) -> (options: PDF.ArcFitting, rest: [String]) {
@@ -30,6 +30,7 @@
         if let value = take("--relative") { options.relativeTolerance = value }
         if let value = take("--line-tolerance") { options.lineTolerance = value }
         if let value = take("--min-sweep") { options.minimumSweepDeg = value }
+        if let value = take("--min-curve-sweep") { options.minimumCurveSweepDeg = value }
         if let value = take("--max-step") { options.maximumLineStepDeg = value }
         if let value = take("--min-lines") {
             guard let whole = Int(exactly: value) else {

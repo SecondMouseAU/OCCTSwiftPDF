@@ -261,20 +261,76 @@ struct FittedDrawingTests {
     @Test("a circle of twelve curves in twelve strokes is one circle, though each piece is short")
     func twelveStrokes() throws {
         var content = ""
-        let pieces = ArcShapes.bezierArc(centre: Self.centre, radius: 50, curves: 12)
+        let pieces = ArcShapes.bezierArc(centre: Self.centre, radius: 50, curves: 16)
         for piece in pieces { content += Self.operators([piece]) + " S " }
         let fitted = try Self.page(content).fittedDrawing()
         #expect(fitted.drawing.entities.count == 1 && fitted.drawing.counts.circle == 1)
-        #expect(fitted.fits.first?.sources.count == 12)
-        // Each piece alone sweeps 30 degrees, which is under what an arc needs, and one piece
-        // with no neighbour is left as the spline it was.
+        #expect(fitted.fits.first?.sources.count == 16)
+        // Each piece alone sweeps 22.5 degrees, which is under what an arc of curves needs, and
+        // one piece with no neighbour is left as the spline it was.
         let alone = try Self.page(Self.operators([pieces[0]]) + " S").fittedDrawing()
         #expect(alone.fits.isEmpty && alone.drawing.counts.spline == 1)
         let two = try Self.page(
             Self.operators([pieces[0]]) + " S " + Self.operators([pieces[1]]) + " S"
         ).fittedDrawing()
-        // Two pieces make 60 degrees: one arc.
-        #expect(two.fits.count == 1 && abs(two.fits[0].sweepDeg - 60) < 0.1)
+        // Two pieces make 45 degrees: one arc.
+        #expect(two.fits.count == 1 && abs(two.fits[0].sweepDeg - 45) < 0.1)
+    }
+
+    @Test("an arc of curves is an arc from 25 degrees; chords, and chords with curves, need 45")
+    func curveFloor() throws {
+        func fits(_ elements: [ArcElement], _ options: PDF.ArcFitting = .init()) throws
+            -> [PDF.ArcFit]
+        {
+            try Self.page(Self.operators(elements) + " S").fittedDrawing(options).fits
+        }
+        func curve(_ sweep: Double) -> [ArcElement] {
+            ArcShapes.bezierArc(
+                centre: Self.centre, radius: 40, from: 10, sweep: sweep, curves: 1)
+        }
+        // 30 degrees of one curve is an arc; 20 is not.
+        let thirty = try fits(curve(30))
+        #expect(thirty.count == 1 && thirty.first?.shape == .arc && thirty.first?.input == .curves)
+        if let fit = thirty.first { #expect(abs(fit.sweepDeg - 30) < 0.1) }
+        #expect(try fits(curve(20)).isEmpty)
+
+        // The curve floor is an option, and the general minimum lowers it where it is smaller.
+        var lower = PDF.ArcFitting()
+        lower.minimumCurveSweepDeg = 15
+        #expect(try fits(curve(20), lower).count == 1)
+        var general = PDF.ArcFitting()
+        general.minimumSweepDeg = 15
+        #expect(try fits(curve(20), general).count == 1)
+        // The floor can go under the 10 degrees a run is first looked for at.
+        var least = PDF.ArcFitting()
+        least.minimumCurveSweepDeg = 5
+        #expect(try fits(curve(8), least).count == 1)
+        #expect(try fits(curve(8)).isEmpty)
+        // A curve floor above the general minimum is held to it: 40 degrees is under 45.
+        var higher = PDF.ArcFitting()
+        higher.minimumCurveSweepDeg = 60
+        #expect(try fits(curve(40), higher).isEmpty)
+        #expect(try fits(curve(50), higher).count == 1)
+
+        // Thirty degrees of eight chords is not an arc until the general minimum allows it, and
+        // is then one of lines.
+        let chords = ArcShapes.flattened(
+            centre: Self.centre, radius: 40, from: 10, sweep: 30, segments: 8)
+        #expect(try fits(chords).isEmpty)
+        var allowed = PDF.ArcFitting()
+        allowed.minimumSweepDeg = 25
+        let found = try fits(chords, allowed)
+        #expect(found.count == 1 && found.first?.input == .lines)
+
+        // A curve and chords make 30 degrees together: held to the general minimum too.
+        var mixed = ArcShapes.bezierArc(
+            centre: Self.centre, radius: 40, from: 10, sweep: 15, curves: 1)
+        mixed.append(
+            contentsOf: ArcShapes.flattened(
+                centre: Self.centre, radius: 40, from: 25, sweep: 15, segments: 8))
+        #expect(try fits(mixed).isEmpty)
+        let both = try fits(mixed, allowed)
+        #expect(both.count == 1 && both.first?.input == .mixed)
     }
 
     @Test("a fit says where its entity is among the others, and the others keep their places")

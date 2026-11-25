@@ -4,7 +4,7 @@ title: Option 1 spike, Apple's frameworks only
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [spike, pdf, cgpdfscanner, pdfkit, vector]
 description: CoreGraphics' PDF scanner with this package's own font decoding reads CAD-exported vector PDFs into DXF.Drawing, matching 289 of 321 TECS pairs to hundredths of a millimetre; PDFium is not needed. Text drawn as shapes is the gap, and the bridge to scans.
-timestamp: 2026-11-23
+timestamp: 2026-11-26
 ---
 
 # Option 1 spike: Apple's frameworks only
@@ -179,9 +179,10 @@ percent out of round themselves), with a largest residual of 0.0036 mm, tagged `
 
 **What is taken.** One circle fitted over the whole run (least squares on the geometric distance,
 not a bias-prone algebraic fit) must pass within a tolerance of every vertex and of eight samples
-along every curve, the run must sweep at least 45 degrees, and a run of chords must have at least 8
-of them, each at most 24 degrees, of near equal steps, that the polyline does not carry on past in
-the same curve. Arcs that meet end to start on one circle in one layer and colour are joined across
+along every curve, a run of curves only must sweep at least 25 degrees
+(`ArcFitting.minimumCurveSweepDeg`) and a run with chords at least 45, and a run of chords must
+have at least 8 of them, each at most 24 degrees, of near equal steps, that the polyline does not
+carry on past in the same curve. Arcs that meet end to start on one circle in one layer and colour are joined across
 subpaths and strokes and fitted again. The numbers came from the corpus, not from a guess:
 
 - A first version (0.01 mm for every run, arcs from 4 chords and 20 degrees) found 54,271 arcs in
@@ -191,65 +192,84 @@ subpaths and strokes and fitted again. The numbers came from the corpus, not fro
   smooth polyline is round to a hundredth of a millimetre over a few chords. Chords from the
   writers that flatten exactly (iText: 0.0002 mm median residual, a second cluster at
   0.005 to 0.009 for the rest) are why chords now need 0.003 mm, 8 segments and the rest.
-- For arcs from curves, in that first run, the share a reference arc confirms rises with the
+- For arcs from curves, in that first run, the share a reference arc confirms rose with the
   sweep: 44 percent under 25 degrees, 62 at 25 to 30, 72 to 89 at 30 to 45, 93 at 45 to 60, 97
-  at 60 to 90 and 98 from 90. That is why an arc must sweep 45 degrees. A shorter one stays a spline, and SwiftDXF's `fitted`
-  can still turn it into arcs.
+  at 60 to 90 and 98 from 90, which is why an arc had to sweep 45 degrees. That run still had the
+  loose chord rules; with the rules above, arcs of curves only are confirmed in 91 percent at 20
+  to 25 degrees, 96.5 at 25 to 30 and 96 at 30 to 45 (within 0.5 mm of a reference arc, default
+  tolerances), so the floor for them is 25 degrees (2026-11-26). Arcs of chords are not: under 45
+  degrees they are confirmed in 17 to 59 percent, so chords keep 45. A shorter arc stays a spline,
+  and SwiftDXF's `fitted` can still turn it into arcs.
 - Unit tests on hand-built runs: polygons of 3 to 14 sides, ellipses (five axis ratios, three
   chord counts), a spiral, a parabola, an S-curve and an eccentric Bezier arc are not taken; a
   rounded rectangle is four lines and four arcs of the corner radius, never one circle.
 
 **Recovered, over the corpus** (`pdfprobe arcs`; 589 of the 590 PDFs open, 430 have at least one
-circle or arc; 69,254 circles and 206,084 arcs):
+circle or arc; 69,254 circles and 231,193 arcs, 206,084 before the curve floor was lowered to
+25 degrees):
 
 | Producer | files (with fits) | circles | arcs | from curves / lines / mixed | median residual (mm) |
 |---|---|---|---|---|---|
-| Acrobat Distiller | 314 (177) | 49892 | 142822 | 149483 / 0 / 43231 | 0.0022 |
+| Acrobat Distiller | 314 (177) | 49892 | 160390 | 167051 / 0 / 43231 | 0.0020 |
 | Acrobat PDFWriter | 175 (169) | 5367 | 22897 | 22896 / 1 / 5367 | 0.0028 |
-| Adobe PDF Library | 7 (4) | 2046 | 9398 | 11031 / 0 / 413 | 0.0044 |
+| Adobe PDF Library | 7 (4) | 2046 | 12575 | 14208 / 0 / 413 | 0.0040 |
 | Aspose.PDF for .NET | 1 (1) | 1 | 0 | 0 / 1 / 0 | 0.0002 |
-| GPL Ghostscript | 2 (2) | 0 | 447 | 387 / 0 / 60 | 0.0033 |
-| JUST PDF | 2 (2) | 1910 | 3386 | 4899 / 0 / 397 | 0.0029 |
-| MicroArts PDF Exchange Project | 35 (35) | 6844 | 19407 | 26251 / 0 / 0 | 0.0001 |
-| Microsoft: Print To PDF | 1 (1) | 12 | 119 | 131 / 0 / 0 | 0.0045 |
-| Microsoft PowerPoint | 7 (3) | 146 | 490 | 608 / 0 / 28 | 0.0028 |
+| GPL Ghostscript | 2 (2) | 0 | 624 | 564 / 0 / 60 | 0.0036 |
+| JUST PDF | 2 (2) | 1910 | 4283 | 5796 / 0 / 397 | 0.0026 |
+| MicroArts PDF Exchange Project | 35 (35) | 6844 | 21948 | 28792 / 0 / 0 | 0.0001 |
+| Microsoft: Print To PDF | 1 (1) | 12 | 138 | 150 / 0 / 0 | 0.0037 |
+| Microsoft PowerPoint | 7 (3) | 146 | 823 | 941 / 0 / 28 | 0.0034 |
 | Nitro Pro | 1 (1) | 0 | 6 | 6 / 0 / 0 | 0.0049 |
-| ODA PDF Export | 1 (1) | 3 | 0 | 3 / 0 / 0 | 0.0003 |
+| ODA PDF Export | 1 (1) | 3 | 4 | 7 / 0 / 0 | 0.0018 |
 | Online2PDF.com | 1 (1) | 0 | 4 | 4 / 0 / 0 | 0.0012 |
-| PDF-XChange Viewer [Version: | 1 (1) | 0 | 236 | 198 / 0 / 38 | 0.0028 |
+| PDF-XChange Viewer [Version: | 1 (1) | 0 | 319 | 281 / 0 / 38 | 0.0031 |
 | iText | 3 (3) | 1691 | 5287 | 0 / 6978 / 0 | 0.0002 |
 | macOS Version | 1 (1) | 27 | 58 | 0 / 85 / 0 | 0.0002 |
-| Quartz PDFContext (macOS) | 27 (27) | 1311 | 1377 | 2600 / 0 / 88 | 0.0002 |
-| pdfplot12.hdi | 1 (1) | 4 | 150 | 154 / 0 / 0 | 0.0001 |
+| Quartz PDFContext (macOS) | 27 (27) | 1311 | 1660 | 2883 / 0 / 88 | 0.0003 |
+| pdfplot12.hdi | 1 (1) | 4 | 177 | 181 / 0 / 0 | 0.0001 |
 
 No circle or arc in the five SOLIDWORKS sheets (the McMaster sheets draw threads as spirals of
 chords), nor in Acrobat Pro, Corel, doPDF and Conv2pdf output. Mixed is curves and straight
 segments together, usually a circle's curves and its closing line.
 
 **Against the paired DXF or JWW, by coordinates** (`pdfprobe arc-pairs`, 326 pairs, a reference
-circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles overlapping):
+circle or arc within 0.15 mm of the fit's centre and radius on the paper, angles overlapping; a
+bound given as 0.5 mm below is `arc-pairs`' default):
 
-- 228,659 fits: 215,852 (94.4 percent) match a reference circle or arc, 7,831 are circles centred
-  on a reference `POINT` (Jw_cad prints each point as a small circle: `Igata` has 161 `POINT`s
-  and 161 such circles, of the same 3 mm radius), 4,976 (2.2 percent) are neither, and 2,380 of
-  those (1.0 percent of all) have no reference geometry within 0.1 mm along them. Nine files
-  hold 90 percent of the 2,380; seven are in the pairs listed above as holding other versions or
-  extents of the sheet (`ec33`, `ec34`, `dd20-1` and the wagon family), and `dt71` and `dmh17` have
-  not been looked into.
+- 247,917 fits (228,659 before the curve floor was lowered to 25 degrees): 230,081 (92.8 percent;
+  94.4 before) match a reference circle or arc, 7,832 are circles centred on a reference `POINT`
+  (Jw_cad prints each point as a small circle: `Igata` has 161 `POINT`s and 161 such circles, of
+  the same 3 mm radius), 10,004 (4.0 percent; 2.2 before) are neither, and 1,448 of those (0.6
+  percent of all) have under a tenth of their length within 0.1 mm of any reference geometry.
+  Nine files hold 90 percent of the 1,448 (`ec33`, `ec34`, `dt71`, `dd20-1`, `tr4000`, `tr1`,
+  `to20000r`, `tm16000`, `to20000s`); `ec33`, `ec34` and `dd20-1` are in the pairs listed above as
+  holding other versions or extents of the sheet, and the rest have not been looked into. The
+  rise in "neither" is the arcs of curves from 25 to 45 degrees (5,026 of the 10,004): within 0.5
+  mm of a reference arc in 96 percent, but with a centre or radius more than 0.15 mm off, as
+  below.
 - Radius error, fit less reference, in millimetres at full size: MicroArts JWtoPDF median 0.003,
   90th percentile 0.02, and 0.0001 mm on the paper; centre error median 0.0002 mm on the paper.
   Acrobat Distiller median 0.96, 90th percentile 2.5 (at 1:50 to 1:100): its coordinates are on a
   grid of 0.06 points (1/1200 inch, 0.021 mm on the paper, as in the `ec01` content stream), the
   median error on the paper is 0.012 mm, about half a step, and the fit's own residual is
-  smaller. Acrobat
+  smaller. Arcs of curves
+  that sweep 25 to 45 degrees are rougher on a coarse grid: for Distiller the median radius error
+  is 0.074 mm on the paper (5.9 mm at full size, 90th percentile 16.9) and the centre error 0.088
+  mm, against 0.014 and 0.023 at 45 to 90 degrees, and 26.6 percent are more than 0.15 mm off in
+  radius or centre, against 1.5 percent. By sweep, the share within 0.15 mm: 58 percent at 25 to
+  30 degrees, 70 at 30 to 35, 69 at 35 to 40, 88 at 40 to 45, 95 at 45 to 60 and 98 at 60 to 90.
+  MicroArts arcs are exact at any sweep (0.001 mm at 25 to 45). The fit's own residual does not
+  show it (median 0.0008 mm): the points lie on a slightly wrong circle, which a short arc cannot
+  say apart. Acrobat
   PDFWriter median 3.5: its circles are 0.03 to 0.05 mm smaller on the paper than the CAD's,
   whatever the fit, so what the file draws is not what the CAD drew. Fitting does not beat the
   writer; it stops adding error to it.
-- Not recovered: 152,357 of the 364,776 reference circles and arcs have no fit. In the two pairs
-  looked at about four in five sweep under 45 degrees and the rest have a radius of 0.2 to 0.5
-  mm on the paper. The 2120 (Jw_cad through Acrobat PDFWriter 3.0J) has none of its 1,909
-  reference circles and arcs recovered: its arcs are runs of a few chords (4 to 6 in the ones
-  looked at), too few to take. No flattened circle was found in any TECS pair, so how well chords
+- Not recovered: 134,127 of the 364,776 reference circles and arcs have no fit (150,839 before the
+  curve floor was lowered), looked at in the next section. The 2120 (Jw_cad through Acrobat
+  PDFWriter 3.0J) has none of its 1,909 reference circles and arcs recovered: its arcs are runs of
+  3 to 10 chords whose vertices lie 0.03 mm off the circle, the writer's 0.1 point grid, on
+  circles of 0.2 to 0.5 mm radius on the paper, so no circle fits them within the tolerance. No
+  flattened circle was found in any TECS pair, so how well chords
   are recovered is measured only by unit tests and by the corpus's exact flatteners (iText: 1,691
   circles, 5,287 arcs), which have no reference.
 - Joining matters for DraftingCAD through Quartz (the Fowler sheets), which draws each circle as
@@ -267,6 +287,51 @@ on to curves, or a circle of curves and finely flattened chords, is missed or cu
 very large radius drawn with coarse rounding (over the 2 m limit, or too flat for a few points to
 say) is not taken; tolerances were set on
 TECS and `PDFs/` and are options (`PDF.ArcFitting`), not measured on other writers.
+
+### Arcs not recovered, remeasured
+
+`pdfprobe arc-misses` (2026-11-25) writes a row for each reference circle or arc no fit matched,
+placed on the paper by the placement `arc-pairs` found, with what the page draws along it and at
+its ends (`--look <pdf> --refs <n,...>` prints the geometry round chosen ones). Over the 326
+pairs, 150,839 of the 364,776 had no fit before the curve floor was lowered, and 134,127 after:
+
+| What the page has along the arc | before | after | above the noise floor, after |
+|---|---|---|---|
+| nothing (not printed, or another version of the sheet) | 20,182 | 20,075 | 11,593 |
+| curves that lie on the circle | 32,669 | 20,883 | 19,347 |
+| 8 or more chords that lie on it | 12,923 | 12,921 | 10,141 |
+| fewer than 8 chords | 24,342 | 24,280 | 7,459 |
+| curves and chords | 2,163 | 1,715 | 1,325 |
+| geometry along it, not wholly on the circle | 58,560 | 54,253 | 11,579 |
+
+The noise floor is a paper radius of 20 steps of the writer's coordinate grid: 0.035 mm for Acrobat
+PDFWriter, which rounds to 0.1 point, and 0.021 mm for Distiller; MicroArts and the other writers
+are taken to have none. At the floor one grid step is 5 percent of the radius. What it showed:
+
+- Under 45 degrees is 41 percent of the 150,839 (62,245), not four in five.
+- More than half are below the noise floor (72,683 of the 134,127 after). The arcs Acrobat PDFWriter missed
+  have a median radius of 0.3 mm on the paper, against a grid of 0.035 mm. That is a limit of the
+  file, not of the method, and no rule recovers them reliably.
+- 20,075 are not drawn by the page, in few files (`dt71`, `es05`, `ec23`, `rinjikus` and `c5000x`
+  hold almost half of the 20,182 before), on reference layers such as `_0-5____6`, `_0-a_` and
+  `_0-1_`.
+- That leaves 61,444 above the floor, of which 11,593 are not drawn. The other 49,851: 19,347 are
+  curves, 15,913 of them too short for the floor (7,433 at 15 to 25 degrees, 8,480 under 15) and
+  3,434 of 25 degrees or more that the fitter rejects (not looked into); 10,141 are 8 or more
+  chords on the circle that the fitter rejects (cause not found; a looser step ratio and tolerance
+  take some of them); 7,459 are fewer than 8 chords; 1,325 are curves and chords; and 11,579 are
+  arcs the page draws as part of longer pieces or off the circle (not looked into).
+
+What was tried and set aside, against the reference by the same matching (bound 0.5 mm):
+
+| Rule | Result |
+|---|---|
+| Take a short arc where a line leaves its end smoothly (within 3 degrees, polyline neighbours counted) | Arcs of curves under 45 degrees: 83 percent confirmed with a tangent end, 79 without; chords 37 and 35, and only 21 chord arcs have a tangent end at both. Not a lever. |
+| Tolerance 0.03 to 0.08 mm for curves and chords | Acrobat PDFWriter +78 matches; Acrobat Distiller 179,219 fits fall to 174,452 |
+| Step ratio 3 and tolerance 0.05 mm | Acrobat PDFWriter 22,750 fits to 25,010, and unmatched 838 to 1,472 |
+| Every floor lowered, with tolerance 0.05 and step ratio 3 (sweep 20 and 5 chords; sweep 8) | 257,564 fits, 96.5 percent matched; 271,008, 94.1 percent |
+| Chords under 45 degrees (tolerance 0.05, ratio 3) | confirmed 17 percent at 8 to 12 degrees, 35 at 12 to 15, 47 at 15 to 20, 59 at 20 to 25, 58 at 25 to 30, 38 at 30 to 35, 34 at 35 to 45 |
+| Curves only, by sweep | 35 percent at 8 to 12, 51 at 12 to 15, 70 at 15 to 20, 91 at 20 to 25, 96 at 25 and above |
 
 ### Known limits of the spike reader
 
@@ -315,8 +380,10 @@ binary for nothing the corpus needs.
 
 1. Done: the ODA text is recovered from the embedded font's `cmap` (`TextDecoding.embeddedFont`).
 2. Done: arc and circle recovery from curves and from runs of short lines, tagged `FITTED` with
-   the residual, radius fitted over the whole run (`PDF.Page.fittedDrawing()`, see Arcs). Still
-   open: arcs under 45 degrees, flattened circles with a reference to check against, ellipses.
+   the residual, radius fitted over the whole run (`PDF.Page.fittedDrawing()`, see Arcs). Curves
+   are taken from 25 degrees and chords from 45. Still open: arcs of curves under 25 degrees,
+   chords the rules reject, a radius uncertainty for short arcs (the fit's residual does not show
+   how rough it is), flattened circles with a reference to check against, ellipses.
 3. Dimension rebuilding without Jw_cad's flags (shared with OCCTSwiftIO#72): value text first, then
    the dimension line, arrowheads (filled-only paths, kept now as `skipped["FILL"]`) and extension
    lines.

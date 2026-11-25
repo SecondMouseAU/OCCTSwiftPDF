@@ -50,7 +50,8 @@ swiftlint lint --strict
 `--filter` matches the Swift function name (`invisible()`), not the `@Test("...")` display string.
 Where the corpus is present (it is on the maintainer's machine) the `CorpusTests` run as ordinary
 tests and fail like any other; they skip only where their files are absent. `pdfprobe` has more
-subcommands (`compare`, `pairs`, `debug-text`, `arcs`, `arc-pairs`, `digest`); see the README.
+subcommands (`compare`, `pairs`, `debug-text`, `arcs`, `arc-pairs`, `arc-misses`, `digest`); see the
+README.
 
 ## Architecture
 

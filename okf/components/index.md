@@ -4,7 +4,7 @@ title: Components index
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [index]
 description: Public modules and API surfaces exposed by OCCTSwiftPDF.
-timestamp: 2026-11-23
+timestamp: 2026-11-26
 ---
 
 # Components
@@ -99,17 +99,26 @@ timestamp: 2026-11-23
   the longest run of segments one circle fits, grown while it stays feasible), `ArcJoining` (arcs
   that meet on one circle, fitted again over all their points), `Page+ArcPlan` (what the page's
   paths hold, across subpaths and strokes, before anything is put in the drawing) and
-  `ArcComparison` (the spike tooling above). `Page+Drawing.swift` puts the plan in the drawing.
+  `ArcComparison` and `ArcMisses` (the spike tooling above: which reference arcs went unrecovered,
+  and what the page draws along them and at their ends). `Page+Drawing.swift` puts the plan in the
+  drawing. An arc of Bezier curves only is taken from `minimumCurveSweepDeg` (25 degrees), where
+  one of chords, or of chords and curves, needs `minimumSweepDeg` (45); the first is never larger
+  than the second.
 - **Comparison support** (`Comparison+Sampling.swift`, `Similarity.swift`, `SegmentIndex.swift`):
   drawings as straight segments sampled at a fixed step, the similarity fit (least squares, and
   robust with a fixed-seed sampler so results repeat), and a grid index for nearest-segment queries.
 - **`pdfprobe`** (executable): `pdfprobe [--detail] <file-or-folder>...` reports what each PDF is
   made of; `pdfprobe arcs [--detail] <file-or-folder>...` counts the circles and arcs recovered
-  per producer (`--tolerance`, `--line-tolerance`, `--relative`, `--min-sweep`, `--max-step`,
-  `--min-lines`, `--max-ratio`, `--min-radius` and `--max-radius` set the options);
+  per producer (`--tolerance`, `--line-tolerance`, `--relative`, `--min-sweep`,
+  `--min-curve-sweep`, `--max-step`, `--min-lines`, `--max-ratio`, `--min-radius` and
+  `--max-radius` set the options);
   `pdfprobe arc-pairs [--detail] [--bound <mm>] [--table <file>] <folder>` compares them with the
   circles and arcs of each PDF's DXF or JWW by coordinates
-  (`PDFPROBE_PLACEMENTS=<file>` keeps the placements between runs); `pdfprobe digest` prints a
+  (`PDFPROBE_PLACEMENTS=<file>` keeps the placements between runs); `pdfprobe arc-misses
+  [--misses <file>] [--fits <file>] <folder>` writes a row for each reference arc no fit matched,
+  and for each fit, with what the page has along and at the ends of it (it reads the placements
+  `arc-pairs` kept, and `--look <pdf> --refs <n,...>` prints the geometry round chosen arcs);
+  `pdfprobe digest` prints a
   hash of each page's `drawing()`, to show that a change left it alone;
   `pdfprobe compare <pdf> <dxf-or-zip>` and `pdfprobe pairs <folder>` compare PDFs with
   the DXFs of the same drawings, or with their JWWs where the DXF is missing (read through
