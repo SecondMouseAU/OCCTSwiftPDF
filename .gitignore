@@ -5,3 +5,4 @@ xcuserdata/
 *.xcodeproj
 .swiftpm/
 Package.resolved
+__pycache__/

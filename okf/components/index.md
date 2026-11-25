@@ -4,7 +4,7 @@ title: Components index
 resource: https://github.com/SecondMouseAU/OCCTSwiftPDF
 tags: [index]
 description: Public modules and API surfaces exposed by OCCTSwiftPDF.
-timestamp: 2026-11-23
+timestamp: 2026-11-26
 ---
 
 # Components
@@ -37,8 +37,9 @@ timestamp: 2026-11-23
     one spline each.
     A run is taken only if one circle passes within `PDF.ArcFitting`'s tolerance of every vertex
     and of points sampled along every curve (0.01 mm on the paper for a run with curves, or 0.0004
-    of the radius if that is larger; 0.003 mm for a run of chords only) and it sweeps at least 45
-    degrees. A run of chords also needs at least 8 of them, each subtending at most 24 degrees,
+    of the radius if that is larger; 0.003 mm for a run of chords only) and it sweeps at least 25
+    degrees if it is curves only (`minimumCurveSweepDeg`) and at least 45 if it has chords. A run
+    of chords also needs at least 8 of them, each subtending at most 24 degrees,
     the largest no more than 1.5 times the smallest, and the polyline must not carry on in the
     same curve past either end: that keeps ellipses, spirals and freehand curves from being cut
     into arcs. Arcs that meet end to start on one circle, in one layer and colour, are joined
@@ -65,6 +66,13 @@ timestamp: 2026-11-23
     points as small circles); the fits with no reference circle or arc; the reference's that no
     fit matched; and for each fit the fraction of its length within 0.1 mm of any reference
     geometry.
+  - `PDF.missedArcs(on:comparison:reference:placedBy:join:)` and `PDF.fitContacts(_:on:join:)`
+    (spike tooling) say why a reference arc went unrecovered. A `PDF.MissedArc` has the arc's
+    radius and sweep, the fraction of it within 0.1 mm of the page's drawing (`support`), the
+    fraction of its sweep covered by pieces that lie on its circle (`covered`) with how many are
+    curves and how many straight segments, and the contacts (`PDF.EndContacts`: how many of its
+    two ends meet another piece within `join`, and how many of those leave in its own direction)
+    in the reference and on the page. `fitContacts` gives the same contacts for each fit.
 - **Interpreter** (`Interpreter/PageInterpreter.swift`): runs a page's content stream through
   `CGPDFScanner`, keeping the graphics state stack, the current path, the text state, marked
   content (`BDC /OC` and a Form XObject's `/OC` become layers) and Form XObjects (followed with
@@ -99,17 +107,27 @@ timestamp: 2026-11-23
   the longest run of segments one circle fits, grown while it stays feasible), `ArcJoining` (arcs
   that meet on one circle, fitted again over all their points), `Page+ArcPlan` (what the page's
   paths hold, across subpaths and strokes, before anything is put in the drawing) and
-  `ArcComparison` (the spike tooling above). `Page+Drawing.swift` puts the plan in the drawing.
+  `ArcComparison`, `ArcMisses` and `PieceEnds` (the spike tooling above: which reference arcs went
+  unrecovered, and what the page draws along them and at their ends). `Page+Drawing.swift` puts the plan in the
+  drawing. An arc of Bezier curves only is taken from `minimumCurveSweepDeg` (25 degrees), where
+  one of chords, or of chords and curves, needs `minimumSweepDeg` (45); the first is never larger
+  than the second.
 - **Comparison support** (`Comparison+Sampling.swift`, `Similarity.swift`, `SegmentIndex.swift`):
   drawings as straight segments sampled at a fixed step, the similarity fit (least squares, and
   robust with a fixed-seed sampler so results repeat), and a grid index for nearest-segment queries.
 - **`pdfprobe`** (executable): `pdfprobe [--detail] <file-or-folder>...` reports what each PDF is
   made of; `pdfprobe arcs [--detail] <file-or-folder>...` counts the circles and arcs recovered
-  per producer (`--tolerance`, `--line-tolerance`, `--relative`, `--min-sweep`, `--max-step`,
-  `--min-lines`, `--max-ratio`, `--min-radius` and `--max-radius` set the options);
+  per producer (`--tolerance`, `--line-tolerance`, `--relative`, `--min-sweep`,
+  `--min-curve-sweep`, `--max-step`, `--min-lines`, `--max-ratio`, `--min-radius` and
+  `--max-radius` set the options);
   `pdfprobe arc-pairs [--detail] [--bound <mm>] [--table <file>] <folder>` compares them with the
   circles and arcs of each PDF's DXF or JWW by coordinates
-  (`PDFPROBE_PLACEMENTS=<file>` keeps the placements between runs); `pdfprobe digest` prints a
+  (`PDFPROBE_PLACEMENTS=<file>` keeps the placements between runs); `pdfprobe arc-misses
+  [--bound <mm>] [--misses <file>] [--fits <file>] <folder>` writes a row for each reference arc
+  no fit matched, and for each fit, with what the page has along and at the ends of it (it takes
+  the options of `arcs`, uses the placements `arc-pairs` kept and makes the missing ones, and
+  `--look <pdf> --refs <n,...>` prints the geometry round chosen arcs instead);
+  `pdfprobe digest` prints a
   hash of each page's `drawing()`, to show that a change left it alone;
   `pdfprobe compare <pdf> <dxf-or-zip>` and `pdfprobe pairs <folder>` compare PDFs with
   the DXFs of the same drawings, or with their JWWs where the DXF is missing (read through

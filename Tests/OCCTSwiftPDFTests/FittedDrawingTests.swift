@@ -258,23 +258,121 @@ struct FittedDrawingTests {
         #expect(fitted.fits.first?.shape == .circle && fitted.fits.first?.input == .mixed)
     }
 
-    @Test("a circle of twelve curves in twelve strokes is one circle, though each piece is short")
-    func twelveStrokes() throws {
+    @Test("a circle of sixteen curves in sixteen strokes is one circle, though each piece is short")
+    func sixteenStrokes() throws {
         var content = ""
-        let pieces = ArcShapes.bezierArc(centre: Self.centre, radius: 50, curves: 12)
+        let pieces = ArcShapes.bezierArc(centre: Self.centre, radius: 50, curves: 16)
         for piece in pieces { content += Self.operators([piece]) + " S " }
         let fitted = try Self.page(content).fittedDrawing()
         #expect(fitted.drawing.entities.count == 1 && fitted.drawing.counts.circle == 1)
-        #expect(fitted.fits.first?.sources.count == 12)
-        // Each piece alone sweeps 30 degrees, which is under what an arc needs, and one piece
-        // with no neighbour is left as the spline it was.
+        #expect(fitted.fits.first?.sources.count == 16)
+        // Each piece alone sweeps 22.5 degrees, which is under what an arc of curves needs, and
+        // one piece with no neighbour is left as the spline it was.
         let alone = try Self.page(Self.operators([pieces[0]]) + " S").fittedDrawing()
         #expect(alone.fits.isEmpty && alone.drawing.counts.spline == 1)
         let two = try Self.page(
             Self.operators([pieces[0]]) + " S " + Self.operators([pieces[1]]) + " S"
         ).fittedDrawing()
-        // Two pieces make 60 degrees: one arc.
-        #expect(two.fits.count == 1 && abs(two.fits[0].sweepDeg - 60) < 0.1)
+        // Two pieces make 45 degrees: one arc.
+        #expect(two.fits.count == 1 && abs(two.fits[0].sweepDeg - 45) < 0.1)
+    }
+
+    @Test("an arc of curves is an arc from 25 degrees; chords, and chords with curves, need 45")
+    func curveFloor() throws {
+        func fits(_ elements: [ArcElement], _ options: PDF.ArcFitting = .init()) throws
+            -> [PDF.ArcFit]
+        {
+            try Self.page(Self.operators(elements) + " S").fittedDrawing(options).fits
+        }
+        func curve(_ sweep: Double) -> [ArcElement] {
+            ArcShapes.bezierArc(
+                centre: Self.centre, radius: 40, from: 10, sweep: sweep, curves: 1)
+        }
+        // 30 degrees of one curve is an arc; 20 is not.
+        let thirty = try fits(curve(30))
+        #expect(thirty.count == 1 && thirty.first?.shape == .arc && thirty.first?.input == .curves)
+        if let fit = thirty.first { #expect(abs(fit.sweepDeg - 30) < 0.1) }
+        #expect(try fits(curve(20)).isEmpty)
+
+        // The curve floor is an option, and the general minimum lowers it where it is smaller.
+        var lower = PDF.ArcFitting()
+        lower.minimumCurveSweepDeg = 15
+        #expect(try fits(curve(20), lower).count == 1)
+        var general = PDF.ArcFitting()
+        general.minimumSweepDeg = 15
+        #expect(try fits(curve(20), general).count == 1)
+        // The floor can go under the 10 degrees a run is first looked for at.
+        var least = PDF.ArcFitting()
+        least.minimumCurveSweepDeg = 5
+        #expect(try fits(curve(8), least).count == 1)
+        #expect(try fits(curve(8)).isEmpty)
+        // A curve floor above the general minimum is held to it: 40 degrees is under 45.
+        var higher = PDF.ArcFitting()
+        higher.minimumCurveSweepDeg = 60
+        #expect(try fits(curve(40), higher).isEmpty)
+        #expect(try fits(curve(50), higher).count == 1)
+
+        // Thirty degrees of eight chords is not an arc until the general minimum allows it, and
+        // is then one of lines.
+        let chords = ArcShapes.flattened(
+            centre: Self.centre, radius: 40, from: 10, sweep: 30, segments: 8)
+        #expect(try fits(chords).isEmpty)
+        var allowed = PDF.ArcFitting()
+        allowed.minimumSweepDeg = 25
+        let found = try fits(chords, allowed)
+        #expect(found.count == 1 && found.first?.input == .lines)
+
+        // A curve and chords make 30 degrees together: held to the general minimum too.
+        var mixed = ArcShapes.bezierArc(
+            centre: Self.centre, radius: 40, from: 10, sweep: 15, curves: 1)
+        mixed.append(
+            contentsOf: ArcShapes.flattened(
+                centre: Self.centre, radius: 40, from: 25, sweep: 15, segments: 8))
+        #expect(try fits(mixed).isEmpty)
+        let both = try fits(mixed, allowed)
+        #expect(both.count == 1 && both.first?.input == .mixed)
+    }
+
+    /// An ellipse of semi-axes `a` and `b` (page units) as `curves` Bezier curves, a circle's
+    /// scaled, the way a writer draws one.
+    static func ellipse(_ a: Double, _ b: Double, curves: Int) -> [ArcElement] {
+        func scaled(_ p: P) -> P { P(centre.x + p.x * a, centre.y + p.y * b) }
+        return ArcShapes.bezierArc(centre: P(0, 0), radius: 1, curves: curves).map { element in
+            switch element {
+            case .line(let from, let to):
+                return .line(scaled(from), scaled(to))
+            case .curve(let from, let first, let second, let to):
+                return .curve(scaled(from), scaled(first), scaled(second), scaled(to))
+            }
+        }
+    }
+
+    @Test("a nearly round ellipse of curves is cut into arcs that stay within the tolerance")
+    func roundEllipse() throws {
+        // A 150 by 140 ellipse in twelve curves is round enough, in pieces of 25 degrees or more,
+        // for circles to fit them: several arcs of different radii, not one circle. They stay on
+        // the curve, but their radii are not the ellipse's. With the curve floor at 45 degrees
+        // there are fewer pieces.
+        let content = Self.operators(Self.ellipse(150, 140, curves: 12)) + " S"
+        let fitted = try Self.page(content).fittedDrawing()
+        #expect(!fitted.fits.isEmpty)
+        for fit in fitted.fits {
+            #expect(fit.shape == .arc && fit.sweepDeg >= 25)
+            // The fit passes within the tolerance of the curve it replaced.
+            #expect(fit.maxResidual <= max(0.01, 0.0004 * fit.radius) + 1e-9)
+        }
+        let radii = Set(fitted.fits.map { ($0.radius * 100).rounded() })
+        #expect(radii.count > 1)
+        var old = PDF.ArcFitting()
+        old.minimumCurveSweepDeg = 45
+        let before = try Self.page(content).fittedDrawing(old)
+        #expect(before.fits.count < fitted.fits.count)
+
+        // An eccentric one, three to one, is not taken in 90 degree pieces either.
+        let flat = try Self.page(
+            Self.operators(Self.ellipse(150, 50, curves: 4)) + " S"
+        ).fittedDrawing()
+        #expect(flat.fits.isEmpty)
     }
 
     @Test("a fit says where its entity is among the others, and the others keep their places")

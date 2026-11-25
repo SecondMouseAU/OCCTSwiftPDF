@@ -59,12 +59,18 @@ swift run pdfprobe pairs <folder>                     # every <name>.pdf beside 
 swift run pdfprobe debug-text <pdf> <text>            # where this reader and PDFKit put a text
 swift run pdfprobe arcs [--detail] <file-or-folder>... # circles and arcs recovered, by producer
 swift run pdfprobe arc-pairs [--detail] <folder>      # the same against each PDF's DXF, by coordinates
+swift run pdfprobe arc-misses [--bound <mm>] [--misses <f>] [--fits <f>] <folder>
+                                                      # which reference arcs went unrecovered, and why
+swift run pdfprobe arc-misses --look <pdf> --refs <n,...> <folder>  # the geometry round those arcs
+Scripts/arc-misses-summary.py misses <tsv> [<tsv>]    # the tables of arc-misses --misses, summed
+Scripts/arc-misses-summary.py bands <tsv>             # fits by sweep: how many a reference arc confirms
 swift run pdfprobe digest <file-or-folder>...         # a hash of each page's drawing(), to compare runs
 ```
 
-`arcs` and `arc-pairs` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
-`--line-tolerance`, `--min-sweep`, `--max-step`, `--min-lines`, `--max-ratio`, `--min-radius` and
-`--max-radius`; `arc-pairs` also
+`arcs`, `arc-pairs` and `arc-misses` take the options of `PDF.ArcFitting` as `--tolerance`,
+`--relative`,
+`--line-tolerance`, `--min-sweep`, `--min-curve-sweep`, `--max-step`, `--min-lines`,
+`--max-ratio`, `--min-radius` and `--max-radius`; `arc-pairs` also
 `--bound <mm>` (how near a reference circle must be, on the paper, to match) and `--table <file>`
 (one row per fit), and `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements between runs.
 

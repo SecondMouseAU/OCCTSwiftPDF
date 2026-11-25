@@ -30,7 +30,7 @@ extension PDF.Page {
     ///
     /// Each subpath is searched for runs one circle fits; arcs that meet on one circle, in one
     /// subpath or several, are joined and fitted again over the whole; then arcs with curves that
-    /// still sweep less than the minimum are dropped.
+    /// still sweep less than their minimum are dropped.
     func arcPlan(_ options: PDF.ArcFitting) -> ArcPlan {
         struct Candidate {
             var arc: RecoveredArc
@@ -44,7 +44,7 @@ extension PDF.Page {
             return SIMD2(q.x, q.y)
         }
         // Pieces of a circle can each be short; the minimum applies to the whole.
-        let curveSweepDeg = min(options.minimumSweepDeg, 10)
+        let curveSweepDeg = min(options.curveFloorDeg, 10)
         var candidates: [Candidate] = []
         for (pathIndex, path) in paths.enumerated() where path.paint != .fill {
             let style = "\(path.layer ?? "0")|\(Self.aci(path.strokeColour))"
@@ -84,9 +84,12 @@ extension PDF.Page {
         plan.owner = paths.map { path in
             path.subpaths.map { [Int32](repeating: -1, count: $0.segments.count) }
         }
+        // Runs of curves only are held to the curve floor; runs with chords, to the general one.
         let minimum = options.minimumSweepDeg * .pi / 180 - 1e-9
+        let curveMinimum = options.curveFloorDeg * .pi / 180 - 1e-9
         for run in runs {
-            if run.arc.curves > 0 && abs(run.arc.sweep) < minimum { continue }
+            let floor = run.arc.lines == 0 ? curveMinimum : minimum
+            if run.arc.curves > 0 && abs(run.arc.sweep) < floor { continue }
             var sources: [PDF.Source] = []
             var segments = 0
             for member in run.members {

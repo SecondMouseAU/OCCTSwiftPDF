@@ -10,8 +10,8 @@
     import SwiftDXF
 
     /// The arc recovery options from `--tolerance`, `--relative`, `--line-tolerance`,
-    /// `--min-sweep`, `--max-step`, `--min-lines`, `--max-ratio`, `--min-radius` and
-    /// `--max-radius`, and what is left of the arguments.
+    /// `--min-sweep`, `--min-curve-sweep`, `--max-step`, `--min-lines`, `--max-ratio`,
+    /// `--min-radius` and `--max-radius`, and what is left of the arguments.
     ///
     /// A flag whose value is not a number ends the run with a message.
     func arcOptions(_ raw: [String]) -> (options: PDF.ArcFitting, rest: [String]) {
@@ -30,6 +30,7 @@
         if let value = take("--relative") { options.relativeTolerance = value }
         if let value = take("--line-tolerance") { options.lineTolerance = value }
         if let value = take("--min-sweep") { options.minimumSweepDeg = value }
+        if let value = take("--min-curve-sweep") { options.minimumCurveSweepDeg = value }
         if let value = take("--max-step") { options.maximumLineStepDeg = value }
         if let value = take("--min-lines") {
             guard let whole = Int(exactly: value) else {
@@ -219,28 +220,8 @@
         }
         let files = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         var results: [ArcPairResult] = []
-        let cachePath = ProcessInfo.processInfo.environment["PDFPROBE_PLACEMENTS"]
-        var placements: [String: PDF.Placement] = [:]
-        if let cachePath, let text = try? String(contentsOfFile: cachePath, encoding: .utf8) {
-            for line in text.split(separator: "\n") {
-                let f = line.split(separator: "\t").map(String.init)
-                if f.count == 5, let a = Double(f[1]), let b = Double(f[2]), let c = Double(f[3]),
-                    let d = Double(f[4])
-                {
-                    placements[f[0]] = PDF.Placement(
-                        scale: a, rotationDeg: b, translationX: c, translationY: d)
-                }
-            }
-        }
-        defer {
-            if let cachePath {
-                let text = placements.sorted { $0.key < $1.key }.map {
-                    "\($0.key)\t\($0.value.scale)\t\($0.value.rotationDeg)"
-                        + "\t\($0.value.translationX)\t\($0.value.translationY)"
-                }.joined(separator: "\n")
-                try? text.write(toFile: cachePath, atomically: true, encoding: .utf8)
-            }
-        }
+        var cache = PlacementCache()
+        defer { cache.save() }
         for file in files.sorted() where file.lowercased().hasSuffix(".pdf") {
             let stem = String(file.dropLast(4))
             guard let paired = pairedReference(folder, stem),
@@ -253,22 +234,9 @@
                 reference.entities.removeAll { excluded.contains(PDF.describe(layerOf: $0)) }
             }
             let fitted = page.fittedDrawing(options)
-            // The placement depends on the two files and on the layers left out, not on the
-            // options, so it is kept under all of them.
-            let sizes = [folder.appendingPathComponent(file), paired].map {
-                ((try? FileManager.default.attributesOfItem(atPath: $0.path))?[.size] as? Int) ?? 0
-            }
-            let key =
-                "\(folder.path)/\(file)|\(sizes[0])|\(sizes[1])|\(excluded.sorted().joined(separator: ","))"
-            // Placed by the default drawing, as `pairs` does, so the placement does not depend on
-            // the options being tried.
-            let placement: PDF.Placement
-            if let kept = placements[key] {
-                placement = kept
-            } else if let made = PDF.compare(page.drawing(), with: reference) {
-                placement = made.placement
-                placements[key] = placement
-            } else {
+            let key = PlacementCache.key(
+                folder: folder, file: file, paired: paired, excluded: excluded)
+            guard let placement = cache.placement(key, page: page, reference: reference) else {
                 continue
             }
             let comparison = PDF.compareArcs(

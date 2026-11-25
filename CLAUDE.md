@@ -50,7 +50,8 @@ swiftlint lint --strict
 `--filter` matches the Swift function name (`invisible()`), not the `@Test("...")` display string.
 Where the corpus is present (it is on the maintainer's machine) the `CorpusTests` run as ordinary
 tests and fail like any other; they skip only where their files are absent. `pdfprobe` has more
-subcommands (`compare`, `pairs`, `debug-text`, `arcs`, `arc-pairs`, `digest`); see the README.
+subcommands (`compare`, `pairs`, `debug-text`, `arcs`, `arc-pairs`, `arc-misses`, `digest`); see the
+README.
 
 ## Architecture
 
@@ -99,11 +100,13 @@ on the page edge are not drawn but counted in `skipped` by layer. Every entity g
 Form XObjects it came through.
 
 The comparison code (`Comparison*.swift`, `Similarity.swift`, `SegmentIndex.swift`,
-`Reference.swift`, `Arcs/ArcComparison.swift`) is spike tooling, not part of the reader. It reads the DXF (or a zip holding one,
+`Reference.swift`, `Arcs/ArcComparison.swift`, `Arcs/ArcMisses.swift`, `Arcs/PieceEnds.swift`) is
+spike tooling, not part of the reader. It reads the DXF (or a zip holding one,
 through `/usr/bin/unzip`) of the same drawing, fits a similarity transform from the texts that occur
 once in each drawing (robust, with a fixed-seed sampler so results repeat, then refined on the
 geometry), and reports how much of each drawing lies within a tolerance of the other;
-`PDF.compareArcs` then matches the circles and arcs of a `fittedDrawing()` with the reference's.
+`PDF.compareArcs` then matches the circles and arcs of a `fittedDrawing()` with the reference's,
+and `PDF.missedArcs` says what the page draws where it found none.
 `pdfprobe` and the corpus tests are its callers.
 
 ## Testing notes
