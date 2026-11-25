@@ -60,6 +60,7 @@ swift run pdfprobe debug-text <pdf> <text>            # where this reader and PD
 swift run pdfprobe arcs [--detail] <file-or-folder>... # circles and arcs recovered, by producer
 swift run pdfprobe arc-pairs [--detail] <folder>      # the same against each PDF's DXF, by coordinates
 swift run pdfprobe arc-misses <folder>                # which reference arcs went unrecovered, and why
+Scripts/arc-misses-summary.py misses <tsv> [<tsv>]    # the tables of arc-misses --misses, summed
 swift run pdfprobe digest <file-or-folder>...         # a hash of each page's drawing(), to compare runs
 ```
 

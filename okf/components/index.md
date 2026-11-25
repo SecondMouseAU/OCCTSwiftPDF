@@ -37,8 +37,9 @@ timestamp: 2026-11-26
     one spline each.
     A run is taken only if one circle passes within `PDF.ArcFitting`'s tolerance of every vertex
     and of points sampled along every curve (0.01 mm on the paper for a run with curves, or 0.0004
-    of the radius if that is larger; 0.003 mm for a run of chords only) and it sweeps at least 45
-    degrees. A run of chords also needs at least 8 of them, each subtending at most 24 degrees,
+    of the radius if that is larger; 0.003 mm for a run of chords only) and it sweeps at least 25
+    degrees if it is curves only (`minimumCurveSweepDeg`) and at least 45 if it has chords. A run
+    of chords also needs at least 8 of them, each subtending at most 24 degrees,
     the largest no more than 1.5 times the smallest, and the polyline must not carry on in the
     same curve past either end: that keeps ellipses, spirals and freehand curves from being cut
     into arcs. Arcs that meet end to start on one circle, in one layer and colour, are joined
@@ -99,8 +100,8 @@ timestamp: 2026-11-26
   the longest run of segments one circle fits, grown while it stays feasible), `ArcJoining` (arcs
   that meet on one circle, fitted again over all their points), `Page+ArcPlan` (what the page's
   paths hold, across subpaths and strokes, before anything is put in the drawing) and
-  `ArcComparison` and `ArcMisses` (the spike tooling above: which reference arcs went unrecovered,
-  and what the page draws along them and at their ends). `Page+Drawing.swift` puts the plan in the
+  `ArcComparison`, `ArcMisses` and `PieceEnds` (the spike tooling above: which reference arcs went
+  unrecovered, and what the page draws along them and at their ends). `Page+Drawing.swift` puts the plan in the
   drawing. An arc of Bezier curves only is taken from `minimumCurveSweepDeg` (25 degrees), where
   one of chords, or of chords and curves, needs `minimumSweepDeg` (45); the first is never larger
   than the second.

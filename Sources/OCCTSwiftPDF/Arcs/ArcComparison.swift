@@ -128,18 +128,10 @@ extension PDF {
 
         // Points every 0.1 mm along each fit, against all of the reference's geometry.
         let index = SegmentIndex(segments(reference, transform: placement), cell: 1)
-        var support: [Double] = []
-        for fit in fitted.fits {
-            let length: Double = fit.sweepDeg * Double.pi / 180 * fit.radius
-            let count = max(8, min(2_000, Int((length / 0.1).rounded(.up))))
-            var near = 0
-            for step in 0..<count {
-                let along: Double = (Double(step) + 0.5) / Double(count)
-                let degrees: Double = fit.startDeg + fit.sweepDeg * along
-                let point = endPoint(of: fit, degrees)
-                if index.distance(from: point, within: 0.5) <= 0.1 { near += 1 }
-            }
-            support.append(Double(near) / Double(count))
+        let support: [Double] = fitted.fits.map {
+            Self.support(
+                centre: DXF.Point2($0.center.x, $0.center.y), radius: $0.radius,
+                startDeg: $0.startDeg, sweepDeg: $0.sweepDeg, in: index)
         }
 
         var matches: [ArcMatch] = []
@@ -197,5 +189,24 @@ extension PDF {
                     spanDeg: $0.span.map { [$0.start, $0.end] })
             },
             bound: bound)
+    }
+
+    /// The fraction of points every 0.1 mm along the arc from `startDeg` for `sweepDeg` that lie
+    /// within 0.1 mm of the geometry in `index`.
+    static func support(
+        centre: DXF.Point2, radius: Double, startDeg: Double, sweepDeg: Double,
+        in index: SegmentIndex
+    ) -> Double {
+        let length: Double = sweepDeg * Double.pi / 180 * radius
+        guard length.isFinite else { return 0 }
+        let count = max(8, min(2_000, Int((length / 0.1).rounded(.up))))
+        var near = 0
+        for step in 0..<count {
+            let along: Double = (Double(step) + 0.5) / Double(count)
+            let angle: Double = (startDeg + sweepDeg * along) * Double.pi / 180
+            let point = DXF.Point2(centre.x + radius * cos(angle), centre.y + radius * sin(angle))
+            if index.distance(from: point, within: 0.5) <= 0.1 { near += 1 }
+        }
+        return Double(near) / Double(count)
     }
 }

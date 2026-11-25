@@ -28,14 +28,11 @@ extension PDF {
         public var minimumSweepDeg: Double
         /// The smallest sweep an arc of Bezier curves only may have, in degrees.
         ///
-        /// Curves are held to less than chords, because a circle's curves are exact and a short
-        /// arc of them is rarely a piece of something else: against the paired drawings, 96
-        /// percent of the arcs of curves from 25 degrees lie within 0.5 mm of a reference arc,
-        /// where arcs of chords under 45 degrees do in under 60. The arc is the right one, but
-        /// its radius is rough where the writer's coordinates are on a coarse grid: for Acrobat
-        /// Distiller (0.021 mm) the median radius error is 0.07 mm on the paper at 25 to 45
-        /// degrees and 0.01 at 60 to 90. It is never larger than ``minimumSweepDeg``, which a
-        /// smaller value there lowers as well.
+        /// Curves are held to less than chords: a circle's curves are exact, and a short arc of
+        /// them is rarely a piece of something else. The experiment page has the measurements,
+        /// among them that the radius of a short arc is rough where the writer's coordinates are
+        /// on a coarse grid. It is never larger than ``minimumSweepDeg``, which a smaller value
+        /// there lowers as well.
         public var minimumCurveSweepDeg: Double
         /// The largest angle one chord may subtend at the circle's centre, in degrees.
         public var maximumLineStepDeg: Double

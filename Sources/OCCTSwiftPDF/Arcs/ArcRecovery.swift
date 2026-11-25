@@ -315,8 +315,16 @@ enum ArcRecovery {
     private static func verdict(
         _ arc: RecoveredArc, _ options: PDF.ArcFitting, curveSweepDeg: Double?
     ) -> Verdict {
-        let minimum =
-            arc.curves == 0 ? options.minimumSweepDeg : curveSweepDeg ?? options.minimumSweepDeg
+        // Chords are held to the general minimum; curves to the first look's floor where the plan
+        // gives one, and otherwise to their own, which a mixed run does not have.
+        let minimum: Double
+        if arc.curves == 0 {
+            minimum = options.minimumSweepDeg
+        } else if let curveSweepDeg {
+            minimum = curveSweepDeg
+        } else {
+            minimum = arc.lines == 0 ? options.curveFloorDeg : options.minimumSweepDeg
+        }
         if abs(arc.sweep) < minimum * .pi / 180 - 1e-9 { return .tooShort }
         if arc.curves == 0 {
             // A flattened circle is cut into equal steps; the chords of a freehand or elliptical

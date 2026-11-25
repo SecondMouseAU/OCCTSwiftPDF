@@ -198,6 +198,62 @@
         return sorted.isEmpty ? .nan : sorted[min(sorted.count - 1, Int(Double(sorted.count) * p))]
     }
 
+    /// The reference placements `PDFPROBE_PLACEMENTS` keeps between runs, one line a pair:
+    /// `<key><tab>scale<tab>rotation<tab>x<tab>y`.
+    ///
+    /// A placement depends on the two files and on the layers left out, not on the options under
+    /// test, so it is kept under all of them. Placing a reference takes minutes over a folder.
+    struct PlacementCache {
+        var placements: [String: PDF.Placement] = [:]
+        let path: String?
+
+        init() {
+            path = ProcessInfo.processInfo.environment["PDFPROBE_PLACEMENTS"]
+            guard let path, let text = try? String(contentsOfFile: path, encoding: .utf8) else {
+                return
+            }
+            for line in text.split(separator: "\n") {
+                let f = line.split(separator: "\t").map(String.init)
+                if f.count == 5, let a = Double(f[1]), let b = Double(f[2]), let c = Double(f[3]),
+                    let d = Double(f[4])
+                {
+                    placements[f[0]] = PDF.Placement(
+                        scale: a, rotationDeg: b, translationX: c, translationY: d)
+                }
+            }
+        }
+
+        /// The key of the pair of files `file` in `folder` and `paired`, with `excluded` left out.
+        static func key(folder: URL, file: String, paired: URL, excluded: Set<String>) -> String {
+            let sizes = [folder.appendingPathComponent(file), paired].map {
+                ((try? FileManager.default.attributesOfItem(atPath: $0.path))?[.size] as? Int) ?? 0
+            }
+            return "\(folder.path)/\(file)|\(sizes[0])|\(sizes[1])|"
+                + excluded.sorted().joined(separator: ",")
+        }
+
+        /// The kept placement, or the one `compare` makes (and keeps) for the page and reference.
+        mutating func placement(
+            _ key: String, page: PDF.Page, reference: DXF.Drawing
+        ) -> PDF.Placement? {
+            if let kept = placements[key] { return kept }
+            // Placed by the default drawing, as `pairs` does, so the placement does not depend on
+            // the options being tried.
+            guard let made = PDF.compare(page.drawing(), with: reference) else { return nil }
+            placements[key] = made.placement
+            return made.placement
+        }
+
+        func save() {
+            guard let path else { return }
+            let text = placements.sorted { $0.key < $1.key }.map {
+                "\($0.key)\t\($0.value.scale)\t\($0.value.rotationDeg)"
+                    + "\t\($0.value.translationX)\t\($0.value.translationY)"
+            }.joined(separator: "\n")
+            try? text.write(toFile: path, atomically: true, encoding: .utf8)
+        }
+    }
+
     /// `pdfprobe arc-pairs <folder>`: for each PDF beside a DXF (or a JWW) of the same drawing,
     /// the recovered circles and arcs against the reference's, by coordinates.
     ///
@@ -220,28 +276,8 @@
         }
         let files = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         var results: [ArcPairResult] = []
-        let cachePath = ProcessInfo.processInfo.environment["PDFPROBE_PLACEMENTS"]
-        var placements: [String: PDF.Placement] = [:]
-        if let cachePath, let text = try? String(contentsOfFile: cachePath, encoding: .utf8) {
-            for line in text.split(separator: "\n") {
-                let f = line.split(separator: "\t").map(String.init)
-                if f.count == 5, let a = Double(f[1]), let b = Double(f[2]), let c = Double(f[3]),
-                    let d = Double(f[4])
-                {
-                    placements[f[0]] = PDF.Placement(
-                        scale: a, rotationDeg: b, translationX: c, translationY: d)
-                }
-            }
-        }
-        defer {
-            if let cachePath {
-                let text = placements.sorted { $0.key < $1.key }.map {
-                    "\($0.key)\t\($0.value.scale)\t\($0.value.rotationDeg)"
-                        + "\t\($0.value.translationX)\t\($0.value.translationY)"
-                }.joined(separator: "\n")
-                try? text.write(toFile: cachePath, atomically: true, encoding: .utf8)
-            }
-        }
+        var cache = PlacementCache()
+        defer { cache.save() }
         for file in files.sorted() where file.lowercased().hasSuffix(".pdf") {
             let stem = String(file.dropLast(4))
             guard let paired = pairedReference(folder, stem),
@@ -254,22 +290,9 @@
                 reference.entities.removeAll { excluded.contains(PDF.describe(layerOf: $0)) }
             }
             let fitted = page.fittedDrawing(options)
-            // The placement depends on the two files and on the layers left out, not on the
-            // options, so it is kept under all of them.
-            let sizes = [folder.appendingPathComponent(file), paired].map {
-                ((try? FileManager.default.attributesOfItem(atPath: $0.path))?[.size] as? Int) ?? 0
-            }
-            let key =
-                "\(folder.path)/\(file)|\(sizes[0])|\(sizes[1])|\(excluded.sorted().joined(separator: ","))"
-            // Placed by the default drawing, as `pairs` does, so the placement does not depend on
-            // the options being tried.
-            let placement: PDF.Placement
-            if let kept = placements[key] {
-                placement = kept
-            } else if let made = PDF.compare(page.drawing(), with: reference) {
-                placement = made.placement
-                placements[key] = placement
-            } else {
+            let key = PlacementCache.key(
+                folder: folder, file: file, paired: paired, excluded: excluded)
+            guard let placement = cache.placement(key, page: page, reference: reference) else {
                 continue
             }
             let comparison = PDF.compareArcs(

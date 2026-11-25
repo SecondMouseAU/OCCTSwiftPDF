@@ -445,7 +445,8 @@ import Foundation
                 "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | "
                     + "pairs <folder> | digest <file-or-folder>... | "
                     + "arcs [--detail] <file-or-folder>... | arc-pairs [--detail] <folder> | "
-                    + "arc-misses <folder> | debug-text <pdf> <text>; --exclude-layer <name> for compare, pairs and "
+                    + "arc-misses <folder> | debug-text <pdf> <text>; "
+                    + "--exclude-layer <name> for compare, pairs and "
                     + "arc-pairs"
             )
             exit(2)

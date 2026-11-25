@@ -292,8 +292,10 @@ TECS and `PDFs/` and are options (`PDF.ArcFitting`), not measured on other write
 
 `pdfprobe arc-misses` (2026-11-25) writes a row for each reference circle or arc no fit matched,
 placed on the paper by the placement `arc-pairs` found, with what the page draws along it and at
-its ends (`--look <pdf> --refs <n,...>` prints the geometry round chosen ones). Over the 326
-pairs, 150,839 of the 364,776 had no fit before the curve floor was lowered, and 134,127 after:
+its ends (`--look <pdf> --refs <n,...>` prints the geometry round chosen ones), and a row for each
+fit. `Scripts/arc-misses-summary.py misses <before.tsv> <after.tsv>` and `bands <fits.tsv>` make the
+tables below from them. Over the 326 pairs, 150,839 of the 364,776 had no fit before the curve
+floor was lowered, and 134,127 after:
 
 | What the page has along the arc | before | after | above the noise floor, after |
 |---|---|---|---|

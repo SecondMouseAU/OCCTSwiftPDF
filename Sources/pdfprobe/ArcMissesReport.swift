@@ -12,8 +12,8 @@
 
     /// `pdfprobe arc-misses [--bound <mm>] [--misses <file>] [--fits <file>] <folder>`.
     ///
-    /// Reads the placements `arc-pairs` keeps with `PDFPROBE_PLACEMENTS`, and adds to that file the
-    /// ones it has to make.
+    /// Uses the placements `arc-pairs` keeps with `PDFPROBE_PLACEMENTS`, and makes (and keeps,
+    /// where that is set) the ones that are missing, which takes minutes over a folder.
     func arcMisses(
         _ folder: URL, _ options: PDF.ArcFitting, excluded: Set<String>, bound: Double,
         missesPath: String?, fitsPath: String?, look: (file: String, refs: Set<Int>)? = nil
@@ -26,22 +26,12 @@
             "file\tproducer\tscale\tmatched\tshape\tinput\tsegments\tsweep\tradius\tmax\trms"
                 + "\tstepRatio\tsupport\tpdfMet\tpdfTan"
         ]
-        let cachePath = ProcessInfo.processInfo.environment["PDFPROBE_PLACEMENTS"]
-        var placements: [String: PDF.Placement] = [:]
-        if let cachePath, let text = try? String(contentsOfFile: cachePath, encoding: .utf8) {
-            for line in text.split(separator: "\n") {
-                let f = line.split(separator: "\t").map(String.init)
-                if f.count == 5, let a = Double(f[1]), let b = Double(f[2]), let c = Double(f[3]),
-                    let d = Double(f[4])
-                {
-                    placements[f[0]] = PDF.Placement(
-                        scale: a, rotationDeg: b, translationX: c, translationY: d)
-                }
-            }
-        }
+        var cache = PlacementCache()
+        defer { cache.save() }
         let files = (try? FileManager.default.contentsOfDirectory(atPath: folder.path)) ?? []
         var pairs = 0
         for file in files.sorted() where file.lowercased().hasSuffix(".pdf") {
+            if let look, look.file != file { continue }
             let stem = String(file.dropLast(4))
             guard let paired = pairedReference(folder, stem),
                 let document = try? PDF.read(
@@ -52,20 +42,12 @@
             if !excluded.isEmpty {
                 reference.entities.removeAll { excluded.contains(PDF.describe(layerOf: $0)) }
             }
-            let sizes = [folder.appendingPathComponent(file), paired].map {
-                ((try? FileManager.default.attributesOfItem(atPath: $0.path))?[.size] as? Int) ?? 0
-            }
-            let key =
-                "\(folder.path)/\(file)|\(sizes[0])|\(sizes[1])|\(excluded.sorted().joined(separator: ","))"
-            let placement: PDF.Placement
-            if let kept = placements[key] {
-                placement = kept
-            } else {
-                // Not cached: leave the pair out, so that this run never costs minutes.
+            let key = PlacementCache.key(
+                folder: folder, file: file, paired: paired, excluded: excluded)
+            guard let placement = cache.placement(key, page: page, reference: reference) else {
                 continue
             }
             pairs += 1
-            if let look, look.file != file { continue }
             let fitted = page.fittedDrawing(options)
             let comparison = PDF.compareArcs(
                 fitted, with: reference, placedBy: placement, within: bound)
@@ -110,6 +92,10 @@
             }
         }
         if look != nil { return }
+        guard pairs > 0 else {
+            print("arc-misses: no pair read in \(folder.path); nothing written")
+            return
+        }
         if let missesPath {
             try? missRows.joined(separator: "\n").write(
                 toFile: missesPath, atomically: true, encoding: .utf8)

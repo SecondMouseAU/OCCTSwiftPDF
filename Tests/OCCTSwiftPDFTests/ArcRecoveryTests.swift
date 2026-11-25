@@ -195,6 +195,27 @@ struct ArcRecoveryTests {
         #expect(Self.recover(curve).isEmpty)
     }
 
+    @Test("with the default options a curve is an arc from 25 degrees, and chords from 45")
+    func floors() {
+        func curve(_ sweep: Double) -> [ArcElement] {
+            ArcShapes.bezierArc(
+                centre: Self.centre, radius: 40, from: 0, sweep: sweep, curves: 1)
+        }
+        #expect(Self.recover(curve(30)).count == 1)
+        #expect(Self.recover(curve(20)).isEmpty)
+        // Eight chords over 30 degrees, and a curve with chords making 30, are under 45.
+        #expect(
+            Self.recover(
+                ArcShapes.flattened(
+                    centre: Self.centre, radius: 40, from: 0, sweep: 30, segments: 8)
+            ).isEmpty)
+        var mixed = curve(15)
+        mixed.append(
+            contentsOf: ArcShapes.flattened(
+                centre: Self.centre, radius: 40, from: 15, sweep: 15, segments: 8))
+        #expect(Self.recover(mixed).isEmpty)
+    }
+
     @Test("a short arc, and a few chords, are left alone")
     func tooLittle() {
         // 10 degrees: too little sweep to say what the radius is.
