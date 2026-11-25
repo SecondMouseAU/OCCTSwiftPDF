@@ -50,7 +50,7 @@ swiftlint lint --strict
 `--filter` matches the Swift function name (`invisible()`), not the `@Test("...")` display string.
 Where the corpus is present (it is on the maintainer's machine) the `CorpusTests` run as ordinary
 tests and fail like any other; they skip only where their files are absent. `pdfprobe` has more
-subcommands (`compare`, `pairs`, `debug-text`); see the README.
+subcommands (`compare`, `pairs`, `debug-text`, `arcs`, `arc-pairs`, `digest`); see the README.
 
 ## Architecture
 
@@ -90,18 +90,21 @@ The read path is a pipeline, and the stages only make sense together:
 `PDF.Page.drawing()` (`Page+Drawing.swift`) is the only place that converts to the output model.
 `toPaper` is the one coordinate transform (crop box to origin, the page's `/Rotate`, points to
 millimetres); text rotation is corrected for the page rotation there as well. Stroked paths become
-lines, polylines and one degree-3 spline per Bezier curve, so arc recovery is left to SwiftDXF's
-`Entity.fitted(tolerance:)`. Filled-only paths, images, text with no characters and a frame drawn
+lines, polylines and one degree-3 spline per Bezier curve. `fittedDrawing()` is the same walk with
+the circles and arcs of `Arcs/` put in place of the curves and short lines they replace, planned
+first (`Page+ArcPlan.swift`, across subpaths and strokes) and tagged `FITTED`; `drawing()` never
+fits. Filled-only paths, images, text with no characters and a frame drawn
 on the page edge are not drawn but counted in `skipped` by layer. Every entity gets a
 `DXF.Identity` whose locator is `p<page>:op<operatorIndex>[:<piece>]` and whose `via` lists the
 Form XObjects it came through.
 
 The comparison code (`Comparison*.swift`, `Similarity.swift`, `SegmentIndex.swift`,
-`Reference.swift`) is spike tooling, not part of the reader. It reads the DXF (or a zip holding one,
+`Reference.swift`, `Arcs/ArcComparison.swift`) is spike tooling, not part of the reader. It reads the DXF (or a zip holding one,
 through `/usr/bin/unzip`) of the same drawing, fits a similarity transform from the texts that occur
 once in each drawing (robust, with a fixed-seed sampler so results repeat, then refined on the
-geometry), and reports how much of each drawing lies within a tolerance of the other. `pdfprobe` and
-the corpus tests are its callers.
+geometry), and reports how much of each drawing lies within a tolerance of the other;
+`PDF.compareArcs` then matches the circles and arcs of a `fittedDrawing()` with the reference's.
+`pdfprobe` and the corpus tests are its callers.
 
 ## Testing notes
 

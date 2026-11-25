@@ -30,8 +30,9 @@ text with its own font decoding and checks it against PDFKit, joins text shown a
 time into lines, says whether each page is vector, raster or mixed, and turns a page into a
 `DXF.Drawing` in millimetres with an identity on every entity.
 
-Not built yet, on purpose: arc and circle recovery from curves and runs of short lines, dimension
-rebuilding, scale inference, reading text drawn as shapes, and the wiring into OCCTSwiftIO.
+Circles and arcs are recovered on request (`fittedDrawing()` below): `drawing()` leaves curves as
+splines. Not built yet, on purpose: dimension rebuilding, scale inference, reading text drawn as
+shapes, and the wiring into OCCTSwiftIO.
 
 ## Use
 
@@ -42,6 +43,11 @@ let document = try PDF.read(contentsOf: url)
 for page in document.pages where page.kind == .vector {
     let drawing = page.drawing()   // DXF.Drawing, millimetres on the sheet
 }
+
+// A run of curves, or of short lines, that is one circle or arc becomes that circle or arc, with
+// the radius fitted over the whole run and the residual reported, tagged FITTED.
+let fitted = page.fittedDrawing()
+for fit in fitted.fits { print(fit.shape, fit.radius, fit.maxResidual) }
 ```
 
 ## Command line
@@ -51,7 +57,16 @@ swift run pdfprobe [--detail] <file-or-folder>...   # what each PDF is made of
 swift run pdfprobe compare <pdf> <dxf-or-zip>         # a PDF against the DXF of the same drawing
 swift run pdfprobe pairs <folder>                     # every <name>.pdf beside <name>_dxf.zip, or _jww.zip
 swift run pdfprobe debug-text <pdf> <text>            # where this reader and PDFKit put a text
+swift run pdfprobe arcs [--detail] <file-or-folder>... # circles and arcs recovered, by producer
+swift run pdfprobe arc-pairs [--detail] <folder>      # the same against each PDF's DXF, by coordinates
+swift run pdfprobe digest <file-or-folder>...         # a hash of each page's drawing(), to compare runs
 ```
+
+`arcs` and `arc-pairs` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
+`--line-tolerance`, `--min-sweep`, `--max-step`, `--min-lines`, `--max-ratio`, `--min-radius` and
+`--max-radius`; `arc-pairs` also
+`--bound <mm>` (how near a reference circle must be, on the paper, to match) and `--table <file>`
+(one row per fit), and `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements between runs.
 
 `compare` and `pairs` take `--exclude-layer <name>` (repeatable) to leave a DXF layer out, such as
 Jw_cad's auxiliary lines, which are never printed: the TECS figures in the experiment page come

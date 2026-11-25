@@ -18,6 +18,11 @@ extension PDF {
         /// Reference units to paper millimetres.
         public var scale: Double
         public var rotationDeg: Double
+        /// Where the reference's origin lands on the paper, in millimetres: a reference point
+        /// `(x, y)` lands at `scale * (x cos r - y sin r) + translationX` and
+        /// `scale * (x sin r + y cos r) + translationY`, with `r` the rotation.
+        public var translationX: Double
+        public var translationY: Double
         /// Root mean square distance of the kept anchors after the text fit, in paper millimetres.
         public var anchorResidual: Double
         /// Root mean square distance of the matched geometry after the fit is refined on it.
@@ -122,7 +127,8 @@ extension PDF {
         }
         return Comparison(
             anchors: pairs.count, anchorsUsed: used.count, scale: fit.scale,
-            rotationDeg: fit.rotation * 180 / .pi, anchorResidual: residual,
+            rotationDeg: fit.rotation * 180 / .pi, translationX: fit.tx, translationY: fit.ty,
+            anchorResidual: residual,
             geometryResidual: refinedResidual,
             referenceCovered: fraction(refDistances, tolerance),
             pdfCovered: fraction(pdfDistances, tolerance),
@@ -189,4 +195,33 @@ extension PDF {
         }
     }
 
+}
+
+extension PDF {
+    /// Where a reference drawing lies on the paper: a similarity, as ``Comparison`` fitted it.
+    public struct Placement: Sendable, Equatable {
+        /// Reference units to paper millimetres.
+        public var scale: Double
+        public var rotationDeg: Double
+        /// Where the reference's origin lands, in millimetres on the paper.
+        public var translationX: Double
+        public var translationY: Double
+
+        public init(scale: Double, rotationDeg: Double, translationX: Double, translationY: Double)
+        {
+            self.scale = scale
+            self.rotationDeg = rotationDeg
+            self.translationX = translationX
+            self.translationY = translationY
+        }
+    }
+}
+
+extension PDF.Comparison {
+    /// Where the comparison placed the reference on the paper.
+    public var placement: PDF.Placement {
+        PDF.Placement(
+            scale: scale, rotationDeg: rotationDeg, translationX: translationX,
+            translationY: translationY)
+    }
 }

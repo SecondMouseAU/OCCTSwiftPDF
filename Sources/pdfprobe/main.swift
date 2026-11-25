@@ -7,6 +7,17 @@
 //   pdfprobe compare <pdf> <dxf-or-zip>         the PDF's first page against the DXF
 //   pdfprobe pairs <folder>                     every <name>.pdf beside <name>_dxf.zip, or beside
 //                                               <name>_jww.zip or .lzh where that is missing
+//   pdfprobe arcs [--detail] <file-or-folder>...  the circles and arcs recovered, by producer
+//   pdfprobe arc-pairs [--detail] [--bound <mm>] [--table <file>] <folder>
+//                                               the same against the circles and arcs of each
+//                                               PDF's paired DXF or JWW, by coordinates
+//   pdfprobe digest <file-or-folder>...         a hash of each page's `drawing()`, to see that a
+//                                               change to the reader left it alone
+//
+// `arcs` and `arc-pairs` take the options of `PDF.ArcFitting` as `--tolerance`, `--relative`,
+// `--line-tolerance`, `--min-sweep`, `--max-step`, `--min-lines`, `--max-ratio`,
+// `--min-radius` and `--max-radius`.
+// `PDFPROBE_PLACEMENTS=<file>` keeps the reference placements of `arc-pairs` between runs.
 //
 // `--exclude-layer <name>` (repeatable) leaves a DXF layer out of a comparison, such as Jw_cad's
 // auxiliary lines (`ADD_LINE` in the TECS DXFs), which are never printed.
@@ -307,6 +318,53 @@ import Foundation
     }
 
     switch arguments.first {
+    case "arcs" where arguments.count >= 2:
+        var (options, rest) = arcOptions(Array(arguments.dropFirst()))
+        let detail = rest.contains("--detail")
+        rest.removeAll { $0 == "--detail" }
+        var results: [ArcFileResult] = []
+        for url in pdfs(in: rest) {
+            guard let result = arcResult(url, options) else {
+                print("\(url.lastPathComponent)\tcannot open")
+                continue
+            }
+            results.append(result)
+            print(arcLine(result))
+            if detail { result.fits.forEach(printArcFit) }
+        }
+        printArcSummary(results)
+    case "arc-pairs" where arguments.count >= 2:
+        var (options, rest) = arcOptions(Array(arguments.dropFirst()))
+        let detail = rest.contains("--detail")
+        rest.removeAll { $0 == "--detail" }
+        var bound = 0.5
+        if let at = rest.firstIndex(of: "--bound") {
+            guard at + 1 < rest.count, let value = Double(rest[at + 1]) else {
+                print("--bound needs a number")
+                exit(2)
+            }
+            bound = value
+            rest.removeSubrange(at...(at + 1))
+        }
+        var table: String?
+        if let at = rest.firstIndex(of: "--table") {
+            guard at + 1 < rest.count else {
+                print("--table needs a file name")
+                exit(2)
+            }
+            table = rest[at + 1]
+            rest.removeSubrange(at...(at + 1))
+        }
+        guard let folder = rest.first else {
+            print("arc-pairs needs a folder")
+            exit(2)
+        }
+        let results = arcPairs(
+            URL(fileURLWithPath: folder), options, excluded: excludedLayers, detail: detail,
+            bound: bound, table: table)
+        printArcPairSummary(results)
+    case "digest" where arguments.count >= 2:
+        for url in pdfs(in: Array(arguments.dropFirst())) { digest(url) }
     case "debug-text" where arguments.count == 3:
         debugText(arguments[1], arguments[2])
     case "compare" where arguments.count == 3:
@@ -357,7 +415,10 @@ import Foundation
         guard !paths.isEmpty else {
             print(
                 "usage: pdfprobe [--detail] <file-or-folder>... | compare <pdf> <dxf-or-zip> | "
-                    + "pairs <folder> | debug-text <pdf> <text>; --exclude-layer <name> for compare and pairs"
+                    + "pairs <folder> | digest <file-or-folder>... | "
+                    + "arcs [--detail] <file-or-folder>... | arc-pairs [--detail] <folder> | "
+                    + "debug-text <pdf> <text>; --exclude-layer <name> for compare, pairs and "
+                    + "arc-pairs"
             )
             exit(2)
         }

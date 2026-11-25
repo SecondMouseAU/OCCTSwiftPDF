@@ -32,14 +32,39 @@ extension PDF.Page {
     /// The page as a drawing in millimetres on the paper.
     ///
     /// Stroked paths become lines, polylines (runs of straight segments) and degree-3 splines
-    /// (one per Bezier curve), so SwiftDXF's `Entity.fitted(tolerance:)` can turn curves into arcs.
+    /// (one per Bezier curve), so SwiftDXF's `Entity.fitted(tolerance:)` can turn curves into arcs;
+    /// ``fittedDrawing(_:)`` recovers whole circles and arcs, with the radius over the whole run.
     /// Text runs with characters become text, including invisible ones (render mode 3): a writer
     /// that draws text as shapes often lays the same text invisibly over them, so it can be
     /// searched, and that is then the only text there is. Filled-only paths, images, text with no
     /// characters and a frame drawn on the page's own edge (`PAGE BORDER`) are counted in
     /// `skipped` by layer, not drawn.
     public func drawing() -> DXF.Drawing {
+        build(fitting: nil).drawing
+    }
+
+    /// The page as a drawing in millimetres on the paper, with each run of curves, or of short
+    /// straight lines, that is really one circle or arc replaced by that circle or arc.
+    ///
+    /// This is ``drawing()`` with the curves and polylines of a circle recovered. A run is taken
+    /// only when one circle, fitted over the whole run, passes within the tolerances of `fitting`
+    /// of all of it, and everything else is as ``drawing()`` has it, except that the pieces of a
+    /// path after a recovered run are numbered from where it left off (a circle of four curves is
+    /// one piece, so a line after it is `:1`, not `:4`). Each circle or arc has a ``PDF/ArcFit``
+    /// with its radius, centre and residual, tagged `FITTED`, and its identity's locator ends in
+    /// `:FITTED`.
+    public func fittedDrawing(_ fitting: PDF.ArcFitting = PDF.ArcFitting()) -> PDF.FittedDrawing {
+        build(fitting: fitting)
+    }
+
+    private func build(fitting: PDF.ArcFitting?) -> PDF.FittedDrawing {
         let transform = toPaper
+        // The circles and arcs to put in place of curves and lines, where they were drawn.
+        let plan = fitting.map { arcPlan($0) }
+        var fits: [PDF.ArcFit] = []
+        var emitted = Set<Int32>()
+        var curvesReplaced = 0
+        var linesReplaced = 0
         var entities: [DXF.Entity] = []
         var identities: [DXF.Identity] = []
         var counts = DXF.Drawing.Counts()
@@ -62,17 +87,20 @@ extension PDF.Page {
         }
         // One painted path can become several entities, so each gets the path's source and its
         // place among them: `p1:op5:0`, `p1:op5:1`. A text is `p1:op7`.
-        func add(_ entity: DXF.Entity, _ source: PDF.Source, piece: Int? = nil) {
+        func add(
+            _ entity: DXF.Entity, _ source: PDF.Source, piece: Int? = nil, fitted: Bool = false
+        ) {
             entities.append(entity)
             let locator =
                 "p\(source.page):op\(source.operatorIndex)" + (piece.map { ":\($0)" } ?? "")
+                + (fitted ? ":\(PDF.ArcFit.provenance)" : "")
             identities.append(
                 DXF.Identity(
                     locator: locator, via: source.forms,
                     blocks: source.forms.map { String($0.split(separator: "#").first ?? "") }))
         }
 
-        for path in paths {
+        for (pathIndex, path) in paths.enumerated() {
             let layer = layerName(path.layer)
             guard path.paint != .fill else {
                 skip("FILL", layer)
@@ -80,11 +108,11 @@ extension PDF.Page {
             }
             let colour = Self.aci(path.strokeColour)
             var piece = 0
-            func addPiece(_ entity: DXF.Entity) {
-                add(entity, path.source, piece: piece)
+            func addPiece(_ entity: DXF.Entity, fitted: Bool = false) {
+                add(entity, path.source, piece: piece, fitted: fitted)
                 piece += 1
             }
-            for subpath in path.subpaths {
+            for (subpathIndex, subpath) in path.subpaths.enumerated() {
                 if isPageBorder(subpath) {
                     skip("PAGE BORDER", layer)
                     continue
@@ -106,8 +134,34 @@ extension PDF.Page {
                     }
                 }
                 var hasCurve = false
-                for segment in subpath.segments {
-                    switch segment {
+                let segments = subpath.segments
+                var index = 0
+                while index < segments.count {
+                    if let plan, case let id = plan.owner[pathIndex][subpathIndex][index], id >= 0 {
+                        // A circle or arc takes this segment and those after it that it owns.
+                        flush(closed: false)
+                        hasCurve = true
+                        var end = index
+                        while end < segments.count,
+                            plan.owner[pathIndex][subpathIndex][end] == id
+                        {
+                            end += 1
+                        }
+                        if emitted.insert(id).inserted {
+                            let placed = plan.arcs[Int(id)]
+                            fits.append(Self.fit(of: placed, entityIndex: entities.count))
+                            let entity = Self.entity(for: placed.arc, layer: layer, colour: colour)
+                            addPiece(entity, fitted: true)
+                            if case .circle = entity { counts.circle += 1 } else { counts.arc += 1 }
+                            curvesReplaced += placed.arc.curves
+                            linesReplaced += placed.arc.lines
+                        }
+                        previous = segments[end - 1].end
+                        run = [point(previous)]
+                        index = end
+                        continue
+                    }
+                    switch segments[index] {
                     case .line(let to):
                         run.append(point(to))
                     case .curve(let c1, let c2, let to):
@@ -121,7 +175,8 @@ extension PDF.Page {
                         counts.spline += 1
                         run = [point(to)]
                     }
-                    previous = segment.end
+                    previous = segments[index].end
+                    index += 1
                 }
                 flush(closed: subpath.isClosed && !hasCurve && run.count > 3)
             }
@@ -151,7 +206,9 @@ extension PDF.Page {
                 DXF.Layer(name: $0, identity: DXF.Identity(locator: "LAYER:\($0)"))
             })
         drawing.identities = identities
-        return drawing
+        return PDF.FittedDrawing(
+            drawing: drawing, fits: fits, curvesReplaced: curvesReplaced,
+            linesReplaced: linesReplaced)
     }
 
     /// A closed run of straight segments whose corners are the page's corners, within one point:
